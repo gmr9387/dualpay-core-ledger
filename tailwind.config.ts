@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -56,6 +60,19 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+        },
+        status: {
+          paid: "hsl(var(--status-paid))",
+          denied: "hsl(var(--status-denied))",
+          pending: "hsl(var(--status-pending))",
+          adjusted: "hsl(var(--status-adjusted))",
+          cob: "hsl(var(--status-cob))",
+        },
+        surface: {
+          "0": "hsl(var(--surface-0))",
+          "1": "hsl(var(--surface-1))",
+          "2": "hsl(var(--surface-2))",
+          "3": "hsl(var(--surface-3))",
         },
       },
       borderRadius: {
