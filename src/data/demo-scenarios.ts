@@ -2,6 +2,7 @@
  * Demo scenario data for the DualPay admin dashboard
  */
 import type { ClaimLine, MemberAccumulators, ContractTerms, PlanBenefits, PriorPayerOutcome, Claim } from '@/types/claim';
+import type { Case, CaseEvent } from '@/types/case';
 
 export function createDemoFeeSchedule(): Map<string, number> {
   const fs = new Map<string, number>();
@@ -35,6 +36,7 @@ export const demoClaims: Claim[] = [
     ],
     ohi_indicators: [],
     status: 'ADJUDICATED',
+    case_id: 'CASE-2024-001',
   },
   {
     claim_id: 'CLM-2024-00152',
@@ -70,6 +72,7 @@ export const demoClaims: Claim[] = [
     ],
     ohi_indicators: [],
     status: 'RECEIVED',
+    case_id: 'CASE-2024-001',
   },
 ];
 
@@ -164,5 +167,52 @@ export const demoPriorOutcomes: PriorPayerOutcome[] = [
     adjustments: [{ carc_code: '45', amount: 13000, group_code: 'CO' }, { carc_code: '2', amount: 1800, group_code: 'PR' }],
     source: 'edi_835',
     confidence: 1.0,
+  },
+];
+
+// ── Demo Cases ────────────────────────────────────────────────
+
+export const demoCases: Case[] = [
+  {
+    case_id: 'CASE-2024-001',
+    member_id: 'MEM-88421',
+    created_at: '2024-03-18T10:00:00Z',
+    status: 'OPEN',
+    claim_ids: ['CLM-2024-00147', 'CLM-2024-00160'],
+    description: 'Multiple claims for MEM-88421 — cross-claim deductible tracking',
+    tags: ['multi-claim', 'deductible-tracking'],
+  },
+];
+
+export const demoCaseEvents: CaseEvent[] = [
+  {
+    event_id: 'EVT-001',
+    case_id: 'CASE-2024-001',
+    timestamp: '2024-03-18T10:00:00Z',
+    event_type: 'CASE_CREATED',
+    description: 'Case opened for member MEM-88421 to track cross-claim accumulator impact.',
+  },
+  {
+    event_id: 'EVT-002',
+    case_id: 'CASE-2024-001',
+    timestamp: '2024-03-18T10:01:00Z',
+    event_type: 'CLAIM_LINKED',
+    claim_id: 'CLM-2024-00147',
+    description: 'Claim CLM-2024-00147 linked — adjudicated, deductible applied across 3 lines.',
+  },
+  {
+    event_id: 'EVT-003',
+    case_id: 'CASE-2024-001',
+    timestamp: '2024-03-22T14:30:00Z',
+    event_type: 'CLAIM_LINKED',
+    claim_id: 'CLM-2024-00160',
+    description: 'Claim CLM-2024-00160 linked — same member, subsequent service date.',
+  },
+  {
+    event_id: 'EVT-004',
+    case_id: 'CASE-2024-001',
+    timestamp: '2024-03-22T14:35:00Z',
+    event_type: 'ACCUMULATOR_UPDATED',
+    description: 'Session accumulators updated: deductible carry-forward from CLM-00147 applied to CLM-00160 adjudication.',
   },
 ];
