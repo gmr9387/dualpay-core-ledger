@@ -7,7 +7,8 @@ import { ClaimList } from '@/components/admin/ClaimList';
 import { AdjudicationPanel } from '@/components/admin/AdjudicationPanel';
 import { TraceViewer } from '@/components/admin/TraceViewer';
 import { StatsBar } from '@/components/admin/StatsBar';
-import { Activity, Shield, Layers } from 'lucide-react';
+import { Activity, Shield, Layers, GitBranch } from 'lucide-react';
+import { StateDiagram } from '@/components/admin/StateDiagram';
 
 interface AdjResult {
   claimId: string;
@@ -18,6 +19,7 @@ interface AdjResult {
 const Index = () => {
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
   const [showTrace, setShowTrace] = useState(false);
+  const [showStateMachine, setShowStateMachine] = useState(false);
 
   // Run adjudication on all demo claims
   const adjResults = useMemo<AdjResult[]>(() => {
@@ -79,6 +81,23 @@ const Index = () => {
         <div className="flex-1 overflow-y-auto">
           {selectedResult && selectedClaim ? (
             <div className="p-6 space-y-6">
+              <div className="flex items-center gap-2 mb-4">
+                <button
+                  onClick={() => setShowStateMachine(v => !v)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <GitBranch className="h-3.5 w-3.5" />
+                  {showStateMachine ? 'Hide' : 'Show'} State Machine
+                </button>
+              </div>
+              {showStateMachine && (
+                <StateDiagram
+                  currentStatus={selectedClaim.status}
+                  claimId={selectedClaim.claim_id}
+                  hasPrimacyConfirmation={selectedClaim.ohi_indicators.length > 0}
+                  onClose={() => setShowStateMachine(false)}
+                />
+              )}
               <AdjudicationPanel claim={selectedClaim} run={selectedResult.run} onShowTrace={() => setShowTrace(true)} />
               {showTrace && (
                 <TraceViewer trace={selectedResult.trace} onClose={() => setShowTrace(false)} />
