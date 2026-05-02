@@ -14,7 +14,263 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      adjudication_runs: {
+        Row: {
+          claim_id: string
+          created_at: string
+          is_retro: boolean
+          payload: Json
+          run_id: string
+          total_member_responsibility_cents: number
+          total_plan_paid_cents: number
+        }
+        Insert: {
+          claim_id: string
+          created_at?: string
+          is_retro?: boolean
+          payload: Json
+          run_id: string
+          total_member_responsibility_cents?: number
+          total_plan_paid_cents?: number
+        }
+        Update: {
+          claim_id?: string
+          created_at?: string
+          is_retro?: boolean
+          payload?: Json
+          run_id?: string
+          total_member_responsibility_cents?: number
+          total_plan_paid_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "adjudication_runs_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claims"
+            referencedColumns: ["claim_id"]
+          },
+        ]
+      }
+      case_claim_links: {
+        Row: {
+          case_id: string
+          claim_id: string
+          linked_at: string
+        }
+        Insert: {
+          case_id: string
+          claim_id: string
+          linked_at?: string
+        }
+        Update: {
+          case_id?: string
+          claim_id?: string
+          linked_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_claim_links_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["case_id"]
+          },
+          {
+            foreignKeyName: "case_claim_links_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claims"
+            referencedColumns: ["claim_id"]
+          },
+        ]
+      }
+      case_events: {
+        Row: {
+          case_id: string
+          claim_id: string | null
+          description: string
+          event_id: string
+          event_type: string
+          metadata: Json | null
+          occurred_at: string
+        }
+        Insert: {
+          case_id: string
+          claim_id?: string | null
+          description: string
+          event_id: string
+          event_type: string
+          metadata?: Json | null
+          occurred_at?: string
+        }
+        Update: {
+          case_id?: string
+          claim_id?: string | null
+          description?: string
+          event_id?: string
+          event_type?: string
+          metadata?: Json | null
+          occurred_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["case_id"]
+          },
+          {
+            foreignKeyName: "case_events_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claims"
+            referencedColumns: ["claim_id"]
+          },
+        ]
+      }
+      cases: {
+        Row: {
+          case_id: string
+          created_at: string
+          description: string | null
+          member_id: string
+          status: string
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          description?: string | null
+          member_id: string
+          status?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          description?: string | null
+          member_id?: string
+          status?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      claims: {
+        Row: {
+          claim_id: string
+          created_at: string
+          member_id: string
+          payload: Json
+          provider_name: string | null
+          service_date_from: string
+          service_date_to: string | null
+          status: string
+          total_billed_cents: number
+          updated_at: string
+        }
+        Insert: {
+          claim_id: string
+          created_at?: string
+          member_id: string
+          payload: Json
+          provider_name?: string | null
+          service_date_from: string
+          service_date_to?: string | null
+          status: string
+          total_billed_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          claim_id?: string
+          created_at?: string
+          member_id?: string
+          payload?: Json
+          provider_name?: string | null
+          service_date_from?: string
+          service_date_to?: string | null
+          status?: string
+          total_billed_cents?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      member_accumulators: {
+        Row: {
+          family_deductible_used_cents: number
+          family_oop_used_cents: number
+          individual_deductible_used_cents: number
+          individual_oop_used_cents: number
+          member_id: string
+          payload: Json | null
+          plan_year: number
+          updated_at: string
+        }
+        Insert: {
+          family_deductible_used_cents?: number
+          family_oop_used_cents?: number
+          individual_deductible_used_cents?: number
+          individual_oop_used_cents?: number
+          member_id: string
+          payload?: Json | null
+          plan_year: number
+          updated_at?: string
+        }
+        Update: {
+          family_deductible_used_cents?: number
+          family_oop_used_cents?: number
+          individual_deductible_used_cents?: number
+          individual_oop_used_cents?: number
+          member_id?: string
+          payload?: Json | null
+          plan_year?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      traces: {
+        Row: {
+          claim_id: string
+          created_at: string
+          payload: Json
+          run_id: string
+          trace_id: string
+        }
+        Insert: {
+          claim_id: string
+          created_at?: string
+          payload: Json
+          run_id: string
+          trace_id: string
+        }
+        Update: {
+          claim_id?: string
+          created_at?: string
+          payload?: Json
+          run_id?: string
+          trace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traces_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claims"
+            referencedColumns: ["claim_id"]
+          },
+          {
+            foreignKeyName: "traces_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "adjudication_runs"
+            referencedColumns: ["run_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
