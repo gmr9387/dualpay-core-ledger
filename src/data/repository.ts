@@ -148,6 +148,9 @@ export async function loadLatestRuns(): Promise<PersistedRun[]> {
 export async function saveClaim(claim: Claim): Promise<void> {
   const { error } = await supabase.from('claims').upsert({
     claim_id: claim.claim_id,
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  } as any && {
+    claim_id: claim.claim_id,
     member_id: claim.member_id,
     provider_name: claim.provider_name ?? null,
     service_date_from: claim.service_date_from,
