@@ -145,16 +145,27 @@ export async function loadLatestRuns(): Promise<PersistedRun[]> {
 
 // ── Writers ───────────────────────────────────────────────────
 
+// Helper: cast our domain objects to the Json type expected by the
+// generated Supabase types without losing structural info.
+type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [k: string]: Json }
+  | Json[];
+const asJson = <T>(v: T): Json => v as unknown as Json;
+
 export async function saveClaim(claim: Claim): Promise<void> {
   const { error } = await supabase.from('claims').upsert([{
     claim_id: claim.claim_id,
     member_id: claim.member_id,
-    provider_name: claim.provider_name ?? null,
+    provider_name: claim.provider_name ?? undefined,
     service_date_from: claim.service_date_from,
     service_date_to: claim.service_date_to ?? claim.service_date_from,
     status: claim.status,
     total_billed_cents: claim.total_billed,
-    payload: claim as unknown as Record<string, unknown>,
+    payload: asJson(claim),
   }]);
   if (error) throw error;
 }
@@ -165,46 +176,46 @@ export async function saveAdjudication(
   trace: TraceObject,
   isRetro = false,
 ): Promise<void> {
-  const { error: runErr } = await supabase.from('adjudication_runs').upsert({
+  const { error: runErr } = await supabase.from('adjudication_runs').upsert([{
     run_id: run.run_id,
     claim_id: claimId,
     total_plan_paid_cents: run.total_plan_paid,
     total_member_responsibility_cents: run.total_member_responsibility,
     is_retro: isRetro,
-    payload: run as unknown as Record<string, unknown>,
-  });
+    payload: asJson(run),
+  }]);
   if (runErr) throw runErr;
 
-  const { error: traceErr } = await supabase.from('traces').upsert({
+  const { error: traceErr } = await supabase.from('traces').upsert([{
     trace_id: trace.trace_id,
     run_id: run.run_id,
     claim_id: claimId,
-    payload: trace as unknown as Record<string, unknown>,
-  });
+    payload: asJson(trace),
+  }]);
   if (traceErr) throw traceErr;
 }
 
 export async function saveAccumulators(acc: MemberAccumulators): Promise<void> {
-  const { error } = await supabase.from('member_accumulators').upsert({
+  const { error } = await supabase.from('member_accumulators').upsert([{
     member_id: acc.member_id,
     plan_year: acc.plan_year,
     individual_deductible_used_cents: acc.individual_deductible_used,
     individual_oop_used_cents: acc.individual_oop_used,
     family_deductible_used_cents: acc.family_deductible_used,
     family_oop_used_cents: acc.family_oop_used,
-    payload: acc as unknown as Record<string, unknown>,
-  });
+    payload: asJson(acc),
+  }]);
   if (error) throw error;
 }
 
 export async function saveCase(c: Case): Promise<void> {
-  const { error: cErr } = await supabase.from('cases').upsert({
+  const { error: cErr } = await supabase.from('cases').upsert([{
     case_id: c.case_id,
     member_id: c.member_id,
     status: c.status,
     description: c.description,
     tags: c.tags,
-  });
+  }]);
   if (cErr) throw cErr;
 
   // Replace links
@@ -218,15 +229,15 @@ export async function saveCase(c: Case): Promise<void> {
 }
 
 export async function saveCaseEvent(evt: CaseEvent): Promise<void> {
-  const { error } = await supabase.from('case_events').upsert({
+  const { error } = await supabase.from('case_events').upsert([{
     event_id: evt.event_id,
     case_id: evt.case_id,
-    claim_id: evt.claim_id ?? null,
+    claim_id: evt.claim_id ?? undefined,
     event_type: evt.event_type,
     description: evt.description,
-    metadata: (evt.metadata ?? null) as Record<string, unknown> | null,
+    metadata: evt.metadata ? asJson(evt.metadata) : undefined,
     occurred_at: evt.timestamp,
-  });
+  }]);
   if (error) throw error;
 }
 
