@@ -1,6 +1,5 @@
 import type { AdjudicationRun } from '@/types/claim';
 import type { TraceObject } from '@/types/trace';
-import { DollarSign, FileCheck, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 
 interface AdjResult {
   claimId: string;
@@ -13,7 +12,7 @@ interface StatsBarProps {
 }
 
 function formatCents(cents: number): string {
-  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 export function StatsBar({ adjResults }: StatsBarProps) {
@@ -22,24 +21,23 @@ export function StatsBar({ adjResults }: StatsBarProps) {
   const totalLines = adjResults.reduce((s, r) => s + r.run.line_results.length, 0);
   const deniedLines = adjResults.reduce((s, r) => s + r.run.line_results.filter(lr => lr.status === 'denied').length, 0);
   const cobLines = adjResults.reduce((s, r) => s + r.run.line_results.filter(lr => lr.cob_allocations.length > 0).length, 0);
+  const adjustedLines = adjResults.reduce((s, r) => s + r.run.line_results.filter(lr => lr.status === 'adjusted').length, 0);
 
-  const stats = [
-    { icon: DollarSign, label: 'Plan Paid', value: formatCents(totalPaid), colorClass: 'text-status-paid' },
-    { icon: DollarSign, label: 'Member Resp', value: formatCents(totalMember), colorClass: 'text-status-denied' },
-    { icon: FileCheck, label: 'Lines Processed', value: `${totalLines - deniedLines}/${totalLines}`, colorClass: 'text-primary' },
-    { icon: AlertTriangle, label: 'Denials', value: String(deniedLines), colorClass: 'text-status-denied' },
-    { icon: ArrowRightLeft, label: 'COB Lines', value: String(cobLines), colorClass: 'text-status-cob' },
+  const tiles = [
+    { label: 'Plan Paid (YTD)',    value: formatCents(totalPaid),  tone: 'amount-positive' },
+    { label: 'Member Resp (YTD)',  value: formatCents(totalMember), tone: 'amount-negative' },
+    { label: 'Lines Adjudicated',  value: `${totalLines - deniedLines} / ${totalLines}`, tone: '' },
+    { label: 'Adjusted Lines',     value: String(adjustedLines), tone: 'text-status-adjusted' },
+    { label: 'Denials',            value: String(deniedLines),  tone: 'text-status-denied' },
+    { label: 'COB Lines',          value: String(cobLines),     tone: 'text-status-cob' },
   ];
 
   return (
-    <div className="flex items-center gap-6 px-6 py-2.5 border-b bg-muted/20">
-      {stats.map(({ icon: Icon, label, value, colorClass }) => (
-        <div key={label} className="flex items-center gap-2">
-          <Icon className={`h-3.5 w-3.5 ${colorClass}`} />
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-            <div className="font-mono text-sm font-semibold text-foreground">{value}</div>
-          </div>
+    <div className="flex items-stretch border-b bg-card">
+      {tiles.map(t => (
+        <div key={t.label} className="kpi">
+          <div className="kpi-label">{t.label}</div>
+          <div className={`kpi-value ${t.tone}`}>{t.value}</div>
         </div>
       ))}
     </div>
