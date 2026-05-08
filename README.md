@@ -25,7 +25,7 @@ DualPay is an adjudication engine with an inspector UI on top. Every claim run p
 | **Trace & Explainability** | Structured `TraceObject` per run with human-readable explanation generator | `Stable` |
 | **State Machine** | 16 explicit transitions with guards (`REQUIRE_PRIMACY_CONFIRMATION`, `REQUIRE_IDEMPOTENCY_KEY`) + visual diagram | `Stable` |
 | **Case Management** | N-claim → 1-case linking, cross-claim accumulator rollup, retro-recalc with field-level diff viewer | `Stable` |
-| **Persistence** | Claims, runs, traces, cases, events, accumulators stored in Lovable Cloud (Postgres) with RLS | `Beta` |
+| **Persistence** | Claims, runs, traces, cases, events, accumulators stored in Postgres with RLS | `Beta` |
 | **Coverage Graph (DAG)** | Member coverage spans with confidence + primacy edges | `Planned` |
 | **Migration Cockpit** | Legacy_Paid vs DualPay_Paid discrepancy detector, variance > $0.01 flagging | `Planned` |
 | **AuthN / RBAC + Audit Log** | Role-based access, HIPAA-grade audit trail | `Planned` |
@@ -50,7 +50,7 @@ StateMachine  Case ──► RetroRecalc ──► AdjudicationDiff
        AccumulatorImpact
                 │
                 ▼
-         Lovable Cloud (Postgres)
+          Postgres (managed)
 ```
 
 **Decisions worth understanding:**
@@ -60,7 +60,7 @@ StateMachine  Case ──► RetroRecalc ──► AdjudicationDiff
 | Integer-cents math throughout | No float drift, byte-exact reproducibility across runs | JS `number` floats, `Decimal` libs (overkill for cents) |
 | Pure engine functions, persistence at the edge | Engine is replayable and unit-testable without a DB | Mixing repository calls into adjudication logic |
 | Structured `TraceObject` (not log lines) | Hashable, diffable, machine-replayable | Free-text logs, OpenTelemetry spans (wrong abstraction for business audit) |
-| Lovable Cloud (managed Postgres) | Zero-infra persistence with RLS built in | Self-hosted Postgres, in-memory only |
+| Managed Postgres with RLS | Zero-infra persistence with row-level security built in | Self-hosted Postgres, in-memory only |
 | `JSONB` payloads alongside indexed columns | Schema flexibility for evolving claim/trace shapes without migrations per change | Strict normalized schema, document DB |
 
 ---
@@ -97,7 +97,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`. Lovable Cloud (Postgres) is provisioned automatically — no local Docker required. On first run, the app seeds 3 demo claims, accumulators, and a linked case.
+Open `http://localhost:5173`. The managed Postgres backend is provisioned automatically — no local Docker required. On first run, the app seeds 3 demo claims, accumulators, and a linked case.
 
 ---
 
@@ -121,7 +121,7 @@ Open the dashboard at `/`. The left rail lists claims; selecting one opens the a
 - **State diagram** — current claim status with live guard evaluation
 - **Case panel** — linked claims, accumulator rollup, retro-recalc with diff viewer
 
-All state survives refresh (persisted to Lovable Cloud).
+All state survives refresh (persisted to Postgres).
 
 ---
 
