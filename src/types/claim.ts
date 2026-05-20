@@ -30,6 +30,8 @@ export interface Claim {
   ohi_indicators: OHIIndicator[];
   status: ClaimStatus;
   case_id?: string;
+  /** Operational intelligence envelope — populated by Claim Clarity. */
+  intel?: import('./clarity').ClaimIntel;
 }
 
 export type ClaimStatus =
