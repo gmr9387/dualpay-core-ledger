@@ -19,11 +19,13 @@ import type {
 import type { TraceObject } from '@/types/trace';
 import type { Case, CaseEvent } from '@/types/case';
 import {
-  demoClaims,
-  demoAccumulators,
   demoCases,
   demoCaseEvents,
 } from './demo-scenarios';
+import {
+  clarityClaims,
+  clarityAccumulators,
+} from './clarity-scenarios';
 
 // ── Loaders ───────────────────────────────────────────────────
 
@@ -250,13 +252,13 @@ export async function seedIfEmpty(): Promise<{ seeded: boolean }> {
   if (error) throw error;
   if ((count ?? 0) > 0) return { seeded: false };
 
-  // Claims
-  for (const c of demoClaims) await saveClaim(c);
+  // Claims (Claim Clarity rich dataset — 28 claims with intel envelopes)
+  for (const c of clarityClaims) await saveClaim(c);
 
   // Accumulators
-  for (const acc of Object.values(demoAccumulators)) await saveAccumulators(acc);
+  for (const acc of Object.values(clarityAccumulators)) await saveAccumulators(acc);
 
-  // Cases (+ links) and events
+  // Cases (+ links) and events (legacy DualPay demo cases — kept for case management module)
   for (const cs of demoCases) await saveCase(cs);
   for (const evt of demoCaseEvents) await saveCaseEvent(evt);
 
