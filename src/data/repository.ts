@@ -246,11 +246,22 @@ export async function saveCaseEvent(evt: CaseEvent): Promise<void> {
 // ── Seed ──────────────────────────────────────────────────────
 
 export async function seedIfEmpty(): Promise<{ seeded: boolean }> {
-  const { count, error } = await supabase
+  // Detect whether the Claim Clarity dataset is present (sentinel: CLM-2024-00100).
+  const { data: sentinel } = await supabase
     .from('claims')
-    .select('*', { count: 'exact', head: true });
-  if (error) throw error;
-  if ((count ?? 0) > 0) return { seeded: false };
+    .select('claim_id')
+    .eq('claim_id', 'CLM-2024-00100')
+    .maybeSingle();
+  if (sentinel) return { seeded: false };
+
+  // Wipe legacy DualPay demo claims so the Clarity dataset is the source of truth.
+  await supabase.from('case_events').delete().neq('event_id', '');
+  await supabase.from('case_claim_links').delete().neq('case_id', '');
+  await supabase.from('cases').delete().neq('case_id', '');
+  await supabase.from('traces').delete().neq('trace_id', '');
+  await supabase.from('adjudication_runs').delete().neq('run_id', '');
+  await supabase.from('claims').delete().neq('claim_id', '');
+  await supabase.from('member_accumulators').delete().neq('member_id', '');
 
   // Claims (Claim Clarity rich dataset — 28 claims with intel envelopes)
   for (const c of clarityClaims) await saveClaim(c);
