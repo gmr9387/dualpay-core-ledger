@@ -5,12 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ClarityShell } from "@/components/clarity/ClarityShell";
 import CommandCenter from "./pages/CommandCenter";
+import TodaysOpportunities from "./pages/TodaysOpportunities";
 import DenialIntelligence from "./pages/DenialIntelligence";
 import DenialDetail from "./pages/DenialDetail";
 import WorkQueues from "./pages/WorkQueues";
-import Appeals from "./pages/Appeals";
+import AppealsWorkbench from "./pages/AppealsWorkbench";
+import EvidenceVault from "./pages/EvidenceVault";
 import RevenueLeak from "./pages/RevenueLeak";
 import PayerIntel from "./pages/PayerIntel";
+import ExecutiveReporting from "./pages/ExecutiveReporting";
 import Ingestion from "./pages/Ingestion";
 import AuditTrace from "./pages/AuditTrace";
 import ClaimsWorkbench from "./pages/ClaimsWorkbench";
@@ -27,15 +30,18 @@ const App = () => (
         <ClarityShell>
           <Routes>
             <Route path="/" element={<CommandCenter />} />
+            <Route path="/today" element={<TodaysOpportunities />} />
             <Route path="/denials" element={<DenialIntelligence />} />
             <Route path="/denials/:claimId" element={<DenialDetail />} />
             <Route path="/queues" element={<WorkQueues />} />
             <Route path="/queues/:queueId" element={<WorkQueues />} />
             <Route path="/claims" element={<ClaimsWorkbench />} />
             <Route path="/claims/:claimId" element={<ClaimsWorkbench />} />
-            <Route path="/appeals" element={<Appeals />} />
+            <Route path="/appeals" element={<AppealsWorkbench />} />
+            <Route path="/evidence" element={<EvidenceVault />} />
             <Route path="/leak" element={<RevenueLeak />} />
             <Route path="/payers" element={<PayerIntel />} />
+            <Route path="/reports" element={<ExecutiveReporting />} />
             <Route path="/ingest" element={<Ingestion />} />
             <Route path="/audit" element={<AuditTrace />} />
             <Route path="*" element={<NotFound />} />

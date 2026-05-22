@@ -3,17 +3,20 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, AlertOctagon, ListChecks, FileSearch, Gavel,
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
-  HelpCircle, Bell, User, Database, Activity,
+  HelpCircle, Bell, User, Database, Activity, Target, FolderOpen, BarChart3,
 } from 'lucide-react';
 
 const NAV = [
   { to: '/',          label: 'Command Center',     icon: LayoutDashboard },
-  { to: '/denials',   label: 'Denial Intelligence', icon: AlertOctagon, badge: 'PRIME' },
+  { to: '/today',     label: "Today's Recovery",   icon: Target, badge: 'NEW' },
+  { to: '/denials',   label: 'Denial Command',     icon: AlertOctagon, badge: 'PRIME' },
   { to: '/queues',    label: 'Work Queues',         icon: ListChecks },
-  { to: '/claims',    label: 'Claims Workbench',    icon: FileSearch },
-  { to: '/appeals',   label: 'Appeals & Evidence',  icon: Gavel },
+  { to: '/appeals',   label: 'Appeals Workbench',   icon: Gavel },
+  { to: '/evidence',  label: 'Evidence Vault',      icon: FolderOpen },
   { to: '/leak',      label: 'Revenue Leak',        icon: TrendingDown },
   { to: '/payers',    label: 'Payer Intelligence',  icon: Building2 },
+  { to: '/reports',   label: 'Executive Reporting', icon: BarChart3 },
+  { to: '/claims',    label: 'Claims Workbench',    icon: FileSearch },
   { to: '/ingest',    label: 'Ingestion',           icon: Upload },
   { to: '/audit',     label: 'Audit & Trace',       icon: ScrollText },
 ];
@@ -136,17 +139,20 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
 function breadcrumbsFor(pathname: string): string[] {
   const map: Record<string, string[]> = {
     '/':         ['Operations', 'Command Center'],
-    '/denials':  ['Operations', 'Denial Intelligence'],
+    '/today':    ['Operations', "Today's Recovery"],
+    '/denials':  ['Operations', 'Denial Command'],
     '/queues':   ['Operations', 'Work Queues'],
     '/claims':   ['Operations', 'Claims Workbench'],
-    '/appeals':  ['Operations', 'Appeals & Evidence'],
+    '/appeals':  ['Operations', 'Appeals Workbench'],
+    '/evidence': ['Operations', 'Evidence Vault'],
     '/leak':     ['Operations', 'Revenue Leak'],
     '/payers':   ['Operations', 'Payer Intelligence'],
+    '/reports':  ['Operations', 'Executive Reporting'],
     '/ingest':   ['Operations', 'Ingestion'],
     '/audit':    ['Operations', 'Audit & Trace'],
   };
   if (map[pathname]) return map[pathname];
-  if (pathname.startsWith('/denials/')) return ['Operations', 'Denial Intelligence', pathname.split('/')[2]];
+  if (pathname.startsWith('/denials/')) return ['Operations', 'Denial Command', pathname.split('/')[2]];
   if (pathname.startsWith('/claims/'))  return ['Operations', 'Claims Workbench', pathname.split('/')[2]];
   if (pathname.startsWith('/queues/'))  return ['Operations', 'Work Queues', decodeURIComponent(pathname.split('/')[2])];
   return ['Operations'];
