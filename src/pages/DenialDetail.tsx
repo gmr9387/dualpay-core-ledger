@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { useClarityData, formatCents, relativeTime, slaStatus } from '@/hooks/use-clarity-data';
 import { PageHeader, Panel, SeverityBadge, StateBadge, OwnerChip, RecoverabilityBar, AgingChip, QueueChip, EmptyState, ScrollBody } from '@/components/clarity/primitives';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
-import { ArrowLeft, AlertOctagon, FileText, CheckCircle2, Send, Loader2, Clock } from 'lucide-react';
+import { explainRecoverability } from '@/engine/recoverability';
+import { ArrowLeft, AlertOctagon, FileText, CheckCircle2, Send, Loader2, Clock, TrendingUp, TrendingDown as TrendDownIcon, Sparkles } from 'lucide-react';
 
 export default function DenialDetail() {
   const { claimId } = useParams();
@@ -68,6 +69,8 @@ export default function DenialDetail() {
                 </div>
               </div>
             </Panel>
+
+            <RecoverabilityExplainer claim={claim} />
 
             <Panel title={`Denial Events (${claim.intel.denial_events.length})`}>
               {claim.intel.denial_events.length === 0 ? (
