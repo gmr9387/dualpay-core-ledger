@@ -241,3 +241,44 @@ function ActionBtn({ icon, label, tone }: { icon: React.ReactNode; label: string
     </button>
   );
 }
+
+function RecoverabilityExplainer({ claim }: { claim: Parameters<typeof explainRecoverability>[0] }) {
+  const exp = explainRecoverability(claim);
+  const tierCls =
+    exp.tier === 'HIGH'   ? 'bg-status-paid/10 text-status-paid border-status-paid/30'
+    : exp.tier === 'MEDIUM' ? 'bg-status-pending/10 text-status-pending border-status-pending/30'
+    : 'bg-status-denied/10 text-status-denied border-status-denied/30';
+  return (
+    <Panel
+      title="Recoverability Engine"
+      action={<span className={`pill border ${tierCls}`}>{exp.tier} · {exp.score}</span>}
+    >
+      <div className="flex items-start gap-2.5 mb-3">
+        <Sparkles className="h-4 w-4 text-primary mt-0.5" />
+        <div className="text-[12.5px] text-foreground">{exp.headline}</div>
+      </div>
+      <div className="space-y-1.5">
+        {exp.factors.map((f, i) => (
+          <div key={i} className="grid grid-cols-[140px_1fr_70px] gap-3 items-center text-[12px] py-1 border-b last:border-b-0 border-border/60">
+            <div>
+              <div className="text-foreground font-medium">{f.label}</div>
+              <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{f.weight}</div>
+            </div>
+            <div className="text-muted-foreground text-[11.5px]">{f.detail}</div>
+            <div className={`text-right font-mono tabular-nums text-[12px] flex items-center justify-end gap-1 ${
+              f.delta > 0 ? 'amount-positive' : f.delta < 0 ? 'amount-negative' : 'text-muted-foreground'
+            }`}>
+              {f.delta > 0 ? <TrendingUp className="h-3 w-3" /> : f.delta < 0 ? <TrendDownIcon className="h-3 w-3" /> : null}
+              {f.delta > 0 ? `+${f.delta}` : f.delta}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 rounded bg-accent/40 border border-primary/15 p-2.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">Recommended Recovery Path</div>
+        <div className="text-[12px] text-foreground">{exp.recommended_path}</div>
+      </div>
+    </Panel>
+  );
+}
+
