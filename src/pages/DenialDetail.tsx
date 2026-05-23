@@ -151,10 +151,13 @@ export default function DenialDetail() {
 
           {/* Right rail */}
           <div className="space-y-4">
+            <NextActionPanel claim={claim} />
             <Panel title="Quick Actions">
               <div className="space-y-1.5">
-                <ActionBtn icon={<Send className="h-3.5 w-3.5" />} label="Draft Appeal" tone="primary" />
-                <ActionBtn icon={<FileText className="h-3.5 w-3.5" />} label="Generate Evidence Packet" />
+                <Link to={`/packet/${claim.claim_id}`} className="w-full h-8 px-2.5 rounded-md text-[12px] font-medium inline-flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Send className="h-3.5 w-3.5" /> Build Appeal Packet
+                </Link>
+                <ActionBtn icon={<FileText className="h-3.5 w-3.5" />} label="Attach Evidence" />
                 <ActionBtn icon={<CheckCircle2 className="h-3.5 w-3.5" />} label="Mark Resolved" />
                 <ActionBtn icon={<AlertOctagon className="h-3.5 w-3.5" />} label="Escalate" tone="danger" />
               </div>
