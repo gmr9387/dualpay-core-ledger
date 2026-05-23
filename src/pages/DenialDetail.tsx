@@ -286,3 +286,33 @@ function RecoverabilityExplainer({ claim }: { claim: Parameters<typeof explainRe
   );
 }
 
+function NextActionPanel({ claim }: { claim: Parameters<typeof nextBestAction>[0] }) {
+  const a = nextBestAction(claim);
+  return (
+    <Panel
+      title="Next Best Action"
+      action={<span className={`pill border ${URGENCY_CLS[a.urgency]}`}>{URGENCY_LABEL[a.urgency]}</span>}
+    >
+      <div className="flex items-start gap-2 mb-2">
+        <Zap className="h-4 w-4 text-primary mt-0.5" />
+        <div>
+          <div className="text-[13px] font-semibold text-foreground">{a.headline}</div>
+          <div className="text-[10.5px] font-mono uppercase tracking-wider text-muted-foreground mt-0.5">{a.owner} · {a.effort_minutes}m</div>
+        </div>
+      </div>
+      <ul className="space-y-1 text-[11.5px] mb-2">
+        {a.why.map((w, i) => (
+          <li key={i} className="flex items-start gap-1.5 text-muted-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" /><span>{w}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="pt-2 border-t flex items-center justify-between text-[11px] font-mono">
+        <span className="text-muted-foreground">Expected · {Math.round(a.expected_probability * 100)}%</span>
+        <span className="amount-positive">≈{formatCents(a.expected_value_cents)}</span>
+      </div>
+    </Panel>
+  );
+}
+
+
