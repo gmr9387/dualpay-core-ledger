@@ -4,7 +4,8 @@ import { useClarityData, formatCents, relativeTime, slaStatus } from '@/hooks/us
 import { PageHeader, Panel, SeverityBadge, StateBadge, OwnerChip, RecoverabilityBar, AgingChip, QueueChip, EmptyState, ScrollBody } from '@/components/clarity/primitives';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import { explainRecoverability } from '@/engine/recoverability';
-import { ArrowLeft, AlertOctagon, FileText, CheckCircle2, Send, Loader2, Clock, TrendingUp, TrendingDown as TrendDownIcon, Sparkles } from 'lucide-react';
+import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
+import { ArrowLeft, AlertOctagon, FileText, CheckCircle2, Send, Loader2, Clock, TrendingUp, TrendingDown as TrendDownIcon, Sparkles, Zap } from 'lucide-react';
 
 export default function DenialDetail() {
   const { claimId } = useParams();
