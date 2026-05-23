@@ -4,7 +4,8 @@ import { useClarityData, formatCents, relativeTime, slaStatus } from '@/hooks/us
 import { PageHeader, Panel, SeverityBadge, StateBadge, OwnerChip, RecoverabilityBar, AgingChip, QueueChip, EmptyState, ScrollBody } from '@/components/clarity/primitives';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import { explainRecoverability } from '@/engine/recoverability';
-import { ArrowLeft, AlertOctagon, FileText, CheckCircle2, Send, Loader2, Clock, TrendingUp, TrendingDown as TrendDownIcon, Sparkles } from 'lucide-react';
+import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
+import { ArrowLeft, AlertOctagon, FileText, CheckCircle2, Send, Loader2, Clock, TrendingUp, TrendingDown as TrendDownIcon, Sparkles, Zap } from 'lucide-react';
 
 export default function DenialDetail() {
   const { claimId } = useParams();
@@ -150,10 +151,13 @@ export default function DenialDetail() {
 
           {/* Right rail */}
           <div className="space-y-4">
+            <NextActionPanel claim={claim} />
             <Panel title="Quick Actions">
               <div className="space-y-1.5">
-                <ActionBtn icon={<Send className="h-3.5 w-3.5" />} label="Draft Appeal" tone="primary" />
-                <ActionBtn icon={<FileText className="h-3.5 w-3.5" />} label="Generate Evidence Packet" />
+                <Link to={`/packet/${claim.claim_id}`} className="w-full h-8 px-2.5 rounded-md text-[12px] font-medium inline-flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Send className="h-3.5 w-3.5" /> Build Appeal Packet
+                </Link>
+                <ActionBtn icon={<FileText className="h-3.5 w-3.5" />} label="Attach Evidence" />
                 <ActionBtn icon={<CheckCircle2 className="h-3.5 w-3.5" />} label="Mark Resolved" />
                 <ActionBtn icon={<AlertOctagon className="h-3.5 w-3.5" />} label="Escalate" tone="danger" />
               </div>
@@ -281,4 +285,34 @@ function RecoverabilityExplainer({ claim }: { claim: Parameters<typeof explainRe
     </Panel>
   );
 }
+
+function NextActionPanel({ claim }: { claim: Parameters<typeof nextBestAction>[0] }) {
+  const a = nextBestAction(claim);
+  return (
+    <Panel
+      title="Next Best Action"
+      action={<span className={`pill border ${URGENCY_CLS[a.urgency]}`}>{URGENCY_LABEL[a.urgency]}</span>}
+    >
+      <div className="flex items-start gap-2 mb-2">
+        <Zap className="h-4 w-4 text-primary mt-0.5" />
+        <div>
+          <div className="text-[13px] font-semibold text-foreground">{a.headline}</div>
+          <div className="text-[10.5px] font-mono uppercase tracking-wider text-muted-foreground mt-0.5">{a.owner} · {a.effort_minutes}m</div>
+        </div>
+      </div>
+      <ul className="space-y-1 text-[11.5px] mb-2">
+        {a.why.map((w, i) => (
+          <li key={i} className="flex items-start gap-1.5 text-muted-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" /><span>{w}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="pt-2 border-t flex items-center justify-between text-[11px] font-mono">
+        <span className="text-muted-foreground">Expected · {Math.round(a.expected_probability * 100)}%</span>
+        <span className="amount-positive">≈{formatCents(a.expected_value_cents)}</span>
+      </div>
+    </Panel>
+  );
+}
+
 

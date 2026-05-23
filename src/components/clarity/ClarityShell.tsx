@@ -4,21 +4,57 @@ import {
   LayoutDashboard, AlertOctagon, ListChecks, FileSearch, Gavel,
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
   HelpCircle, Bell, User, Database, Activity, Target, FolderOpen, BarChart3,
+  BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText,
 } from 'lucide-react';
 
-const NAV = [
-  { to: '/',          label: 'Command Center',     icon: LayoutDashboard },
-  { to: '/today',     label: "Today's Recovery",   icon: Target, badge: 'NEW' },
-  { to: '/denials',   label: 'Denial Command',     icon: AlertOctagon, badge: 'PRIME' },
-  { to: '/queues',    label: 'Work Queues',         icon: ListChecks },
-  { to: '/appeals',   label: 'Appeals Workbench',   icon: Gavel },
-  { to: '/evidence',  label: 'Evidence Vault',      icon: FolderOpen },
-  { to: '/leak',      label: 'Revenue Leak',        icon: TrendingDown },
-  { to: '/payers',    label: 'Payer Intelligence',  icon: Building2 },
-  { to: '/reports',   label: 'Executive Reporting', icon: BarChart3 },
-  { to: '/claims',    label: 'Claims Workbench',    icon: FileSearch },
-  { to: '/ingest',    label: 'Ingestion',           icon: Upload },
-  { to: '/audit',     label: 'Audit & Trace',       icon: ScrollText },
+interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
+interface NavSection { title: string; items: NavItem[] }
+
+const SECTIONS: NavSection[] = [
+  {
+    title: 'Command',
+    items: [
+      { to: '/',         label: 'Command Center',     icon: LayoutDashboard },
+      { to: '/command',  label: 'Executive Command',  icon: BarChart3, badge: 'EXEC' },
+      { to: '/today',    label: "Today's Recovery",   icon: Target },
+    ],
+  },
+  {
+    title: 'Execute',
+    items: [
+      { to: '/pipeline',   label: 'Recovery Pipeline',  icon: GitBranch, badge: 'NEW' },
+      { to: '/queues',     label: 'Work Queues',         icon: ListChecks },
+      { to: '/appeals',    label: 'Appeals Workbench',   icon: Gavel },
+      { to: '/packet',     label: 'Appeal Packet',       icon: FileCheck, badge: 'NEW' },
+      { to: '/playbooks',  label: 'Recovery Playbooks',  icon: BookOpen, badge: 'NEW' },
+    ],
+  },
+  {
+    title: 'Intelligence',
+    items: [
+      { to: '/denials',  label: 'Denial Command',     icon: AlertOctagon, badge: 'PRIME' },
+      { to: '/leak',     label: 'Revenue Leak',        icon: TrendingDown },
+      { to: '/forecast', label: 'Recovery Forecast',   icon: TrendingUp, badge: 'NEW' },
+      { to: '/evidence', label: 'Evidence Vault',      icon: FolderOpen },
+    ],
+  },
+  {
+    title: 'Payers & Team',
+    items: [
+      { to: '/payers',              label: 'Payer Intelligence',  icon: Building2 },
+      { to: '/payer-requirements',  label: 'Payer Requirements',  icon: BookText, badge: 'NEW' },
+      { to: '/team',                label: 'Team Operations',     icon: Users, badge: 'NEW' },
+    ],
+  },
+  {
+    title: 'Admin',
+    items: [
+      { to: '/claims',  label: 'Claims Workbench',   icon: FileSearch },
+      { to: '/reports', label: 'Executive Reporting', icon: BarChart3 },
+      { to: '/ingest',  label: 'Ingestion',           icon: Upload },
+      { to: '/audit',   label: 'Audit & Trace',       icon: ScrollText },
+    ],
+  },
 ];
 
 interface ClarityShellProps {
@@ -39,39 +75,45 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight">Claim Clarity</div>
-            <div className="text-[10px] font-mono text-sidebar-foreground/55">Operations · v3.0</div>
+            <div className="text-[10px] font-mono text-sidebar-foreground/55">Recovery Execution · v4.0</div>
           </div>
         </div>
 
-        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-          <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">
-            Reimbursement Ops
-          </div>
-          {NAV.map(item => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/'}
-                className={({ isActive }) =>
-                  `w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] transition-colors ${
-                    isActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                      : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
-                  }`
-                }
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1 text-left truncate">{item.label}</span>
-                {item.badge && (
-                  <span className="text-[9px] font-mono font-semibold tracking-wider px-1.5 py-0.5 rounded bg-sidebar-primary/20 text-sidebar-primary">
-                    {item.badge}
-                  </span>
-                )}
-              </NavLink>
-            );
-          })}
+        <nav className="flex-1 px-2 py-2 space-y-3 overflow-y-auto">
+          {SECTIONS.map(section => (
+            <div key={section.title}>
+              <div className="px-2 pb-1 text-[9.5px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                {section.title}
+              </div>
+              <div className="space-y-0.5">
+                {section.items.map(item => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === '/'}
+                      className={({ isActive }) =>
+                        `w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[12.5px] transition-colors ${
+                          isActive
+                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                            : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
+                        }`
+                      }
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="flex-1 text-left truncate">{item.label}</span>
+                      {item.badge && (
+                        <span className="text-[8.5px] font-mono font-semibold tracking-wider px-1 py-0.5 rounded bg-sidebar-primary/20 text-sidebar-primary">
+                          {item.badge}
+                        </span>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className="px-3 py-2.5 border-t border-sidebar-border space-y-1.5">
@@ -138,22 +180,30 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
 
 function breadcrumbsFor(pathname: string): string[] {
   const map: Record<string, string[]> = {
-    '/':         ['Operations', 'Command Center'],
-    '/today':    ['Operations', "Today's Recovery"],
-    '/denials':  ['Operations', 'Denial Command'],
-    '/queues':   ['Operations', 'Work Queues'],
-    '/claims':   ['Operations', 'Claims Workbench'],
-    '/appeals':  ['Operations', 'Appeals Workbench'],
-    '/evidence': ['Operations', 'Evidence Vault'],
-    '/leak':     ['Operations', 'Revenue Leak'],
-    '/payers':   ['Operations', 'Payer Intelligence'],
-    '/reports':  ['Operations', 'Executive Reporting'],
-    '/ingest':   ['Operations', 'Ingestion'],
-    '/audit':    ['Operations', 'Audit & Trace'],
+    '/':                    ['Operations', 'Command Center'],
+    '/command':             ['Operations', 'Executive Command'],
+    '/today':               ['Execute',    "Today's Recovery"],
+    '/pipeline':            ['Execute',    'Recovery Pipeline'],
+    '/forecast':            ['Intelligence','Recovery Forecast'],
+    '/team':                ['Payers & Team','Team Operations'],
+    '/playbooks':           ['Execute',    'Recovery Playbooks'],
+    '/denials':             ['Intelligence','Denial Command'],
+    '/queues':              ['Execute',    'Work Queues'],
+    '/claims':              ['Admin',      'Claims Workbench'],
+    '/appeals':             ['Execute',    'Appeals Workbench'],
+    '/packet':              ['Execute',    'Appeal Packet'],
+    '/evidence':            ['Intelligence','Evidence Vault'],
+    '/leak':                ['Intelligence','Revenue Leak'],
+    '/payers':              ['Payers & Team','Payer Intelligence'],
+    '/payer-requirements':  ['Payers & Team','Payer Requirements'],
+    '/reports':             ['Admin',      'Executive Reporting'],
+    '/ingest':              ['Admin',      'Ingestion'],
+    '/audit':               ['Admin',      'Audit & Trace'],
   };
   if (map[pathname]) return map[pathname];
-  if (pathname.startsWith('/denials/')) return ['Operations', 'Denial Command', pathname.split('/')[2]];
-  if (pathname.startsWith('/claims/'))  return ['Operations', 'Claims Workbench', pathname.split('/')[2]];
-  if (pathname.startsWith('/queues/'))  return ['Operations', 'Work Queues', decodeURIComponent(pathname.split('/')[2])];
+  if (pathname.startsWith('/denials/')) return ['Intelligence', 'Denial Command', pathname.split('/')[2]];
+  if (pathname.startsWith('/claims/'))  return ['Admin', 'Claims Workbench', pathname.split('/')[2]];
+  if (pathname.startsWith('/queues/'))  return ['Execute', 'Work Queues', decodeURIComponent(pathname.split('/')[2])];
+  if (pathname.startsWith('/packet/'))  return ['Execute', 'Appeal Packet', pathname.split('/')[2]];
   return ['Operations'];
 }
