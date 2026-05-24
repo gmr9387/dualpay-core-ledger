@@ -4,7 +4,7 @@ import {
   LayoutDashboard, AlertOctagon, ListChecks, FileSearch, Gavel,
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
   HelpCircle, Bell, User, Database, Activity, Target, FolderOpen, BarChart3,
-  BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText,
+  BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText, ShieldCheck,
 } from 'lucide-react';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
@@ -32,10 +32,11 @@ const SECTIONS: NavSection[] = [
   {
     title: 'Intelligence',
     items: [
-      { to: '/denials',  label: 'Denial Command',     icon: AlertOctagon, badge: 'PRIME' },
-      { to: '/leak',     label: 'Revenue Leak',        icon: TrendingDown },
-      { to: '/forecast', label: 'Recovery Forecast',   icon: TrendingUp, badge: 'NEW' },
-      { to: '/evidence', label: 'Evidence Vault',      icon: FolderOpen },
+      { to: '/denials',      label: 'Denial Command',     icon: AlertOctagon, badge: 'PRIME' },
+      { to: '/transparency', label: 'Decision Transparency', icon: ShieldCheck, badge: 'TRUST' },
+      { to: '/leak',         label: 'Revenue Leak',        icon: TrendingDown },
+      { to: '/forecast',     label: 'Recovery Forecast',   icon: TrendingUp },
+      { to: '/evidence',     label: 'Evidence Vault',      icon: FolderOpen },
     ],
   },
   {
@@ -197,13 +198,15 @@ function breadcrumbsFor(pathname: string): string[] {
     '/payers':              ['Payers & Team','Payer Intelligence'],
     '/payer-requirements':  ['Payers & Team','Payer Requirements'],
     '/reports':             ['Admin',      'Executive Reporting'],
+    '/transparency':        ['Intelligence','Decision Transparency'],
     '/ingest':              ['Admin',      'Ingestion'],
     '/audit':               ['Admin',      'Audit & Trace'],
   };
   if (map[pathname]) return map[pathname];
   if (pathname.startsWith('/denials/')) return ['Intelligence', 'Denial Command', pathname.split('/')[2]];
   if (pathname.startsWith('/claims/'))  return ['Admin', 'Claims Workbench', pathname.split('/')[2]];
-  if (pathname.startsWith('/queues/'))  return ['Execute', 'Work Queues', decodeURIComponent(pathname.split('/')[2])];
-  if (pathname.startsWith('/packet/'))  return ['Execute', 'Appeal Packet', pathname.split('/')[2]];
+  if (pathname.startsWith('/queues/'))       return ['Execute', 'Work Queues', decodeURIComponent(pathname.split('/')[2])];
+  if (pathname.startsWith('/packet/'))       return ['Execute', 'Appeal Packet', pathname.split('/')[2]];
+  if (pathname.startsWith('/transparency/')) return ['Intelligence', 'Decision Transparency', pathname.split('/')[2]];
   return ['Operations'];
 }

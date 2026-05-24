@@ -24,6 +24,8 @@ import ExecutiveReporting from "./pages/ExecutiveReporting";
 import Ingestion from "./pages/Ingestion";
 import AuditTrace from "./pages/AuditTrace";
 import ClaimsWorkbench from "./pages/ClaimsWorkbench";
+import TransparencyCenter from "./pages/TransparencyCenter";
+import TransparencyDetail from "./pages/TransparencyDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +59,8 @@ const App = () => (
             <Route path="/payers" element={<PayerIntel />} />
             <Route path="/payer-requirements" element={<PayerRequirements />} />
             <Route path="/reports" element={<ExecutiveReporting />} />
+            <Route path="/transparency" element={<TransparencyCenter />} />
+            <Route path="/transparency/:claimId" element={<TransparencyDetail />} />
             <Route path="/ingest" element={<Ingestion />} />
             <Route path="/audit" element={<AuditTrace />} />
             <Route path="*" element={<NotFound />} />
