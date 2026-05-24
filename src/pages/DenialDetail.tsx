@@ -255,7 +255,14 @@ function RecoverabilityExplainer({ claim }: { claim: Parameters<typeof explainRe
   return (
     <Panel
       title="Recoverability Engine"
-      action={<span className={`pill border ${tierCls}`}>{exp.tier} · {exp.score}</span>}
+      action={
+        <div className="flex items-center gap-2">
+          <Link to={`/transparency/${claim.claim_id}`} className="text-[10.5px] font-mono uppercase tracking-wider text-primary hover:underline">
+            Why this score →
+          </Link>
+          <span className={`pill border ${tierCls}`}>{exp.tier} · {exp.score}</span>
+        </div>
+      }
     >
       <div className="flex items-start gap-2.5 mb-3">
         <Sparkles className="h-4 w-4 text-primary mt-0.5" />
