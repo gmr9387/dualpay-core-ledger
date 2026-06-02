@@ -5,6 +5,7 @@ import {
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
   HelpCircle, Bell, User, Database, Activity, Target, FolderOpen, BarChart3,
   BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText, ShieldCheck,
+  Award, ClipboardList,
 } from 'lucide-react';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
@@ -32,11 +33,13 @@ const SECTIONS: NavSection[] = [
   {
     title: 'Intelligence',
     items: [
-      { to: '/denials',      label: 'Denial Command',     icon: AlertOctagon, badge: 'PRIME' },
-      { to: '/transparency', label: 'Decision Transparency', icon: ShieldCheck, badge: 'TRUST' },
-      { to: '/leak',         label: 'Revenue Leak',        icon: TrendingDown },
-      { to: '/forecast',     label: 'Recovery Forecast',   icon: TrendingUp },
-      { to: '/evidence',     label: 'Evidence Vault',      icon: FolderOpen },
+      { to: '/denials',         label: 'Denial Command',     icon: AlertOctagon, badge: 'PRIME' },
+      { to: '/recovery-intel',  label: 'Recovery Intelligence', icon: Award, badge: 'NEW' },
+      { to: '/outcomes',        label: 'Outcome Log',         icon: ClipboardList, badge: 'NEW' },
+      { to: '/transparency',    label: 'Decision Transparency', icon: ShieldCheck, badge: 'TRUST' },
+      { to: '/leak',            label: 'Revenue Leak',        icon: TrendingDown },
+      { to: '/forecast',        label: 'Recovery Forecast',   icon: TrendingUp },
+      { to: '/evidence',        label: 'Evidence Vault',      icon: FolderOpen },
     ],
   },
   {
@@ -199,6 +202,8 @@ function breadcrumbsFor(pathname: string): string[] {
     '/payer-requirements':  ['Payers & Team','Payer Requirements'],
     '/reports':             ['Admin',      'Executive Reporting'],
     '/transparency':        ['Intelligence','Decision Transparency'],
+    '/recovery-intel':      ['Intelligence','Recovery Intelligence'],
+    '/outcomes':            ['Intelligence','Outcome Log'],
     '/ingest':              ['Admin',      'Ingestion'],
     '/audit':               ['Admin',      'Audit & Trace'],
   };
