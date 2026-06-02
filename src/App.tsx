@@ -26,6 +26,8 @@ import AuditTrace from "./pages/AuditTrace";
 import ClaimsWorkbench from "./pages/ClaimsWorkbench";
 import TransparencyCenter from "./pages/TransparencyCenter";
 import TransparencyDetail from "./pages/TransparencyDetail";
+import RecoveryIntelligence from "./pages/RecoveryIntelligence";
+import OutcomeLog from "./pages/OutcomeLog";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -61,6 +63,8 @@ const App = () => (
             <Route path="/reports" element={<ExecutiveReporting />} />
             <Route path="/transparency" element={<TransparencyCenter />} />
             <Route path="/transparency/:claimId" element={<TransparencyDetail />} />
+            <Route path="/recovery-intel" element={<RecoveryIntelligence />} />
+            <Route path="/outcomes" element={<OutcomeLog />} />
             <Route path="/ingest" element={<Ingestion />} />
             <Route path="/audit" element={<AuditTrace />} />
             <Route path="*" element={<NotFound />} />
