@@ -28,6 +28,12 @@ import TransparencyCenter from "./pages/TransparencyCenter";
 import TransparencyDetail from "./pages/TransparencyDetail";
 import RecoveryIntelligence from "./pages/RecoveryIntelligence";
 import OutcomeLog from "./pages/OutcomeLog";
+import ExecutivePipeline from "./pages/ExecutivePipeline";
+import SLAManagement from "./pages/SLAManagement";
+import Escalations from "./pages/Escalations";
+import WorkloadManagement from "./pages/WorkloadManagement";
+import RecoveryOpsDashboard from "./pages/RecoveryOpsDashboard";
+import PayerOperations from "./pages/PayerOperations";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -65,6 +71,12 @@ const App = () => (
             <Route path="/transparency/:claimId" element={<TransparencyDetail />} />
             <Route path="/recovery-intel" element={<RecoveryIntelligence />} />
             <Route path="/outcomes" element={<OutcomeLog />} />
+            <Route path="/ops" element={<RecoveryOpsDashboard />} />
+            <Route path="/pipeline-exec" element={<ExecutivePipeline />} />
+            <Route path="/sla" element={<SLAManagement />} />
+            <Route path="/escalations" element={<Escalations />} />
+            <Route path="/workload" element={<WorkloadManagement />} />
+            <Route path="/payer-ops" element={<PayerOperations />} />
             <Route path="/ingest" element={<Ingestion />} />
             <Route path="/audit" element={<AuditTrace />} />
             <Route path="*" element={<NotFound />} />
