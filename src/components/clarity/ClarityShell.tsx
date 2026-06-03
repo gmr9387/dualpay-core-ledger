@@ -5,7 +5,7 @@ import {
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
   HelpCircle, Bell, User, Database, Activity, Target, FolderOpen, BarChart3,
   BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText, ShieldCheck,
-  Award, ClipboardList,
+  Award, ClipboardList, Siren, Scale, Phone, Gauge,
 } from 'lucide-react';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
@@ -21,13 +21,24 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'Recovery Operations',
+    items: [
+      { to: '/ops',           label: 'Operations Dashboard', icon: Gauge,     badge: 'NEW' },
+      { to: '/pipeline-exec', label: 'Executive Pipeline',   icon: BarChart3, badge: 'NEW' },
+      { to: '/sla',           label: 'SLA Management',       icon: ShieldCheck, badge: 'NEW' },
+      { to: '/escalations',   label: 'Escalations',          icon: Siren,     badge: 'NEW' },
+      { to: '/workload',      label: 'Workload Management',  icon: Scale,     badge: 'NEW' },
+      { to: '/payer-ops',     label: 'Payer Operations',     icon: Phone,     badge: 'NEW' },
+    ],
+  },
+  {
     title: 'Execute',
     items: [
-      { to: '/pipeline',   label: 'Recovery Pipeline',  icon: GitBranch, badge: 'NEW' },
+      { to: '/pipeline',   label: 'Recovery Pipeline',  icon: GitBranch },
       { to: '/queues',     label: 'Work Queues',         icon: ListChecks },
       { to: '/appeals',    label: 'Appeals Workbench',   icon: Gavel },
-      { to: '/packet',     label: 'Appeal Packet',       icon: FileCheck, badge: 'NEW' },
-      { to: '/playbooks',  label: 'Recovery Playbooks',  icon: BookOpen, badge: 'NEW' },
+      { to: '/packet',     label: 'Appeal Packet',       icon: FileCheck },
+      { to: '/playbooks',  label: 'Recovery Playbooks',  icon: BookOpen },
     ],
   },
   {
@@ -187,6 +198,12 @@ function breadcrumbsFor(pathname: string): string[] {
     '/':                    ['Operations', 'Command Center'],
     '/command':             ['Operations', 'Executive Command'],
     '/today':               ['Execute',    "Today's Recovery"],
+    '/ops':                 ['Recovery Operations', 'Operations Dashboard'],
+    '/pipeline-exec':       ['Recovery Operations', 'Executive Pipeline'],
+    '/sla':                 ['Recovery Operations', 'SLA Management'],
+    '/escalations':         ['Recovery Operations', 'Escalations'],
+    '/workload':            ['Recovery Operations', 'Workload Management'],
+    '/payer-ops':           ['Recovery Operations', 'Payer Operations'],
     '/pipeline':            ['Execute',    'Recovery Pipeline'],
     '/forecast':            ['Intelligence','Recovery Forecast'],
     '/team':                ['Payers & Team','Team Operations'],
