@@ -19,7 +19,7 @@ export interface OpsEvent {
   occurred_at: string;
   kind: OpsEventKind;
   claim_id?: string;
-  actor: string;
+  actor?: string;
   summary: string;
   payload?: Record<string, unknown>;
 }
