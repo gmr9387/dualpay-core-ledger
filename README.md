@@ -1,165 +1,147 @@
-# DualPay
+Claim Clarity / DualPay Core Ledger
 
-**A deterministic, auditable health-insurance claim adjudication kernel — built for COB-heavy multi-payer scenarios where every cent must be explainable.**
+Enterprise healthcare reimbursement intelligence platform for denial recovery, claim transparency, COB/payment logic, recovery operations, and audit-ready decision support.
 
----
+Current Status
 
-## The Problem
+Claim Clarity has evolved from a denial dashboard into a recovery operations platform.
 
-Health-plan core admin systems treat adjudication as a black box: claims go in, dollars come out, and when a member or provider disputes an EOB nobody on the operations floor can reconstruct *why* the math landed where it did. COB cases compound the pain — primary/secondary primacy gets misapplied, accumulators drift, retro-adjustments cascade silently across linked claims, and call centers spend hours stitching together explanations from PDFs and tribal knowledge. The cost is denials, rework, regulatory exposure, and member trust.
+Implemented
 
----
+* CARC/RARC denial intelligence
+* Denial classification
+* Recoverability scoring
+* Severity scoring
+* Evidence requirements
+* Next-best-action recommendations
+* Playbook recommendation engine
+* Decision transparency
+* “Why this score” explainability
+* Outcome intelligence
+* Recovery intelligence dashboard
+* SLA management
+* Escalation engine
+* Workload management
+* Payer operations
+* Executive recovery pipeline
+* Claim/adjudication/case persistence via Supabase
+* RLS-backed backend foundation
 
-## Solution
+Product Vision
 
-DualPay is an adjudication engine with an inspector UI on top. Every claim run produces a structured, hashable trace — every input, rule fired, branch taken, and dollar movement is recorded — so any outcome can be replayed, diffed, and explained in plain language. Multi-payer COB primacy, session accumulators, and retro-recalculation across linked cases are first-class. Math is integer-cents and deterministic; the same inputs always produce the same trace.
+Claim Clarity helps healthcare organizations identify denied or delayed reimbursement, understand why it happened, prioritize recoverable dollars, route work to the right teams, and prove recovery outcomes.
 
----
+Core question:
 
-## Key Capabilities
+Where is the money, why is it stuck, who owns it, and what action gets it recovered?
 
-| Capability | What It Actually Does | Status |
-|---|---|---|
-| **Adjudication Engine** | Allowed → deductible → copay → coinsurance → OOP-cap waterfall in integer cents, idempotent per `run_id` | `Stable` |
-| **COB / Multi-Payer** | Birthday/Gender/Custodial primacy + secondary allocation (lower-of, COB savings, non-duplication) | `Stable` |
-| **Trace & Explainability** | Structured `TraceObject` per run with human-readable explanation generator | `Stable` |
-| **State Machine** | 16 explicit transitions with guards (`REQUIRE_PRIMACY_CONFIRMATION`, `REQUIRE_IDEMPOTENCY_KEY`) + visual diagram | `Stable` |
-| **Case Management** | N-claim → 1-case linking, cross-claim accumulator rollup, retro-recalc with field-level diff viewer | `Stable` |
-| **Persistence** | Claims, runs, traces, cases, events, accumulators stored in Postgres with RLS | `Beta` |
-| **Coverage Graph (DAG)** | Member coverage spans with confidence + primacy edges | `Planned` |
-| **Migration Cockpit** | Legacy_Paid vs DualPay_Paid discrepancy detector, variance > $0.01 flagging | `Planned` |
-| **AuthN / RBAC + Audit Log** | Role-based access, HIPAA-grade audit trail | `Planned` |
-| **EDI Ingestion** (837/835/270/271) | Real payer integration | `Planned` |
+Architecture
 
-> `Stable` = production-ready · `Beta` = functional, API may shift · `Planned` = committed, not started
+Intelligence Engines
 
----
+* denial-intelligence.ts
+* next-action.ts
+* playbooks.ts
+* sla.ts
+* escalations.ts
 
-## Architecture
+Core Data
 
-```
-Claim ──► CalculationEngine ──► AdjudicationRun ──► TraceObject
-   │            │                      │
-   │            ▼                      ▼
-   │       COB Rules              Explainability
-   │            │
-   ▼            ▼
-StateMachine  Case ──► RetroRecalc ──► AdjudicationDiff
-                │
-                ▼
-       AccumulatorImpact
-                │
-                ▼
-          Postgres (managed)
-```
+Backend-persisted:
 
-**Decisions worth understanding:**
+* claims
+* member_accumulators
+* adjudication_runs
+* cases
+* case_claim_links
+* case_events
+* traces
 
-| Decision | Why | What I ruled out |
-|---|---|---|
-| Integer-cents math throughout | No float drift, byte-exact reproducibility across runs | JS `number` floats, `Decimal` libs (overkill for cents) |
-| Pure engine functions, persistence at the edge | Engine is replayable and unit-testable without a DB | Mixing repository calls into adjudication logic |
-| Structured `TraceObject` (not log lines) | Hashable, diffable, machine-replayable | Free-text logs, OpenTelemetry spans (wrong abstraction for business audit) |
-| Managed Postgres with RLS | Zero-infra persistence with row-level security built in | Self-hosted Postgres, in-memory only |
-| `JSONB` payloads alongside indexed columns | Schema flexibility for evolving claim/trace shapes without migrations per change | Strict normalized schema, document DB |
+Currently being hardened:
 
----
+* ops_events
+* assignments
+* recovery_outcomes
 
-## Stack
+Current Phase
 
-| Layer | Choice |
-|---|---|
-| **UI** | React 18 + TypeScript 5 |
-| **Styling** | Tailwind CSS v3 + shadcn-ui |
-| **Build** | Vite 5 |
-| **Backend** | Lovable Cloud (managed Postgres + Auth + Storage) |
-| **Database** | PostgreSQL with Row-Level Security |
-| **Testing** | Vitest |
+Phase 7 — Persistent Operations Backbone
 
----
+Goal:
 
-## Getting Started
+Move operational state from localStorage into Supabase.
 
-### Prerequisites
+Phase 7 focuses on:
 
-| Tool | Version |
-|---|---|
-| Node.js | `>= 20 LTS` |
-| npm or bun | latest |
+* persistent ops events
+* persistent assignments
+* persistent recovery outcomes
+* RLS policies
+* durable audit history
+* multi-user pilot readiness
 
-### Local Setup
+No new intelligence engines should be created in Phase 7.
 
-```bash
-# Install
-npm ci
+Why This Matters
 
-# Start dev server
-npm run dev
-```
+Earlier phases made the system intelligent.
 
-Open `http://localhost:5173`. The managed Postgres backend is provisioned automatically — no local Docker required. On first run, the app seeds 3 demo claims, accumulators, and a linked case.
+Phase 7 makes it durable.
 
----
+This is the bridge from demo-ready to pilot-ready.
 
-## Configuration
+Pilot Readiness
 
-Environment variables are managed automatically by Lovable Cloud and written to `.env`. Do not edit `.env` by hand.
+Current readiness:
 
-| Variable | Source | Description |
-|---|---|---|
-| `VITE_SUPABASE_URL` | auto | Lovable Cloud Postgres URL |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | auto | Public anon key |
-| `VITE_SUPABASE_PROJECT_ID` | auto | Project ref |
+* Demo: strong
+* Internal pilot: strong
+* Small provider pilot: close
+* Regional provider pilot: needs persistence hardening
+* Health plan pilot: requires security/HIPAA hardening, integration, evidence workflow, and production controls
 
----
+Tech Stack
 
-## Usage
+* React
+* TypeScript
+* Vite
+* Tailwind
+* Supabase
+* Postgres
+* RLS
+* Deterministic TypeScript engines
+* Local-first UI patterns being migrated to backend persistence
 
-Open the dashboard at `/`. The left rail lists claims; selecting one opens the adjudication panel with:
+Development Principle
 
-- **Trace viewer** — every rule fired, in order, with dollar deltas
-- **State diagram** — current claim status with live guard evaluation
-- **Case panel** — linked claims, accumulator rollup, retro-recalc with diff viewer
+Do not duplicate existing intelligence.
 
-All state survives refresh (persisted to Postgres).
+Extend the existing system.
 
----
+Preferred pattern:
 
-## Testing
+Claim data
+→ denial intelligence
+→ transparency
+→ next action
+→ recovery operations
+→ persistent outcome
+→ recovery analytics
 
-```bash
-npm run test       # Vitest — engine + COB + state machine
-```
+Strategic Direction
 
-Engine tests cover multi-payer scenarios (deductible + coinsurance, COB primacy, secondary allocation) and must pass before any UI work.
+Claim Clarity is the commercial wedge of the Valtaris ecosystem.
 
----
+It is supported by:
 
-## Roadmap
+* Cloud: tenancy, security, audit, connectors
+* Glue: workflow execution/runtime
+* Core: COB and adjudication intelligence
+* Weaver: future context intelligence
 
-| Phase | What | Status |
-|---|---|---|
-| **Phase 1** | Persistence (done), AuthN + RBAC + Audit Log, Coverage Graph DAG, Migration Cockpit | 🟡 In progress |
-| **Phase 2** | EDI ingestion (837/835/270/271), real prior-payer parser, pricing & contracts engine, NCCI/MUE edits | 🔵 Planned |
-| **Phase 3** | Work queues, SLAs, payments (check/EFT + 835 remit), denial analytics | 🔵 Planned |
-| **Phase 4** | Member + provider portals, observability, HIPAA compliance hardening | 🔵 Planned |
+Claim Clarity leads because it is closest to measurable business value:
 
-**Honest completeness vs. a full Facets-parity Core Admin OS: ~30%.** The engine spine is real and trustworthy. The operational surface area (integrations, workflows, security, ops) is the next several phases of work.
-
----
-
-## Operational Context
-
-DualPay was designed for environments where:
-- auditability is non-negotiable (regulator and member-facing)
-- workflows cross multiple payers and span weeks
-- operators need explainable outcomes, not black-box decisions
-- retro-adjustments and reversals create cascading financial risk
-
-## System Philosophy
-
-This project prioritizes:
-- deterministic workflows over opaque automation
-- explainability over magic
-- operational visibility over hidden state
-- replayability over forensic reconstruction
+Recovered dollars
+Reduced denial aging
+Improved appeal success
+Lower operational backlog
