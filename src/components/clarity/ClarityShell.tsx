@@ -90,7 +90,7 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight">Claim Clarity</div>
-            <div className="text-[10px] font-mono text-sidebar-foreground/55">Recovery Execution · v4.0</div>
+            <div className="text-[10px] font-mono text-sidebar-foreground/55">Recovery Operations · v6.0</div>
           </div>
         </div>
 
