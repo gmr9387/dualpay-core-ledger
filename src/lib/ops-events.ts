@@ -17,7 +17,12 @@ export type OpsEventKind =
   | 'document_removed'
   | 'appeal_packet_generated'
   | 'audit_export_requested'
-  | 'audit_export_completed';
+  | 'audit_export_completed'
+  | 'contract_uploaded'
+  | 'contract_version_created'
+  | 'contract_matched'
+  | 'underpayment_detected'
+  | 'dispute_created';
 
 export interface OpsEvent {
   event_id: string;
