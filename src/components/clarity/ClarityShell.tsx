@@ -3,10 +3,12 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, AlertOctagon, ListChecks, FileSearch, Gavel,
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
-  HelpCircle, Bell, User, Database, Activity, Target, FolderOpen, BarChart3,
+  HelpCircle, Bell, Database, Activity, Target, FolderOpen, BarChart3,
   BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText, ShieldCheck,
   Award, ClipboardList, Siren, Scale, Phone, Gauge, Factory, FileInput, History, AlertOctagon as AlertIcon,
 } from 'lucide-react';
+import { UserOrgMenu, NoOrgEmptyState } from '@/components/auth/UserOrgMenu';
+import { useOrg } from '@/hooks/use-org';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
 interface NavSection { title: string; items: NavItem[] }
