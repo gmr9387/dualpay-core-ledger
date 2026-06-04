@@ -39,6 +39,7 @@ import ImportCenter from "./pages/ImportCenter";
 import ImportHistory from "./pages/ImportHistory";
 import ExceptionQueue from "./pages/ExceptionQueue";
 import ExceptionDetail from "./pages/ExceptionDetail";
+import RemittanceIntake from "./pages/RemittanceIntake";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
