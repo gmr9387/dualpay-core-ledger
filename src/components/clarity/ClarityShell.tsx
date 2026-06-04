@@ -86,10 +86,13 @@ const SECTIONS: NavSection[] = [
   {
     title: 'Admin',
     items: [
-      { to: '/claims',  label: 'Claims Workbench',   icon: FileSearch },
-      { to: '/reports', label: 'Executive Reporting', icon: BarChart3 },
-      { to: '/ingest',  label: 'Ingestion',           icon: Upload },
-      { to: '/audit',   label: 'Audit & Trace',       icon: ScrollText },
+      { to: '/claims',          label: 'Claims Workbench',    icon: FileSearch },
+      { to: '/reports',         label: 'Executive Reporting', icon: BarChart3 },
+      { to: '/ingest',          label: 'Ingestion',           icon: Upload },
+      { to: '/audit',           label: 'Audit & Trace',       icon: ScrollText },
+      { to: '/admin',           label: 'Admin Console',       icon: Shield, badge: 'NEW' },
+      { to: '/admin/security',  label: 'Security Inventory',  icon: ShieldCheck, badge: 'NEW' },
+      { to: '/admin/audit',     label: 'Audit Export',        icon: ScrollText, badge: 'NEW' },
     ],
   },
 ];

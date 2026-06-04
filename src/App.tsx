@@ -53,6 +53,9 @@ import ExecutiveRecovery from "./pages/ExecutiveRecovery";
 import ExecutivePayers from "./pages/ExecutivePayers";
 import ExecutivePlaybooks from "./pages/ExecutivePlaybooks";
 import ExecutiveValue from "./pages/ExecutiveValue";
+import AdminConsole from "./pages/AdminConsole";
+import AdminSecurity from "./pages/AdminSecurity";
+import AdminAudit from "./pages/AdminAudit";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -110,6 +113,9 @@ const ProtectedShell = () => (
           <Route path="/executive/payers" element={<ExecutivePayers />} />
           <Route path="/executive/playbooks" element={<ExecutivePlaybooks />} />
           <Route path="/executive/value" element={<ExecutiveValue />} />
+          <Route path="/admin" element={<AdminConsole />} />
+          <Route path="/admin/security" element={<AdminSecurity />} />
+          <Route path="/admin/audit" element={<AdminAudit />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>
