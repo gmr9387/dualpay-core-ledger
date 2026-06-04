@@ -54,6 +54,11 @@ function inferState(row: ParsedRow, source: ImportSourceType): ReimbursementStat
   if (source === 'underpayment_report') return 'partially_paid';
   if (source === 'aging_report') return 'pending_payer';
   if (source === 'appeal_status') return 'appealing';
+  if (source === 'remittance_835') {
+    if (paid === 0) return 'denied';
+    if (billed > 0 && paid < billed) return 'partially_paid';
+    return 'paid';
+  }
   if (paid > 0 && billed > 0 && paid < billed) return 'partially_paid';
   return 'denied';
 }
