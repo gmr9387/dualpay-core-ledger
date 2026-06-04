@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -230,47 +232,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ops_events: {
-        Row: {
-          actor: string | null
-          claim_id: string | null
-          created_at: string
-          event_id: string
-          kind: string
-          occurred_at: string
-          payload: Json | null
-          summary: string
-        }
-        Insert: {
-          actor?: string | null
-          claim_id?: string | null
-          created_at?: string
-          event_id: string
-          kind: string
-          occurred_at?: string
-          payload?: Json | null
-          summary: string
-        }
-        Update: {
-          actor?: string | null
-          claim_id?: string | null
-          created_at?: string
-          event_id?: string
-          kind?: string
-          occurred_at?: string
-          payload?: Json | null
-          summary?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ops_events_claim_id_fkey"
-            columns: ["claim_id"]
-            isOneToOne: false
-            referencedRelation: "claims"
-            referencedColumns: ["claim_id"]
-          },
-        ]
-      }
       traces: {
         Row: {
           claim_id: string
@@ -436,12 +397,12 @@ export type CompositeTypes<
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-    : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-      ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-      : never
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {
