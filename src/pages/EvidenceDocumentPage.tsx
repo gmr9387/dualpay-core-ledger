@@ -15,7 +15,7 @@ export default function EvidenceDocumentPage() {
     enabled: !!documentId,
   });
   const { data: claims } = useClarityData();
-  const { data: events } = useOpsEvents();
+  const { events } = useOpsEvents();
   const [linking, setLinking] = useState(false);
 
   if (isLoading || !doc) {
