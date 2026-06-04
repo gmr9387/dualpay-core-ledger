@@ -233,3 +233,62 @@ Remaining production blockers
 * No observability stack (metrics, traces, alerting).
 * `evidence_documents` row delete does not cascade-delete the storage object.
 * Email/password is the only auth method; SSO, MFA, and password rotation policies not configured.
+
+## Phase 16 — Autonomous Recovery Pipeline & Job Orchestration
+
+The platform is no longer purely user-driven. Phase 16 introduces an
+orchestrated automation layer that chains existing engines into a
+deterministic, audited recovery pipeline.
+
+Database
+
+* `automation_jobs` — every job execution (type, status, started/completed,
+  records processed/succeeded/failed, recovery value, pipeline_id linkage,
+  result JSON). Org-scoped RLS; analyst+ can launch, manager+ can delete.
+* `automation_rules` — configurable triggers (`underpayment_threshold`,
+  `sla_risk`, `evidence_stale`, `denial_severity`, `repeat_payer_issue`)
+  with JSON configuration and action list. Manager+ manages; analyst+ views.
+
+Routes
+
+* `/automation` — Automation Center: run the full recovery pipeline, fire
+  individual jobs, see live KPIs.
+* `/automation/jobs` — filterable job queue with throughput stats.
+* `/automation/rules` — rule CRUD (manager+).
+* `/automation/history` — pipeline runs, durations, value generated.
+
+Engines added
+
+* `engine/job-runner.ts` — registry of seven deterministic handlers
+  (remittance_analysis, contract_matching, underpayment_detection,
+  dispute_generation, recovery_case_generation, queue_assignment,
+  executive_recalculation). Each handler reads existing persisted state and
+  reuses authoritative engines — no fabricated data.
+* `engine/pipeline-orchestrator.ts` — chains jobs under a shared
+  `pipeline_id`. Single execution trace; per-step ok/value reporting.
+* `engine/auto-case-generator.ts` — persists `cases` + initial `case_events`
+  via the existing case-management helper.
+* `engine/automation-rules.ts` — evaluates rules against a `RuleSignal` and
+  applies `auto_case`, `assign_manager`, `escalate` actions.
+
+Audit
+
+* New `ops_events` kinds: `job_started`, `job_completed`, `job_failed`,
+  `rule_triggered`, `case_auto_created`, `dispute_auto_created`,
+  `pipeline_started`, `pipeline_completed`.
+
+Reused (not rebuilt)
+
+* Denial Intelligence, Recovery Operations, Executive Intelligence,
+  Recovery Factory, Remittance Intelligence, Contract Intelligence,
+  Evidence Vault, Identity / RBAC / Organizations, Audit Export.
+
+Remaining limitations
+
+* Dispute candidates for `dispute_generation` must be supplied via job
+  config; there is no scheduled scanner that derives them from raw
+  remittance lines yet.
+* Rule editing beyond enable/disable + create is still JSON-via-console;
+  no in-app config editor for thresholds and actions.
+* Pipelines run synchronously in the browser session of the user who
+  triggers them — no background worker / cron yet.

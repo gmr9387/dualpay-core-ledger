@@ -61,6 +61,10 @@ import ContractDetail from "./pages/ContractDetail";
 import ContractUpload from "./pages/ContractUpload";
 import ContractDisputes from "./pages/ContractDisputes";
 import ContractAnalytics from "./pages/ContractAnalytics";
+import AutomationHome from "./pages/AutomationHome";
+import AutomationJobs from "./pages/AutomationJobs";
+import AutomationRules from "./pages/AutomationRules";
+import AutomationHistory from "./pages/AutomationHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -126,6 +130,10 @@ const ProtectedShell = () => (
           <Route path="/contracts/disputes" element={<ContractDisputes />} />
           <Route path="/contracts/analytics" element={<ContractAnalytics />} />
           <Route path="/contracts/:contractId" element={<ContractDetail />} />
+          <Route path="/automation" element={<AutomationHome />} />
+          <Route path="/automation/jobs" element={<AutomationJobs />} />
+          <Route path="/automation/rules" element={<AutomationRules />} />
+          <Route path="/automation/history" element={<AutomationHistory />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>

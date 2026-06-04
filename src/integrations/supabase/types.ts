@@ -62,6 +62,114 @@ export type Database = {
           },
         ]
       }
+      automation_jobs: {
+        Row: {
+          completed_at: string | null
+          config: Json | null
+          created_at: string
+          created_by: string | null
+          error_summary: string | null
+          job_id: string
+          job_type: string
+          org_id: string
+          parent_job_id: string | null
+          pipeline_id: string | null
+          records_failed: number
+          records_processed: number
+          records_succeeded: number
+          recovery_value_cents: number
+          result: Json | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          config?: Json | null
+          created_at?: string
+          created_by?: string | null
+          error_summary?: string | null
+          job_id?: string
+          job_type: string
+          org_id: string
+          parent_job_id?: string | null
+          pipeline_id?: string | null
+          records_failed?: number
+          records_processed?: number
+          records_succeeded?: number
+          recovery_value_cents?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          config?: Json | null
+          created_at?: string
+          created_by?: string | null
+          error_summary?: string | null
+          job_id?: string
+          job_type?: string
+          org_id?: string
+          parent_job_id?: string | null
+          pipeline_id?: string | null
+          records_failed?: number
+          records_processed?: number
+          records_succeeded?: number
+          recovery_value_cents?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      automation_rules: {
+        Row: {
+          configuration: Json
+          created_at: string
+          created_by: string | null
+          description: string | null
+          enabled: boolean
+          last_triggered_at: string | null
+          org_id: string
+          rule_id: string
+          rule_name: string
+          trigger_count: number
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          enabled?: boolean
+          last_triggered_at?: string | null
+          org_id: string
+          rule_id?: string
+          rule_name: string
+          trigger_count?: number
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          enabled?: boolean
+          last_triggered_at?: string | null
+          org_id?: string
+          rule_id?: string
+          rule_name?: string
+          trigger_count?: number
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       case_claim_links: {
         Row: {
           case_id: string

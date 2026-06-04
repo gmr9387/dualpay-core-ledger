@@ -22,7 +22,15 @@ export type OpsEventKind =
   | 'contract_version_created'
   | 'contract_matched'
   | 'underpayment_detected'
-  | 'dispute_created';
+  | 'dispute_created'
+  | 'job_started'
+  | 'job_completed'
+  | 'job_failed'
+  | 'rule_triggered'
+  | 'case_auto_created'
+  | 'dispute_auto_created'
+  | 'pipeline_started'
+  | 'pipeline_completed';
 
 export interface OpsEvent {
   event_id: string;

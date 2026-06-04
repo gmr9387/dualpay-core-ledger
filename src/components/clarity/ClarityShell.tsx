@@ -6,6 +6,7 @@ import {
   HelpCircle, Bell, Database, Activity, Target, FolderOpen, BarChart3,
   BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText, ShieldCheck,
   Award, ClipboardList, Siren, Scale, Phone, Gauge, Factory, FileInput, History, AlertOctagon as AlertIcon,
+  Bot, Settings2,
 } from 'lucide-react';
 import { UserOrgMenu, NoOrgEmptyState } from '@/components/auth/UserOrgMenu';
 import { useOrg } from '@/hooks/use-org';
@@ -59,6 +60,15 @@ const SECTIONS: NavSection[] = [
       { to: '/contracts',           label: 'Contracts',          icon: BookText,    badge: 'NEW' },
       { to: '/contracts/disputes',  label: 'Underpayment Disputes', icon: AlertOctagon, badge: 'NEW' },
       { to: '/contracts/analytics', label: 'Contract Analytics', icon: BarChart3,   badge: 'NEW' },
+    ],
+  },
+  {
+    title: 'Automation',
+    items: [
+      { to: '/automation',         label: 'Automation Center', icon: Bot,        badge: 'NEW' },
+      { to: '/automation/jobs',    label: 'Jobs',              icon: ListChecks, badge: 'NEW' },
+      { to: '/automation/rules',   label: 'Rules',             icon: Settings2,  badge: 'NEW' },
+      { to: '/automation/history', label: 'History',           icon: History,    badge: 'NEW' },
     ],
   },
   {
