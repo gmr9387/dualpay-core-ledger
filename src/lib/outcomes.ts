@@ -39,7 +39,7 @@ function rowToOutcome(r: Row): RecoveryOutcome {
     payer_id: r.payer_id ?? (p.payer_id as string) ?? '',
     payer_name: (p.payer_name as string) ?? '',
     category: (p.category as DenialCategory) ?? 'contractual',
-    workflow_owner: (p.workflow_owner as RecoveryOutcome['workflow_owner']) ?? 'billing',
+    workflow_owner: (p.workflow_owner as RecoveryOutcome['workflow_owner']) ?? 'unassigned',
     playbook_used: (p.playbook_used as DenialCategory) ?? undefined,
     resolution_type: r.resolution_type as ResolutionType,
     denied_amount_cents: Number(r.denied_amount_cents),
