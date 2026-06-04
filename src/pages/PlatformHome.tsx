@@ -120,6 +120,39 @@ export default function PlatformHome() {
             )}
           </Panel>
 
+          <Panel title="Platform Reliability">
+            <div className="grid grid-cols-5 gap-4 p-4 text-[12px]">
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Queue Depth</div>
+                <div className="text-[18px] font-semibold mt-0.5">{reliability.queueDepth}</div>
+              </div>
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Worker Availability</div>
+                <div className="text-[18px] font-semibold mt-0.5">
+                  {workers.length === 0 ? 'Insufficient Processing History' : `${Math.round(reliability.workerAvailability*100)}%`}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Throughput</div>
+                <div className="text-[18px] font-semibold mt-0.5">{reliability.throughputRuns}</div>
+              </div>
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Retry Rate</div>
+                <div className="text-[18px] font-semibold mt-0.5">
+                  {runs.length === 0 ? 'Insufficient Processing History' : `${Math.round(reliability.retryRate*100)}%`}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Dead Letter Rate</div>
+                <div className="text-[18px] font-semibold mt-0.5">
+                  {(kpis.completed + kpis.dead + kpis.failed) === 0
+                    ? 'Insufficient Processing History'
+                    : `${Math.round(reliability.deadRate*100)}%`}
+                </div>
+              </div>
+            </div>
+          </Panel>
+
           <div className="grid grid-cols-3 gap-3">
             <Link to="/platform/jobs" className="p-4 rounded border bg-card hover:bg-muted">
               <ListChecks className="h-4 w-4 text-primary mb-2" />
