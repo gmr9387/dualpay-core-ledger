@@ -86,7 +86,19 @@ export function rowToClaim(row: ParsedRow, source: ImportSourceType, batchId: st
 
   const billed = getNum(row, 'billed_amount') ?? getNum(row, 'amount_at_risk') ?? 0;
   const paid = getNum(row, 'paid_amount') ?? 0;
-  const atRisk = getNum(row, 'amount_at_risk') ?? Math.max(0, billed - paid);
+
+  // ── Phase 10: remittance source uses deterministic classifier for at-risk ──
+  let atRisk: number;
+  let remittanceClassificationReason: string | undefined;
+  if (source === 'remittance_835') {
+    const rem = normalizeRemittance(row);
+    const cls = classifyRemittance(rem);
+    atRisk = cls.amount_at_risk_cents;
+    remittanceClassificationReason = cls.reason;
+  } else {
+    atRisk = getNum(row, 'amount_at_risk') ?? Math.max(0, billed - paid);
+  }
+
   const procedure_code = getStr(row, 'procedure_code') ?? '99213';
 
   const line: ClaimLine = {
@@ -103,7 +115,12 @@ export function rowToClaim(row: ParsedRow, source: ImportSourceType, batchId: st
 
   const denial_events: DenialEvent[] = [];
   const carc = getStr(row, 'carc_code');
-  if (carc && atRisk > 0) {
+  if (source === 'remittance_835' && atRisk > 0) {
+    const rem = normalizeRemittance(row);
+    const cls = classifyRemittance(rem);
+    const evt = extractDenialEvent(rem, cls, claim_id, aging);
+    if (evt) denial_events.push({ ...evt, line_id: line.line_id });
+  } else if (carc && atRisk > 0) {
     const group = (getStr(row, 'group_code') as GroupCode | undefined) ?? 'CO';
     denial_events.push(scoreDenial({
       denial_id: `DNL-${claim_id}-1`,
