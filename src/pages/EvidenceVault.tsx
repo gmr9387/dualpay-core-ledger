@@ -1,125 +1,132 @@
 /**
- * Evidence Vault — operational view of evidence completeness across
- * claims.  Tracks missing, expired, and required evidence; surfaces
- * completeness rate to drive appeal readiness.
+ * Evidence Vault — primary document management surface.
+ * Shows uploaded documents across the organization with search, type
+ * filter, and upload. Existing evidence-readiness summary is preserved
+ * via the per-claim deep links.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useEvidenceDocuments } from '@/hooks/use-evidence-documents';
 import { useClarityData, formatCents } from '@/hooks/use-clarity-data';
 import { PageHeader, KpiStrip, ScrollBody, Panel, EmptyState } from '@/components/clarity/primitives';
-import { FolderOpen, Loader2, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react';
-
-const EVIDENCE_TAXONOMY = [
-  { id: 'medical_records', label: 'Medical records', icon: '📋' },
-  { id: 'authorizations',  label: 'Authorizations',  icon: '🔐' },
-  { id: 'referrals',       label: 'Referrals',        icon: '✉️' },
-  { id: 'notes',           label: 'Clinical notes',   icon: '📝' },
-  { id: 'documentation',   label: 'Supporting docs',  icon: '📎' },
-];
+import { EvidenceUploader } from '@/components/evidence/EvidenceUploader';
+import { DocumentRow } from '@/components/evidence/DocumentRow';
+import { DOCUMENT_TYPES, type DocumentType } from '@/types/evidence';
+import { FolderOpen, Loader2, Search } from 'lucide-react';
 
 export default function EvidenceVault() {
-  const { data: claims, isLoading } = useClarityData();
+  const [search, setSearch] = useState('');
+  const [type, setType] = useState<DocumentType | ''>('');
+  const { data: docs, isLoading } = useEvidenceDocuments({
+    search: search || undefined,
+    document_type: (type || undefined) as DocumentType | undefined,
+  });
+  const { data: claims } = useClarityData();
 
   const summary = useMemo(() => {
     if (!claims) return null;
     const missing = claims.filter(c => c.intel.evidence_missing.length > 0);
     const exposedCents = missing.reduce((s, c) => s + c.intel.amount_at_risk_cents, 0);
-    const requiredItems = claims.reduce((s, c) => s + c.intel.denial_events.reduce((a, d) => a + d.evidence_required.length, 0), 0);
-    const missingItems = claims.reduce((s, c) => s + c.intel.evidence_missing.length, 0);
-    const completeness = requiredItems === 0 ? 1 : Math.max(0, 1 - missingItems / Math.max(1, requiredItems));
-    // Top missing categories
-    const counts = new Map<string, number>();
-    for (const c of claims) for (const e of c.intel.evidence_missing) {
-      counts.set(e, (counts.get(e) ?? 0) + 1);
-    }
-    const topMissing = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-    return { missing, exposedCents, completeness, missingItems, requiredItems, topMissing };
+    return { missing, exposedCents };
   }, [claims]);
 
-  if (isLoading || !summary) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
+  const totalBytes = (docs ?? []).reduce((s, d) => s + (d.file_size || 0), 0);
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="Evidence Vault" subtitle="Track required, missing, and expired evidence across active claims and appeals." />
+      <PageHeader
+        title="Evidence Vault"
+        subtitle="Upload, link, and version supporting documents across claims and appeals."
+      />
       <KpiStrip tiles={[
-        { label: 'Completeness',       value: `${(summary.completeness * 100).toFixed(0)}%`,                 tone: summary.completeness >= 0.8 ? 'text-status-paid' : 'text-status-pending' },
-        { label: 'Claims w/ Gaps',     value: String(summary.missing.length),                                tone: 'text-status-denied' },
-        { label: 'Missing Items',      value: `${summary.missingItems} / ${summary.requiredItems}` },
-        { label: 'Revenue Exposed',    value: formatCents(summary.exposedCents),                              tone: 'amount-negative' },
+        { label: 'Documents',          value: String(docs?.length ?? 0) },
+        { label: 'Storage Used',        value: `${(totalBytes / (1024 * 1024)).toFixed(2)} MB` },
+        { label: 'Claims w/ Gaps',      value: String(summary?.missing.length ?? 0), tone: 'text-status-denied' },
+        { label: 'Revenue Exposed',     value: formatCents(summary?.exposedCents ?? 0), tone: 'amount-negative' },
       ]} />
       <ScrollBody>
         <div className="grid grid-cols-3 gap-4 p-5">
           <div className="col-span-2 space-y-4">
-            <Panel title={`Claims with Evidence Gaps (${summary.missing.length})`} dense>
-              {summary.missing.length === 0 ? (
-                <div className="p-6"><EmptyState title="No evidence gaps" body="All required documentation is on file." icon={<CheckCircle2 className="h-5 w-5" />} /></div>
-              ) : (
-                <div className="divide-y">
-                  <div className="grid grid-cols-[120px_1fr_1fr_120px] gap-3 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/40">
-                    <span>Claim</span><span>Payer</span><span>Missing Evidence</span><span className="text-right">At Risk</span>
-                  </div>
-                  {summary.missing.map(c => (
-                    <Link key={c.claim_id} to={`/denials/${c.claim_id}`} className="grid grid-cols-[120px_1fr_1fr_120px] gap-3 items-center px-4 py-2.5 hover:bg-muted/40">
-                      <span className="font-mono text-[12px] font-semibold text-foreground">{c.claim_id}</span>
-                      <span className="text-[12px] text-foreground truncate">{c.intel.payer_name}</span>
-                      <div className="flex flex-wrap gap-1">
-                        {c.intel.evidence_missing.map(e => (
-                          <span key={e} className="text-[10.5px] font-mono px-1.5 py-0.5 rounded border bg-status-denied/10 text-status-denied border-status-denied/30">
-                            <AlertTriangle className="inline h-2.5 w-2.5 mr-0.5" />{e}
-                          </span>
-                        ))}
-                      </div>
-                      <span className="font-mono text-[12.5px] text-right tabular-nums amount-negative">{formatCents(c.intel.amount_at_risk_cents)}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
+            <Panel title="Upload Document">
+              <EvidenceUploader />
             </Panel>
 
-            <Panel title="Most-Required Evidence Types">
-              <div className="grid grid-cols-2 gap-3">
-                {summary.topMissing.map(([label, count]) => (
-                  <div key={label} className="flex items-center gap-2 p-2 rounded border bg-muted/30">
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                    <div className="flex-1 min-w-0 text-[12px] text-foreground truncate">{label}</div>
-                    <span className="font-mono text-[11px] text-status-denied">{count}</span>
-                  </div>
-                ))}
+            <Panel title={`Documents (${docs?.length ?? 0})`} dense>
+              <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/40">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search filename…"
+                    className="w-full h-7 pl-7 pr-2 text-[12px] rounded-md bg-card border"
+                  />
+                </div>
+                <select
+                  value={type}
+                  onChange={e => setType(e.target.value as DocumentType | '')}
+                  className="h-7 text-[12px] rounded-md border bg-card px-2"
+                >
+                  <option value="">All types</option>
+                  {DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
+              {isLoading ? (
+                <div className="p-6 flex items-center justify-center text-muted-foreground text-[12px]">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…
+                </div>
+              ) : (docs?.length ?? 0) === 0 ? (
+                <div className="p-6">
+                  <EmptyState
+                    title="No documents yet"
+                    body="Upload evidence to begin building your appeal packets."
+                    icon={<FolderOpen className="h-5 w-5" />}
+                  />
+                </div>
+              ) : (
+                <div className="divide-y">
+                  <div className="grid grid-cols-[24px_1fr_120px_80px_60px_90px_120px_auto] gap-3 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30">
+                    <span /><span>Filename</span><span>Type</span><span>Format</span><span>Ver</span><span className="text-right">Size</span><span>Claim</span><span className="text-right">Actions</span>
+                  </div>
+                  {docs!.map(d => <DocumentRow key={d.document_id} doc={d} />)}
+                </div>
+              )}
             </Panel>
           </div>
 
           <div className="space-y-4">
-            <Panel title="Evidence Taxonomy">
-              <ul className="space-y-1.5">
-                {EVIDENCE_TAXONOMY.map(t => (
-                  <li key={t.id} className="flex items-center gap-2 text-[12.5px]">
-                    <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-foreground">{t.label}</span>
-                  </li>
-                ))}
-              </ul>
+            <Panel title="Claims with Evidence Gaps">
+              {(summary?.missing ?? []).length === 0 ? (
+                <div className="text-[12px] text-muted-foreground">No gaps detected.</div>
+              ) : (
+                <ul className="space-y-1">
+                  {summary!.missing.slice(0, 10).map(c => (
+                    <li key={c.claim_id}>
+                      <Link to={`/vault/claim/${c.claim_id}`} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-[12px]">
+                        <span className="font-mono">{c.claim_id}</span>
+                        <span className="text-status-denied font-mono text-[11px]">{c.intel.evidence_missing.length} missing</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Panel>
-            <Panel title="Vault Health">
-              <div className="space-y-1.5 text-[12px]">
-                <Row label="Documents indexed" value="14,832" />
-                <Row label="OCR coverage" value="98%" tone="text-status-paid" />
-                <Row label="Expiring this week" value="6" tone="text-status-pending" />
-                <Row label="Avg attach latency" value="2.4s" />
-              </div>
+            <Panel title="Document Types">
+              <ul className="space-y-1 text-[12px]">
+                {DOCUMENT_TYPES.map(t => {
+                  const count = (docs ?? []).filter(d => d.document_type === t).length;
+                  return (
+                    <li key={t} className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t}</span>
+                      <span className="font-mono text-[11px] text-foreground">{count}</span>
+                    </li>
+                  );
+                })}
+              </ul>
             </Panel>
           </div>
         </div>
       </ScrollBody>
-    </div>
-  );
-}
-
-function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={`font-mono text-[11.5px] ${tone ?? 'text-foreground'}`}>{value}</span>
     </div>
   );
 }
