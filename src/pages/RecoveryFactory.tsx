@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
 import { PageHeader, KpiStrip, Panel, ScrollBody } from '@/components/clarity/primitives';
 import { useImportBatches } from '@/hooks/use-import-batches';
+import { useImportExceptions } from '@/hooks/use-import-exceptions';
 import { formatCentsCompact, relativeTime } from '@/hooks/use-clarity-data';
 import { SOURCE_LABEL } from '@/types/import';
-import { Upload, FileSpreadsheet, ListTodo, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, ListTodo, Download, AlertOctagon } from 'lucide-react';
 import { downloadTemplate, listTemplates } from '@/lib/import-templates';
 
 export default function RecoveryFactory() {
