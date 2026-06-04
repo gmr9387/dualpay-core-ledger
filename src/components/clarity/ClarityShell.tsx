@@ -21,6 +21,16 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'Executive Intelligence',
+    items: [
+      { to: '/executive',            label: 'Executive Home',       icon: BarChart3, badge: 'NEW' },
+      { to: '/executive/value',      label: 'Value Realization',    icon: TrendingUp, badge: 'NEW' },
+      { to: '/executive/recovery',   label: 'Recovery Attribution', icon: Target, badge: 'NEW' },
+      { to: '/executive/payers',     label: 'Payer Scorecards',     icon: Building2, badge: 'NEW' },
+      { to: '/executive/playbooks',  label: 'Playbook Effectiveness', icon: Award, badge: 'NEW' },
+    ],
+  },
+  {
     title: 'Recovery Operations',
     items: [
       { to: '/ops',           label: 'Operations Dashboard', icon: Gauge },
