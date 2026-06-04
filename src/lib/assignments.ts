@@ -1,37 +1,17 @@
 /**
- * Lightweight client-side assignment store.
- * Persists assignee + working status per claim in localStorage so
- * Phase 2 operational gestures (assign, mark working, snooze) feel
- * real without requiring backend schema changes.
+ * Claim assignments — persisted in Supabase `claim_assignments`.
+ * Keeps the Phase 2 API (getAssignment / getAllAssignments / setAssignment / ASSIGNEES)
+ * so consumer pages and hooks don't change shape.
  */
-const KEY = 'clarity:assignments:v1';
+import { supabase } from '@/integrations/supabase/client';
 
 export type WorkingStatus = 'open' | 'in_progress' | 'snoozed' | 'resolved';
 
 export interface Assignment {
   claim_id: string;
-  assignee?: string;
+  assignee?: string | null;
   status: WorkingStatus;
   updated_at: string;
-}
-
-type Store = Record<string, Assignment>;
-
-function read(): Store {
-  try { return JSON.parse(localStorage.getItem(KEY) || '{}') as Store; }
-  catch { return {}; }
-}
-function write(s: Store) { localStorage.setItem(KEY, JSON.stringify(s)); window.dispatchEvent(new Event('clarity-assignments')); }
-
-export function getAssignment(claimId: string): Assignment {
-  return read()[claimId] ?? { claim_id: claimId, status: 'open', updated_at: new Date().toISOString() };
-}
-export function getAllAssignments(): Store { return read(); }
-export function setAssignment(claimId: string, patch: Partial<Assignment>) {
-  const s = read();
-  const cur = s[claimId] ?? { claim_id: claimId, status: 'open' as WorkingStatus, updated_at: new Date().toISOString() };
-  s[claimId] = { ...cur, ...patch, claim_id: claimId, updated_at: new Date().toISOString() };
-  write(s);
 }
 
 export const ASSIGNEES = [
@@ -42,3 +22,56 @@ export const ASSIGNEES = [
   'D. Nakamura (COB)',
   'K. Brooks (Coding QA)',
 ];
+
+function notify() { window.dispatchEvent(new Event('clarity-assignments')); }
+
+function rowToAssignment(r: { claim_id: string; assignee: string | null; status: string; updated_at: string }): Assignment {
+  return {
+    claim_id: r.claim_id,
+    assignee: r.assignee ?? undefined,
+    status: (r.status as WorkingStatus) ?? 'open',
+    updated_at: r.updated_at,
+  };
+}
+
+export async function loadAllAssignments(): Promise<Record<string, Assignment>> {
+  const { data, error } = await supabase.from('claim_assignments').select('*');
+  if (error) {
+    console.error('[assignments] load failed', error.message);
+    return {};
+  }
+  const out: Record<string, Assignment> = {};
+  for (const r of (data ?? [])) out[r.claim_id] = rowToAssignment(r as never);
+  return out;
+}
+
+/** @deprecated synchronous cache only — prefer the hook. */
+let cache: Record<string, Assignment> = {};
+export function getAllAssignments(): Record<string, Assignment> { return cache; }
+export function _setCache(next: Record<string, Assignment>) { cache = next; }
+export function getAssignment(claimId: string): Assignment {
+  return cache[claimId] ?? { claim_id: claimId, status: 'open', updated_at: '' };
+}
+
+export async function setAssignment(claimId: string, patch: Partial<Assignment>): Promise<Assignment | null> {
+  const current = cache[claimId];
+  const row = {
+    claim_id: claimId,
+    assignee: patch.assignee !== undefined ? (patch.assignee ?? null) : (current?.assignee ?? null),
+    status: (patch.status ?? current?.status ?? 'open') as WorkingStatus,
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from('claim_assignments')
+    .upsert(row, { onConflict: 'claim_id' })
+    .select('*')
+    .single();
+  if (error) {
+    console.error('[assignments] upsert failed', error.message);
+    return null;
+  }
+  const next = rowToAssignment(data as never);
+  cache = { ...cache, [claimId]: next };
+  notify();
+  return next;
+}

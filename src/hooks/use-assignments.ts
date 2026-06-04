@@ -1,18 +1,32 @@
 import { useEffect, useState } from 'react';
-import { getAllAssignments, setAssignment, type Assignment, type WorkingStatus, ASSIGNEES } from '@/lib/assignments';
+import {
+  loadAllAssignments, getAllAssignments, setAssignment,
+  _setCache, type Assignment, type WorkingStatus, ASSIGNEES,
+} from '@/lib/assignments';
+import { migrateLocalStorageOnce } from '@/lib/persistence-migration';
 
 export function useAssignments() {
   const [store, setStore] = useState<Record<string, Assignment>>(() => getAllAssignments());
+
   useEffect(() => {
-    const h = () => setStore(getAllAssignments());
-    window.addEventListener('clarity-assignments', h);
-    return () => window.removeEventListener('clarity-assignments', h);
+    let alive = true;
+    const sync = () => {
+      loadAllAssignments().then(next => {
+        if (!alive) return;
+        _setCache(next);
+        setStore(next);
+      }).catch(() => {});
+    };
+    migrateLocalStorageOnce().finally(sync);
+    window.addEventListener('clarity-assignments', sync);
+    return () => { alive = false; window.removeEventListener('clarity-assignments', sync); };
   }, []);
+
   return {
     store,
     get: (id: string): Assignment => store[id] ?? { claim_id: id, status: 'open' as WorkingStatus, updated_at: '' },
-    assign: (id: string, assignee: string | undefined) => setAssignment(id, { assignee }),
-    setStatus: (id: string, status: WorkingStatus) => setAssignment(id, { status }),
+    assign: (id: string, assignee: string | undefined) => { void setAssignment(id, { assignee }); },
+    setStatus: (id: string, status: WorkingStatus) => { void setAssignment(id, { status }); },
     assignees: ASSIGNEES,
   };
 }

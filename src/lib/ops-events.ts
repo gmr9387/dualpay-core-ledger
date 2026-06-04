@@ -24,24 +24,18 @@ function makeEventId(): string {
 }
 
 /**
- * Persistent append-only operations event log.
- *
- * Phase 7:
- * - Replaces localStorage-backed ops events.
- * - Persists operational audit events to Supabase `ops_events`.
- * - Keeps the same public function names used by Phase 6 screens.
+ * Persistent append-only operations event log (Supabase `ops_events`).
  */
 export async function getOpsEvents(): Promise<OpsEvent[]> {
   const { data, error } = await supabase
     .from('ops_events')
     .select('*')
-    .order('occurred_at', { ascending: false });
-
+    .order('occurred_at', { ascending: false })
+    .limit(1000);
   if (error) {
-    console.error('[ops-events] failed to load', error.message);
+    console.error('[ops-events] load failed', error.message);
     return [];
   }
-
   return (data ?? []) as OpsEvent[];
 }
 
@@ -51,12 +45,10 @@ export async function getOpsEventsForClaim(claimId: string): Promise<OpsEvent[]>
     .select('*')
     .eq('claim_id', claimId)
     .order('occurred_at', { ascending: false });
-
   if (error) {
-    console.error('[ops-events] failed to load claim events', error.message);
+    console.error('[ops-events] load claim events failed', error.message);
     return [];
   }
-
   return (data ?? []) as OpsEvent[];
 }
 
@@ -70,17 +62,17 @@ export async function appendOpsEvent(
     claim_id: ev.claim_id ?? null,
     actor: ev.actor ?? 'Current User',
     summary: ev.summary,
-    payload: ev.payload ?? null,
+    payload: (ev.payload ?? null) as never,
   };
 
   const { data, error } = await supabase
     .from('ops_events')
-    .insert(row)
+    .insert([row])
     .select('*')
     .single();
 
   if (error) {
-    console.error('[ops-events] failed to append', error.message);
+    console.error('[ops-events] append failed', error.message);
     return null;
   }
 
@@ -88,10 +80,7 @@ export async function appendOpsEvent(
   return data as OpsEvent;
 }
 
-/**
- * Append-only means no destructive clear in persistent mode.
- * Kept for compatibility with existing imports/buttons.
- */
+/** ops_events is append-only — kept for API compatibility. */
 export async function clearOpsEvents(): Promise<void> {
-  console.warn('[ops-events] clearOpsEvents skipped: ops_events is append-only in persistent mode');
+  console.warn('[ops-events] clearOpsEvents is a no-op; table is append-only');
 }

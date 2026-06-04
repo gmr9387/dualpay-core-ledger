@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -158,6 +160,38 @@ export type Database = {
         }
         Relationships: []
       }
+      claim_assignments: {
+        Row: {
+          assignee: string | null
+          claim_id: string
+          created_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assignee?: string | null
+          claim_id: string
+          created_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assignee?: string | null
+          claim_id?: string
+          created_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_assignments_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: true
+            referencedRelation: "claims"
+            referencedColumns: ["claim_id"]
+          },
+        ]
+      }
       claims: {
         Row: {
           claim_id: string
@@ -264,6 +298,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ops_events_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claims"
+            referencedColumns: ["claim_id"]
+          },
+        ]
+      }
+      recovery_outcomes: {
+        Row: {
+          claim_id: string
+          created_at: string
+          denial_id: string | null
+          denied_amount_cents: number
+          notes: string | null
+          outcome_id: string
+          payer_id: string | null
+          payload: Json | null
+          recovered_amount_cents: number
+          resolution_date: string
+          resolution_type: string
+          unrecovered_amount_cents: number
+          updated_at: string
+        }
+        Insert: {
+          claim_id: string
+          created_at?: string
+          denial_id?: string | null
+          denied_amount_cents?: number
+          notes?: string | null
+          outcome_id: string
+          payer_id?: string | null
+          payload?: Json | null
+          recovered_amount_cents?: number
+          resolution_date: string
+          resolution_type: string
+          unrecovered_amount_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          claim_id?: string
+          created_at?: string
+          denial_id?: string | null
+          denied_amount_cents?: number
+          notes?: string | null
+          outcome_id?: string
+          payer_id?: string | null
+          payload?: Json | null
+          recovered_amount_cents?: number
+          resolution_date?: string
+          resolution_type?: string
+          unrecovered_amount_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recovery_outcomes_claim_id_fkey"
             columns: ["claim_id"]
             isOneToOne: false
             referencedRelation: "claims"
@@ -436,12 +526,12 @@ export type CompositeTypes<
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-    : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-      ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-      : never
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {
