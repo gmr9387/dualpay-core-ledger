@@ -34,10 +34,11 @@ const SECTIONS: NavSection[] = [
   {
     title: 'Recovery Factory',
     items: [
-      { to: '/factory',            label: 'Factory Dashboard', icon: Factory,   badge: 'NEW' },
-      { to: '/factory/import',     label: 'Import Center',     icon: FileInput, badge: 'NEW' },
-      { to: '/factory/exceptions', label: 'Exception Queue',   icon: AlertIcon, badge: 'NEW' },
-      { to: '/factory/history',    label: 'Import History',    icon: History,   badge: 'NEW' },
+      { to: '/factory',             label: 'Factory Dashboard', icon: Factory,   badge: 'NEW' },
+      { to: '/factory/import',      label: 'Import Center',     icon: FileInput, badge: 'NEW' },
+      { to: '/factory/remittance',  label: 'Remittance Intake', icon: Database,  badge: '835' },
+      { to: '/factory/exceptions',  label: 'Exception Queue',   icon: AlertIcon, badge: 'NEW' },
+      { to: '/factory/history',     label: 'Import History',    icon: History,   badge: 'NEW' },
     ],
   },
   {
