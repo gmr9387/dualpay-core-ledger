@@ -371,6 +371,50 @@ export type Database = {
           },
         ]
       }
+      fee_schedules: {
+        Row: {
+          contract_id: string
+          contracted_amount_cents: number
+          created_at: string
+          fee_schedule_id: string
+          modifier: string | null
+          org_id: string
+          procedure_code: string
+          reimbursement_method: string
+          updated_at: string
+        }
+        Insert: {
+          contract_id: string
+          contracted_amount_cents?: number
+          created_at?: string
+          fee_schedule_id?: string
+          modifier?: string | null
+          org_id: string
+          procedure_code: string
+          reimbursement_method?: string
+          updated_at?: string
+        }
+        Update: {
+          contract_id?: string
+          contracted_amount_cents?: number
+          created_at?: string
+          fee_schedule_id?: string
+          modifier?: string | null
+          org_id?: string
+          procedure_code?: string
+          reimbursement_method?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_schedules_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "payer_contracts"
+            referencedColumns: ["contract_id"]
+          },
+        ]
+      }
       field_mappings: {
         Row: {
           created_at: string
@@ -703,6 +747,51 @@ export type Database = {
         }
         Relationships: []
       }
+      payer_contracts: {
+        Row: {
+          contract_id: string
+          contract_name: string
+          contract_type: string
+          created_at: string
+          effective_date: string
+          org_id: string
+          payer_name: string
+          termination_date: string | null
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string | null
+          version: string
+        }
+        Insert: {
+          contract_id?: string
+          contract_name: string
+          contract_type?: string
+          created_at?: string
+          effective_date: string
+          org_id: string
+          payer_name: string
+          termination_date?: string | null
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          version?: string
+        }
+        Update: {
+          contract_id?: string
+          contract_name?: string
+          contract_type?: string
+          created_at?: string
+          effective_date?: string
+          org_id?: string
+          payer_name?: string
+          termination_date?: string | null
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          version?: string
+        }
+        Relationships: []
+      }
       recovery_outcomes: {
         Row: {
           claim_id: string
@@ -883,6 +972,71 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "adjudication_runs"
             referencedColumns: ["run_id"]
+          },
+        ]
+      }
+      underpayment_disputes: {
+        Row: {
+          allowed_amount_cents: number
+          claim_id: string
+          contract_id: string | null
+          created_at: string
+          dispute_id: string
+          expected_amount_cents: number
+          explanation: string | null
+          org_id: string
+          paid_amount_cents: number
+          payer_name: string
+          procedure_code: string | null
+          severity: string
+          status: string
+          updated_at: string
+          variance_amount_cents: number
+          variance_percent: number
+        }
+        Insert: {
+          allowed_amount_cents?: number
+          claim_id: string
+          contract_id?: string | null
+          created_at?: string
+          dispute_id?: string
+          expected_amount_cents?: number
+          explanation?: string | null
+          org_id: string
+          paid_amount_cents?: number
+          payer_name: string
+          procedure_code?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+          variance_amount_cents?: number
+          variance_percent?: number
+        }
+        Update: {
+          allowed_amount_cents?: number
+          claim_id?: string
+          contract_id?: string | null
+          created_at?: string
+          dispute_id?: string
+          expected_amount_cents?: number
+          explanation?: string | null
+          org_id?: string
+          paid_amount_cents?: number
+          payer_name?: string
+          procedure_code?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+          variance_amount_cents?: number
+          variance_percent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "underpayment_disputes_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "payer_contracts"
+            referencedColumns: ["contract_id"]
           },
         ]
       }
