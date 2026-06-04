@@ -6,6 +6,7 @@ import type { ImportBatch, ImportSourceType, FieldMapping, ValidationSummary, Pa
 import { rowToClaim } from '@/engine/import-to-claim';
 import { saveClaim } from '@/data/repository';
 import { persistExceptions } from '@/lib/import-exceptions';
+import { persistRemittanceBatch } from '@/lib/remittance-batches';
 
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 const J = <T>(v: T) => v as unknown as Json;
