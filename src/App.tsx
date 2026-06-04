@@ -40,6 +40,11 @@ import ImportHistory from "./pages/ImportHistory";
 import ExceptionQueue from "./pages/ExceptionQueue";
 import ExceptionDetail from "./pages/ExceptionDetail";
 import RemittanceIntake from "./pages/RemittanceIntake";
+import ExecutiveHome from "./pages/ExecutiveHome";
+import ExecutiveRecovery from "./pages/ExecutiveRecovery";
+import ExecutivePayers from "./pages/ExecutivePayers";
+import ExecutivePlaybooks from "./pages/ExecutivePlaybooks";
+import ExecutiveValue from "./pages/ExecutiveValue";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
