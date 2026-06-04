@@ -40,6 +40,11 @@ import ImportHistory from "./pages/ImportHistory";
 import ExceptionQueue from "./pages/ExceptionQueue";
 import ExceptionDetail from "./pages/ExceptionDetail";
 import RemittanceIntake from "./pages/RemittanceIntake";
+import ExecutiveHome from "./pages/ExecutiveHome";
+import ExecutiveRecovery from "./pages/ExecutiveRecovery";
+import ExecutivePayers from "./pages/ExecutivePayers";
+import ExecutivePlaybooks from "./pages/ExecutivePlaybooks";
+import ExecutiveValue from "./pages/ExecutiveValue";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -91,6 +96,11 @@ const App = () => (
             <Route path="/factory/remittance" element={<RemittanceIntake />} />
             <Route path="/ingest" element={<Ingestion />} />
             <Route path="/audit" element={<AuditTrace />} />
+            <Route path="/executive" element={<ExecutiveHome />} />
+            <Route path="/executive/recovery" element={<ExecutiveRecovery />} />
+            <Route path="/executive/payers" element={<ExecutivePayers />} />
+            <Route path="/executive/playbooks" element={<ExecutivePlaybooks />} />
+            <Route path="/executive/value" element={<ExecutiveValue />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ClarityShell>

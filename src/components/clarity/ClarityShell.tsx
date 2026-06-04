@@ -21,6 +21,16 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'Executive Intelligence',
+    items: [
+      { to: '/executive',            label: 'Executive Home',       icon: BarChart3, badge: 'NEW' },
+      { to: '/executive/value',      label: 'Value Realization',    icon: TrendingUp, badge: 'NEW' },
+      { to: '/executive/recovery',   label: 'Recovery Attribution', icon: Target, badge: 'NEW' },
+      { to: '/executive/payers',     label: 'Payer Scorecards',     icon: Building2, badge: 'NEW' },
+      { to: '/executive/playbooks',  label: 'Playbook Effectiveness', icon: Award, badge: 'NEW' },
+    ],
+  },
+  {
     title: 'Recovery Operations',
     items: [
       { to: '/ops',           label: 'Operations Dashboard', icon: Gauge },
@@ -237,6 +247,11 @@ function breadcrumbsFor(pathname: string): string[] {
     '/factory/history':      ['Recovery Factory', 'Import History'],
     '/ingest':              ['Admin',      'Ingestion'],
     '/audit':               ['Admin',      'Audit & Trace'],
+    '/executive':            ['Executive Intelligence', 'Executive Home'],
+    '/executive/value':      ['Executive Intelligence', 'Value Realization'],
+    '/executive/recovery':   ['Executive Intelligence', 'Recovery Attribution'],
+    '/executive/payers':     ['Executive Intelligence', 'Payer Scorecards'],
+    '/executive/playbooks':  ['Executive Intelligence', 'Playbook Effectiveness'],
   };
   if (map[pathname]) return map[pathname];
   if (pathname.startsWith('/denials/')) return ['Intelligence', 'Denial Command', pathname.split('/')[2]];
