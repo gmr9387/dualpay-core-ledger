@@ -15,7 +15,9 @@ export type OpsEventKind =
   | 'document_updated'
   | 'document_linked'
   | 'document_removed'
-  | 'appeal_packet_generated';
+  | 'appeal_packet_generated'
+  | 'audit_export_requested'
+  | 'audit_export_completed';
 
 export interface OpsEvent {
   event_id: string;
@@ -82,7 +84,7 @@ export async function appendOpsEvent(
 
   const { data, error } = await supabase
     .from('ops_events')
-    .insert([row])
+    .insert([row] as never)
     .select('*')
     .single();
 

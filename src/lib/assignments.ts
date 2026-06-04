@@ -63,7 +63,7 @@ export async function setAssignment(claimId: string, patch: Partial<Assignment>)
   };
   const { data, error } = await supabase
     .from('claim_assignments')
-    .upsert(row, { onConflict: 'claim_id' })
+    .upsert(row as never, { onConflict: 'claim_id' })
     .select('*')
     .single();
   if (error) {

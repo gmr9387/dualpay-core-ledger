@@ -19,7 +19,7 @@ export type Database = {
           claim_id: string
           created_at: string
           is_retro: boolean
-          org_id: string | null
+          org_id: string
           payload: Json
           run_id: string
           total_member_responsibility_cents: number
@@ -29,7 +29,7 @@ export type Database = {
           claim_id: string
           created_at?: string
           is_retro?: boolean
-          org_id?: string | null
+          org_id: string
           payload: Json
           run_id: string
           total_member_responsibility_cents?: number
@@ -39,7 +39,7 @@ export type Database = {
           claim_id?: string
           created_at?: string
           is_retro?: boolean
-          org_id?: string | null
+          org_id?: string
           payload?: Json
           run_id?: string
           total_member_responsibility_cents?: number
@@ -67,19 +67,19 @@ export type Database = {
           case_id: string
           claim_id: string
           linked_at: string
-          org_id: string | null
+          org_id: string
         }
         Insert: {
           case_id: string
           claim_id: string
           linked_at?: string
-          org_id?: string | null
+          org_id: string
         }
         Update: {
           case_id?: string
           claim_id?: string
           linked_at?: string
-          org_id?: string | null
+          org_id?: string
         }
         Relationships: [
           {
@@ -114,7 +114,7 @@ export type Database = {
           event_type: string
           metadata: Json | null
           occurred_at: string
-          org_id: string | null
+          org_id: string
         }
         Insert: {
           case_id: string
@@ -124,7 +124,7 @@ export type Database = {
           event_type: string
           metadata?: Json | null
           occurred_at?: string
-          org_id?: string | null
+          org_id: string
         }
         Update: {
           case_id?: string
@@ -134,7 +134,7 @@ export type Database = {
           event_type?: string
           metadata?: Json | null
           occurred_at?: string
-          org_id?: string | null
+          org_id?: string
         }
         Relationships: [
           {
@@ -166,7 +166,7 @@ export type Database = {
           created_at: string
           description: string | null
           member_id: string
-          org_id: string | null
+          org_id: string
           status: string
           tags: string[]
           updated_at: string
@@ -176,7 +176,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           member_id: string
-          org_id?: string | null
+          org_id: string
           status?: string
           tags?: string[]
           updated_at?: string
@@ -186,7 +186,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           member_id?: string
-          org_id?: string | null
+          org_id?: string
           status?: string
           tags?: string[]
           updated_at?: string
@@ -206,7 +206,7 @@ export type Database = {
           assignee: string | null
           claim_id: string
           created_at: string
-          org_id: string | null
+          org_id: string
           status: string
           updated_at: string
         }
@@ -214,7 +214,7 @@ export type Database = {
           assignee?: string | null
           claim_id: string
           created_at?: string
-          org_id?: string | null
+          org_id: string
           status?: string
           updated_at?: string
         }
@@ -222,7 +222,7 @@ export type Database = {
           assignee?: string | null
           claim_id?: string
           created_at?: string
-          org_id?: string | null
+          org_id?: string
           status?: string
           updated_at?: string
         }
@@ -248,7 +248,7 @@ export type Database = {
           claim_id: string
           created_at: string
           member_id: string
-          org_id: string | null
+          org_id: string
           payload: Json
           provider_name: string | null
           service_date_from: string
@@ -261,7 +261,7 @@ export type Database = {
           claim_id: string
           created_at?: string
           member_id: string
-          org_id?: string | null
+          org_id: string
           payload: Json
           provider_name?: string | null
           service_date_from: string
@@ -274,7 +274,7 @@ export type Database = {
           claim_id?: string
           created_at?: string
           member_id?: string
-          org_id?: string | null
+          org_id?: string
           payload?: Json
           provider_name?: string | null
           service_date_from?: string
@@ -304,7 +304,7 @@ export type Database = {
           filename: string
           mime_type: string
           notes: string | null
-          org_id: string | null
+          org_id: string
           parent_document_id: string | null
           storage_bucket: string
           storage_path: string
@@ -324,7 +324,7 @@ export type Database = {
           filename: string
           mime_type: string
           notes?: string | null
-          org_id?: string | null
+          org_id: string
           parent_document_id?: string | null
           storage_bucket?: string
           storage_path: string
@@ -344,7 +344,7 @@ export type Database = {
           filename?: string
           mime_type?: string
           notes?: string | null
-          org_id?: string | null
+          org_id?: string
           parent_document_id?: string | null
           storage_bucket?: string
           storage_path?: string
@@ -377,7 +377,7 @@ export type Database = {
           mapping: Json
           mapping_id: string
           name: string
-          org_id: string | null
+          org_id: string
           source_type: string
           updated_at: string
         }
@@ -386,7 +386,7 @@ export type Database = {
           mapping?: Json
           mapping_id?: string
           name: string
-          org_id?: string | null
+          org_id: string
           source_type: string
           updated_at?: string
         }
@@ -395,7 +395,7 @@ export type Database = {
           mapping?: Json
           mapping_id?: string
           name?: string
-          org_id?: string | null
+          org_id?: string
           source_type?: string
           updated_at?: string
         }
@@ -420,7 +420,7 @@ export type Database = {
           generated_claim_ids: Json
           import_score: number
           mapping: Json
-          org_id: string | null
+          org_id: string
           record_count: number
           source_type: string
           status: string
@@ -441,7 +441,7 @@ export type Database = {
           generated_claim_ids?: Json
           import_score?: number
           mapping?: Json
-          org_id?: string | null
+          org_id: string
           record_count?: number
           source_type: string
           status?: string
@@ -462,7 +462,7 @@ export type Database = {
           generated_claim_ids?: Json
           import_score?: number
           mapping?: Json
-          org_id?: string | null
+          org_id?: string
           record_count?: number
           source_type?: string
           status?: string
@@ -491,7 +491,7 @@ export type Database = {
           exception_id: string
           generated_claim_id: string | null
           mapped_row: Json | null
-          org_id: string | null
+          org_id: string
           resolved_at: string | null
           row_number: number
           severity: string
@@ -508,7 +508,7 @@ export type Database = {
           exception_id: string
           generated_claim_id?: string | null
           mapped_row?: Json | null
-          org_id?: string | null
+          org_id: string
           resolved_at?: string | null
           row_number: number
           severity: string
@@ -525,7 +525,7 @@ export type Database = {
           exception_id?: string
           generated_claim_id?: string | null
           mapped_row?: Json | null
-          org_id?: string | null
+          org_id?: string
           resolved_at?: string | null
           row_number?: number
           severity?: string
@@ -559,7 +559,7 @@ export type Database = {
           individual_deductible_used_cents: number
           individual_oop_used_cents: number
           member_id: string
-          org_id: string | null
+          org_id: string
           payload: Json | null
           plan_year: number
           updated_at: string
@@ -570,7 +570,7 @@ export type Database = {
           individual_deductible_used_cents?: number
           individual_oop_used_cents?: number
           member_id: string
-          org_id?: string | null
+          org_id: string
           payload?: Json | null
           plan_year: number
           updated_at?: string
@@ -581,7 +581,7 @@ export type Database = {
           individual_deductible_used_cents?: number
           individual_oop_used_cents?: number
           member_id?: string
-          org_id?: string | null
+          org_id?: string
           payload?: Json | null
           plan_year?: number
           updated_at?: string
@@ -607,7 +607,7 @@ export type Database = {
           event_id: string
           kind: string
           occurred_at: string
-          org_id: string | null
+          org_id: string
           payload: Json | null
           summary: string
         }
@@ -621,7 +621,7 @@ export type Database = {
           event_id: string
           kind: string
           occurred_at?: string
-          org_id?: string | null
+          org_id: string
           payload?: Json | null
           summary: string
         }
@@ -635,7 +635,7 @@ export type Database = {
           event_id?: string
           kind?: string
           occurred_at?: string
-          org_id?: string | null
+          org_id?: string
           payload?: Json | null
           summary?: string
         }
@@ -710,7 +710,7 @@ export type Database = {
           denial_id: string | null
           denied_amount_cents: number
           notes: string | null
-          org_id: string | null
+          org_id: string
           outcome_id: string
           payer_id: string | null
           payload: Json | null
@@ -726,7 +726,7 @@ export type Database = {
           denial_id?: string | null
           denied_amount_cents?: number
           notes?: string | null
-          org_id?: string | null
+          org_id: string
           outcome_id: string
           payer_id?: string | null
           payload?: Json | null
@@ -742,7 +742,7 @@ export type Database = {
           denial_id?: string | null
           denied_amount_cents?: number
           notes?: string | null
-          org_id?: string | null
+          org_id?: string
           outcome_id?: string
           payer_id?: string | null
           payload?: Json | null
@@ -779,7 +779,7 @@ export type Database = {
           file_name: string
           id: string
           imported_by: string | null
-          org_id: string | null
+          org_id: string
           payer_name: string | null
           record_count: number
           total_adjustment_cents: number
@@ -798,7 +798,7 @@ export type Database = {
           file_name: string
           id?: string
           imported_by?: string | null
-          org_id?: string | null
+          org_id: string
           payer_name?: string | null
           record_count?: number
           total_adjustment_cents?: number
@@ -817,7 +817,7 @@ export type Database = {
           file_name?: string
           id?: string
           imported_by?: string | null
-          org_id?: string | null
+          org_id?: string
           payer_name?: string | null
           record_count?: number
           total_adjustment_cents?: number
@@ -841,7 +841,7 @@ export type Database = {
         Row: {
           claim_id: string
           created_at: string
-          org_id: string | null
+          org_id: string
           payload: Json
           run_id: string
           trace_id: string
@@ -849,7 +849,7 @@ export type Database = {
         Insert: {
           claim_id: string
           created_at?: string
-          org_id?: string | null
+          org_id: string
           payload: Json
           run_id: string
           trace_id: string
@@ -857,7 +857,7 @@ export type Database = {
         Update: {
           claim_id?: string
           created_at?: string
-          org_id?: string | null
+          org_id?: string
           payload?: Json
           run_id?: string
           trace_id?: string

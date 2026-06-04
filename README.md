@@ -154,3 +154,73 @@ Reused engines (no duplication)
 
 * `evidence-readiness`, `appeal-readiness`, `sufficiency`,
   `ops-events`, `use-org`.
+
+## Phase 14 — Production Security, Audit Export & Tenancy Hardening
+
+Tenancy backfill
+
+* All operational records that lacked an organization were assigned to
+  a `Legacy Demo Organization`.
+* `org_id` is now `NOT NULL` on every operational table:
+  claims, member_accumulators, adjudication_runs, cases, case_claim_links,
+  case_events, traces, ops_events, claim_assignments, recovery_outcomes,
+  import_batches, import_exceptions, field_mappings, remittance_batches,
+  evidence_documents.
+
+RLS hardening
+
+* The temporary "if org_id is NULL, allow members" branch was removed from
+  every operational policy.
+* SELECT — org members only.
+* INSERT / UPDATE — analyst, manager, admin, owner.
+* DELETE — manager, admin, owner.
+* No anonymous access. No globally permissive policy remains.
+* Browseable inventory at `/admin/security`.
+
+SECURITY DEFINER hardening
+
+* `is_org_member`, `has_org_role`, `current_org_id` — EXECUTE restricted
+  to `authenticated` (revoked from `PUBLIC`/`anon`).
+* `set_default_org_id`, `handle_new_user_org`, `touch_updated_at` —
+  trigger functions; EXECUTE revoked from `PUBLIC`/`anon`. They run
+  with table-owner privileges only when fired by their triggers.
+
+Audit export (`src/lib/audit-export.ts`)
+
+* Datasets: ops events, escalations, assignments, recovery outcomes,
+  evidence actions.
+* Formats: CSV, JSON.
+* Modes: **Full** (admin/owner only) and **Redacted** (member ids,
+  personal identifiers, and sensitive filenames stripped).
+* Every export emits `audit_export_requested` and
+  `audit_export_completed` ops events with actor, dataset, mode,
+  row count, and filename.
+
+Admin console
+
+* `/admin` — KPIs (members, organizations, audit events, exports, stored documents).
+* `/admin/security` — RLS policy inventory + SECURITY DEFINER helper list.
+* `/admin/audit` — configure and run audit exports.
+
+Role-aware UI (`src/lib/role-permissions.ts`)
+
+* `viewer` — read only; no upload, edit, assign, escalate, or delete controls.
+* `analyst` — upload, edit, assign.
+* `manager` — escalate, delete, run redacted exports.
+* `admin` / `owner` — full exports, organization management, security console.
+* `RequireRole` guards `/admin/*` routes; controls are hidden, not just disabled.
+
+Reused (not rebuilt)
+
+* Denial Intelligence, Recovery Operations, Executive Intelligence,
+  Recovery Factory, Remittance Intelligence, Evidence Vault,
+  Appeal Packet Generator, Identity / RBAC / Organizations.
+
+Remaining production blockers
+
+* No real EDI 835 / 837 parser (CSV-derived only).
+* No payer contracts repository; underpayment detection still billed-vs-paid.
+* No background jobs / scheduled workers.
+* No observability stack (metrics, traces, alerting).
+* `evidence_documents` row delete does not cascade-delete the storage object.
+* Email/password is the only auth method; SSO, MFA, and password rotation policies not configured.

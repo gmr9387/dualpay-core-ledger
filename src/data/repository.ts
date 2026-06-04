@@ -168,7 +168,7 @@ export async function saveClaim(claim: Claim): Promise<void> {
     status: claim.status,
     total_billed_cents: claim.total_billed,
     payload: asJson(claim),
-  }]);
+  }] as never);
   if (error) throw error;
 }
 
@@ -185,7 +185,7 @@ export async function saveAdjudication(
     total_member_responsibility_cents: run.total_member_responsibility,
     is_retro: isRetro,
     payload: asJson(run),
-  }]);
+  }] as never);
   if (runErr) throw runErr;
 
   const { error: traceErr } = await supabase.from('traces').upsert([{
@@ -193,7 +193,7 @@ export async function saveAdjudication(
     run_id: run.run_id,
     claim_id: claimId,
     payload: asJson(trace),
-  }]);
+  }] as never);
   if (traceErr) throw traceErr;
 }
 
@@ -206,7 +206,7 @@ export async function saveAccumulators(acc: MemberAccumulators): Promise<void> {
     family_deductible_used_cents: acc.family_deductible_used,
     family_oop_used_cents: acc.family_oop_used,
     payload: asJson(acc),
-  }]);
+  }] as never);
   if (error) throw error;
 }
 
@@ -217,14 +217,14 @@ export async function saveCase(c: Case): Promise<void> {
     status: c.status,
     description: c.description,
     tags: c.tags,
-  }]);
+  }] as never);
   if (cErr) throw cErr;
 
   // Replace links
   await supabase.from('case_claim_links').delete().eq('case_id', c.case_id);
   if (c.claim_ids.length > 0) {
     const { error: lErr } = await supabase.from('case_claim_links').insert(
-      c.claim_ids.map((claim_id) => ({ case_id: c.case_id, claim_id })),
+      c.claim_ids.map((claim_id) => ({ case_id: c.case_id, claim_id })) as never,
     );
     if (lErr) throw lErr;
   }
@@ -239,7 +239,7 @@ export async function saveCaseEvent(evt: CaseEvent): Promise<void> {
     description: evt.description,
     metadata: evt.metadata ? asJson(evt.metadata) : undefined,
     occurred_at: evt.timestamp,
-  }]);
+  }] as never);
   if (error) throw error;
 }
 
