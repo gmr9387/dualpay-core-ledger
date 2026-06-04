@@ -7,7 +7,8 @@ export type ImportSourceType =
   | 'aging_report'
   | 'underpayment_report'
   | 'appeal_status'
-  | 'payer_followup';
+  | 'payer_followup'
+  | 'remittance_835';
 
 export const SOURCE_LABEL: Record<ImportSourceType, string> = {
   denial_export: 'Denial Export',
@@ -15,6 +16,7 @@ export const SOURCE_LABEL: Record<ImportSourceType, string> = {
   underpayment_report: 'Underpayment Report',
   appeal_status: 'Appeal Status Report',
   payer_followup: 'Payer Follow-Up Report',
+  remittance_835: '835 Remittance',
 };
 
 /** Canonical target fields the engine knows how to consume. */
@@ -37,7 +39,13 @@ export type CanonicalField =
   | 'procedure_code'
   | 'aging_days'
   | 'appeal_status'
-  | 'appeal_level';
+  | 'appeal_level'
+  // Phase 10 — 835 remittance fields
+  | 'patient_responsibility'
+  | 'adjustment_amount'
+  | 'payment_reference'
+  | 'check_number'
+  | 'remittance_date';
 
 export interface CanonicalFieldDef {
   key: CanonicalField;
@@ -92,4 +100,58 @@ export interface ImportBatch {
   expected_recovery_cents: number;
   uploaded_at: string;
   committed_at: string | null;
+}
+
+// ─── Phase 10 — Remittance ─────────────────────────────────────────────────
+
+/** Canonical remittance line emitted by the normalizer. */
+export interface CanonicalRemittance {
+  claim_id: string;
+  payer_name: string;
+  service_date?: string;
+  remittance_date?: string;
+  payment_reference?: string;
+  check_number?: string;
+  billed_cents: number;
+  allowed_cents: number;
+  paid_cents: number;
+  patient_resp_cents: number;
+  adjustment_cents: number;
+  carc_code?: string;
+  rarc_code?: string;
+  group_code?: 'CO' | 'PR' | 'OA' | 'PI' | 'CR';
+  denial_reason?: string;
+  procedure_code?: string;
+  member_id?: string;
+  provider_npi?: string;
+  provider_name?: string;
+}
+
+export type RemittanceOpportunityKind =
+  | 'denial'
+  | 'underpayment'
+  | 'cob'
+  | 'contractual'
+  | 'paid_in_full';
+
+export interface RemittanceClassification {
+  kind: RemittanceOpportunityKind;
+  amount_at_risk_cents: number;
+  reason: string;
+}
+
+export interface RemittanceBatchSummary {
+  batch_id: string;
+  file_name: string;
+  payer_name: string | null;
+  record_count: number;
+  denial_count: number;
+  underpayment_count: number;
+  cob_count: number;
+  total_billed_cents: number;
+  total_paid_cents: number;
+  total_adjustment_cents: number;
+  expected_recovery_cents: number;
+  imported_by: string | null;
+  uploaded_at: string;
 }

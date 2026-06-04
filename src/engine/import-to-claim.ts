@@ -21,6 +21,8 @@ import {
   computeSeverity,
   computeSlaDueAt,
 } from './denial-intelligence';
+import { normalizeRemittance } from './remittance-normalizer';
+import { classifyRemittance, extractDenialEvent } from './remittance-denial-extractor';
 
 const PAYER_CLASS_MAP: Array<[RegExp, ClaimIntel['payer_class']]> = [
   [/medicare/i,  'medicare'],
@@ -54,6 +56,11 @@ function inferState(row: ParsedRow, source: ImportSourceType): ReimbursementStat
   if (source === 'underpayment_report') return 'partially_paid';
   if (source === 'aging_report') return 'pending_payer';
   if (source === 'appeal_status') return 'appealing';
+  if (source === 'remittance_835') {
+    if (paid === 0) return 'denied';
+    if (billed > 0 && paid < billed) return 'partially_paid';
+    return 'paid';
+  }
   if (paid > 0 && billed > 0 && paid < billed) return 'partially_paid';
   return 'denied';
 }
@@ -79,7 +86,19 @@ export function rowToClaim(row: ParsedRow, source: ImportSourceType, batchId: st
 
   const billed = getNum(row, 'billed_amount') ?? getNum(row, 'amount_at_risk') ?? 0;
   const paid = getNum(row, 'paid_amount') ?? 0;
-  const atRisk = getNum(row, 'amount_at_risk') ?? Math.max(0, billed - paid);
+
+  // ── Phase 10: remittance source uses deterministic classifier for at-risk ──
+  let atRisk: number;
+  let remittanceClassificationReason: string | undefined;
+  if (source === 'remittance_835') {
+    const rem = normalizeRemittance(row);
+    const cls = classifyRemittance(rem);
+    atRisk = cls.amount_at_risk_cents;
+    remittanceClassificationReason = cls.reason;
+  } else {
+    atRisk = getNum(row, 'amount_at_risk') ?? Math.max(0, billed - paid);
+  }
+
   const procedure_code = getStr(row, 'procedure_code') ?? '99213';
 
   const line: ClaimLine = {
@@ -96,7 +115,12 @@ export function rowToClaim(row: ParsedRow, source: ImportSourceType, batchId: st
 
   const denial_events: DenialEvent[] = [];
   const carc = getStr(row, 'carc_code');
-  if (carc && atRisk > 0) {
+  if (source === 'remittance_835' && atRisk > 0) {
+    const rem = normalizeRemittance(row);
+    const cls = classifyRemittance(rem);
+    const evt = extractDenialEvent(rem, cls, claim_id, aging);
+    if (evt) denial_events.push({ ...evt, line_id: line.line_id });
+  } else if (carc && atRisk > 0) {
     const group = (getStr(row, 'group_code') as GroupCode | undefined) ?? 'CO';
     denial_events.push(scoreDenial({
       denial_id: `DNL-${claim_id}-1`,
@@ -170,7 +194,10 @@ export function rowToClaim(row: ParsedRow, source: ImportSourceType, batchId: st
     ],
     appeals: [],
     evidence_missing: [],
-    notes: [`Imported from batch ${batchId.slice(0, 8)}`],
+    notes: [
+      `Imported from batch ${batchId.slice(0, 8)}`,
+      ...(remittanceClassificationReason ? [`Remittance classification: ${remittanceClassificationReason}`] : []),
+    ],
     queues: deriveQueues(intelDraft),
   };
 

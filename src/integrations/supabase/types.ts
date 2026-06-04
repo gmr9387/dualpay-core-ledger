@@ -510,6 +510,63 @@ export type Database = {
           },
         ]
       }
+      remittance_batches: {
+        Row: {
+          batch_id: string
+          cob_count: number
+          created_at: string
+          denial_count: number
+          expected_recovery_cents: number
+          file_name: string
+          id: string
+          imported_by: string | null
+          payer_name: string | null
+          record_count: number
+          total_adjustment_cents: number
+          total_billed_cents: number
+          total_paid_cents: number
+          underpayment_count: number
+          updated_at: string
+          uploaded_at: string
+        }
+        Insert: {
+          batch_id: string
+          cob_count?: number
+          created_at?: string
+          denial_count?: number
+          expected_recovery_cents?: number
+          file_name: string
+          id?: string
+          imported_by?: string | null
+          payer_name?: string | null
+          record_count?: number
+          total_adjustment_cents?: number
+          total_billed_cents?: number
+          total_paid_cents?: number
+          underpayment_count?: number
+          updated_at?: string
+          uploaded_at?: string
+        }
+        Update: {
+          batch_id?: string
+          cob_count?: number
+          created_at?: string
+          denial_count?: number
+          expected_recovery_cents?: number
+          file_name?: string
+          id?: string
+          imported_by?: string | null
+          payer_name?: string | null
+          record_count?: number
+          total_adjustment_cents?: number
+          total_billed_cents?: number
+          total_paid_cents?: number
+          underpayment_count?: number
+          updated_at?: string
+          uploaded_at?: string
+        }
+        Relationships: []
+      }
       traces: {
         Row: {
           claim_id: string

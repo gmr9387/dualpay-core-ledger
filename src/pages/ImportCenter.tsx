@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Panel, ScrollBody } from '@/components/clarity/primitives';
 import { parseFile, type ParsedFile } from '@/lib/file-parser';
 import { autoDetectMapping, CANONICAL_FIELDS, REQUIRED_BY_SOURCE } from '@/engine/import-schema';
@@ -21,8 +21,16 @@ type Step = 'upload' | 'map' | 'validate' | 'review';
 
 export default function ImportCenter() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<Step>('upload');
   const [source, setSource] = useState<ImportSourceType>('denial_export');
+
+  useEffect(() => {
+    const s = searchParams.get('source') as ImportSourceType | null;
+    if (s && (['denial_export','aging_report','underpayment_report','appeal_status','payer_followup','remittance_835'] as ImportSourceType[]).includes(s)) {
+      setSource(s);
+    }
+  }, [searchParams]);
   const [file, setFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<ParsedFile | null>(null);
   const [mapping, setMapping] = useState<FieldMapping>({});

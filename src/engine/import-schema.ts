@@ -29,6 +29,12 @@ export const CANONICAL_FIELDS: CanonicalFieldDef[] = [
   { key: 'aging_days',      label: 'Aging Days',       required: false, kind: 'int',    aliases: ['aging', 'age', 'days outstanding'] },
   { key: 'appeal_status',   label: 'Appeal Status',    required: false, kind: 'string', aliases: ['appeal status', 'appeal state'] },
   { key: 'appeal_level',    label: 'Appeal Level',     required: false, kind: 'int',    aliases: ['appeal level', 'level'] },
+  // Phase 10 — 835 remittance fields
+  { key: 'patient_responsibility', label: 'Patient Responsibility', required: false, kind: 'money', aliases: ['patient resp', 'patient responsibility', 'pt resp', 'pr amount'] },
+  { key: 'adjustment_amount',      label: 'Adjustment Amount',      required: false, kind: 'money', aliases: ['adjustment', 'adj amount', 'adj amt', 'contractual adjustment', 'write off', 'writeoff'] },
+  { key: 'payment_reference',      label: 'Payment Reference',      required: false, kind: 'string', aliases: ['payment ref', 'eft', 'trace number', 'trn'] },
+  { key: 'check_number',           label: 'Check Number',           required: false, kind: 'string', aliases: ['check #', 'check number', 'check no', 'chk'] },
+  { key: 'remittance_date',        label: 'Remittance Date',        required: false, kind: 'date',   aliases: ['remit date', 'remittance date', 'paid date', 'check date'] },
 ];
 
 /** Required canonical fields per source type. */
@@ -38,6 +44,7 @@ export const REQUIRED_BY_SOURCE: Record<ImportSourceType, CanonicalField[]> = {
   underpayment_report:  ['claim_id', 'payer_name', 'amount_at_risk'],
   appeal_status:        ['claim_id', 'payer_name', 'appeal_status'],
   payer_followup:       ['claim_id', 'payer_name'],
+  remittance_835:       ['claim_id', 'payer_name', 'billed_amount', 'paid_amount'],
 };
 
 export function autoDetectMapping(headers: string[]): FieldMapping {
