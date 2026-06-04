@@ -22,6 +22,15 @@ Implemented
 * **Executive Intelligence (Phase 11)** — value realization, recovery
   attribution, payer scorecards, playbook effectiveness, deterministic
   narrative generation
+* **Identity & RBAC (Phase 12)** — Supabase auth, organizations,
+  org-scoped RLS, real actor identity in ops_events
+* **Evidence Vault (Phase 13)** — Supabase Storage, versioned documents,
+  appeal packet generator
+* **Production Hardening (Phase 14)** — NOT NULL org_id, tightened RLS,
+  admin console, security inventory, PHI-safe audit export
+* **Contract Intelligence (Phase 15)** — payer_contracts +
+  fee_schedules, contract-import / contract-match / contract-underpayment
+  engines, dispute generator, contract analytics, dispute lifecycle
 
 Product Vision
 
