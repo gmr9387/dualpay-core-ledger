@@ -88,6 +88,7 @@ const App = () => (
             <Route path="/factory/history" element={<ImportHistory />} />
             <Route path="/factory/exceptions" element={<ExceptionQueue />} />
             <Route path="/factory/exceptions/:exceptionId" element={<ExceptionDetail />} />
+            <Route path="/factory/remittance" element={<RemittanceIntake />} />
             <Route path="/ingest" element={<Ingestion />} />
             <Route path="/audit" element={<AuditTrace />} />
             <Route path="*" element={<NotFound />} />
