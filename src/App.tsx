@@ -34,6 +34,9 @@ import Escalations from "./pages/Escalations";
 import WorkloadManagement from "./pages/WorkloadManagement";
 import RecoveryOpsDashboard from "./pages/RecoveryOpsDashboard";
 import PayerOperations from "./pages/PayerOperations";
+import RecoveryFactory from "./pages/RecoveryFactory";
+import ImportCenter from "./pages/ImportCenter";
+import ImportHistory from "./pages/ImportHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -77,6 +80,9 @@ const App = () => (
             <Route path="/escalations" element={<Escalations />} />
             <Route path="/workload" element={<WorkloadManagement />} />
             <Route path="/payer-ops" element={<PayerOperations />} />
+            <Route path="/factory" element={<RecoveryFactory />} />
+            <Route path="/factory/import" element={<ImportCenter />} />
+            <Route path="/factory/history" element={<ImportHistory />} />
             <Route path="/ingest" element={<Ingestion />} />
             <Route path="/audit" element={<AuditTrace />} />
             <Route path="*" element={<NotFound />} />

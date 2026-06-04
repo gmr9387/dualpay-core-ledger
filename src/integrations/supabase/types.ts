@@ -231,6 +231,96 @@ export type Database = {
         }
         Relationships: []
       }
+      field_mappings: {
+        Row: {
+          created_at: string
+          mapping: Json
+          mapping_id: string
+          name: string
+          source_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          mapping?: Json
+          mapping_id?: string
+          name: string
+          source_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          mapping?: Json
+          mapping_id?: string
+          name?: string
+          source_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      import_batches: {
+        Row: {
+          batch_id: string
+          committed_at: string | null
+          created_at: string
+          error_count: number
+          expected_recovery_cents: number
+          file_name: string
+          generated_claim_ids: Json
+          import_score: number
+          mapping: Json
+          record_count: number
+          source_type: string
+          status: string
+          success_count: number
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string | null
+          validation: Json
+          warning_count: number
+        }
+        Insert: {
+          batch_id?: string
+          committed_at?: string | null
+          created_at?: string
+          error_count?: number
+          expected_recovery_cents?: number
+          file_name: string
+          generated_claim_ids?: Json
+          import_score?: number
+          mapping?: Json
+          record_count?: number
+          source_type: string
+          status?: string
+          success_count?: number
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          validation?: Json
+          warning_count?: number
+        }
+        Update: {
+          batch_id?: string
+          committed_at?: string | null
+          created_at?: string
+          error_count?: number
+          expected_recovery_cents?: number
+          file_name?: string
+          generated_claim_ids?: Json
+          import_score?: number
+          mapping?: Json
+          record_count?: number
+          source_type?: string
+          status?: string
+          success_count?: number
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          validation?: Json
+          warning_count?: number
+        }
+        Relationships: []
+      }
       member_accumulators: {
         Row: {
           family_deductible_used_cents: number

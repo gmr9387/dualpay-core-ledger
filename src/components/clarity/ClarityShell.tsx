@@ -5,7 +5,7 @@ import {
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
   HelpCircle, Bell, User, Database, Activity, Target, FolderOpen, BarChart3,
   BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText, ShieldCheck,
-  Award, ClipboardList, Siren, Scale, Phone, Gauge,
+  Award, ClipboardList, Siren, Scale, Phone, Gauge, Factory, FileInput, History,
 } from 'lucide-react';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
@@ -23,12 +23,20 @@ const SECTIONS: NavSection[] = [
   {
     title: 'Recovery Operations',
     items: [
-      { to: '/ops',           label: 'Operations Dashboard', icon: Gauge,     badge: 'NEW' },
-      { to: '/pipeline-exec', label: 'Executive Pipeline',   icon: BarChart3, badge: 'NEW' },
-      { to: '/sla',           label: 'SLA Management',       icon: ShieldCheck, badge: 'NEW' },
-      { to: '/escalations',   label: 'Escalations',          icon: Siren,     badge: 'NEW' },
-      { to: '/workload',      label: 'Workload Management',  icon: Scale,     badge: 'NEW' },
-      { to: '/payer-ops',     label: 'Payer Operations',     icon: Phone,     badge: 'NEW' },
+      { to: '/ops',           label: 'Operations Dashboard', icon: Gauge },
+      { to: '/pipeline-exec', label: 'Executive Pipeline',   icon: BarChart3 },
+      { to: '/sla',           label: 'SLA Management',       icon: ShieldCheck },
+      { to: '/escalations',   label: 'Escalations',          icon: Siren },
+      { to: '/workload',      label: 'Workload Management',  icon: Scale },
+      { to: '/payer-ops',     label: 'Payer Operations',     icon: Phone },
+    ],
+  },
+  {
+    title: 'Recovery Factory',
+    items: [
+      { to: '/factory',         label: 'Factory Dashboard', icon: Factory,   badge: 'NEW' },
+      { to: '/factory/import',  label: 'Import Center',     icon: FileInput, badge: 'NEW' },
+      { to: '/factory/history', label: 'Import History',    icon: History,   badge: 'NEW' },
     ],
   },
   {
@@ -221,6 +229,9 @@ function breadcrumbsFor(pathname: string): string[] {
     '/transparency':        ['Intelligence','Decision Transparency'],
     '/recovery-intel':      ['Intelligence','Recovery Intelligence'],
     '/outcomes':            ['Intelligence','Outcome Log'],
+    '/factory':             ['Recovery Factory', 'Factory Dashboard'],
+    '/factory/import':      ['Recovery Factory', 'Import Center'],
+    '/factory/history':     ['Recovery Factory', 'Import History'],
     '/ingest':              ['Admin',      'Ingestion'],
     '/audit':               ['Admin',      'Audit & Trace'],
   };
