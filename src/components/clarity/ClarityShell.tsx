@@ -54,6 +54,14 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'Contract Intelligence',
+    items: [
+      { to: '/contracts',           label: 'Contracts',          icon: BookText,    badge: 'NEW' },
+      { to: '/contracts/disputes',  label: 'Underpayment Disputes', icon: AlertOctagon, badge: 'NEW' },
+      { to: '/contracts/analytics', label: 'Contract Analytics', icon: BarChart3,   badge: 'NEW' },
+    ],
+  },
+  {
     title: 'Execute',
     items: [
       { to: '/pipeline',   label: 'Recovery Pipeline',  icon: GitBranch },
