@@ -56,6 +56,11 @@ import ExecutiveValue from "./pages/ExecutiveValue";
 import AdminConsole from "./pages/AdminConsole";
 import AdminSecurity from "./pages/AdminSecurity";
 import AdminAudit from "./pages/AdminAudit";
+import ContractsHome from "./pages/ContractsHome";
+import ContractDetail from "./pages/ContractDetail";
+import ContractUpload from "./pages/ContractUpload";
+import ContractDisputes from "./pages/ContractDisputes";
+import ContractAnalytics from "./pages/ContractAnalytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -116,6 +121,11 @@ const ProtectedShell = () => (
           <Route path="/admin" element={<AdminConsole />} />
           <Route path="/admin/security" element={<AdminSecurity />} />
           <Route path="/admin/audit" element={<AdminAudit />} />
+          <Route path="/contracts" element={<ContractsHome />} />
+          <Route path="/contracts/upload" element={<ContractUpload />} />
+          <Route path="/contracts/disputes" element={<ContractDisputes />} />
+          <Route path="/contracts/analytics" element={<ContractAnalytics />} />
+          <Route path="/contracts/:contractId" element={<ContractDetail />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>
