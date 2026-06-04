@@ -1,10 +1,4 @@
-/**
- * Append-only operations event log (localStorage).
- *
- * Records assignments, escalations, SLA breaches acknowledged,
- * payer follow-ups, and workflow transitions for audit / replay.
- */
-const KEY = 'clarity:ops-events:v1';
+import { supabase } from '@/integrations/supabase/client';
 
 export type OpsEventKind =
   | 'assignment_changed'
@@ -18,35 +12,86 @@ export interface OpsEvent {
   event_id: string;
   occurred_at: string;
   kind: OpsEventKind;
-  claim_id?: string;
-  actor?: string;
+  claim_id?: string | null;
+  actor?: string | null;
   summary: string;
-  payload?: Record<string, unknown>;
+  payload?: Record<string, unknown> | null;
+  created_at?: string;
 }
 
-function read(): OpsEvent[] {
-  try { return JSON.parse(localStorage.getItem(KEY) || '[]') as OpsEvent[]; }
-  catch { return []; }
-}
-function write(list: OpsEvent[]) {
-  localStorage.setItem(KEY, JSON.stringify(list));
-  window.dispatchEvent(new Event('clarity-ops-events'));
+function makeEventId(): string {
+  return `EV-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-export function getOpsEvents(): OpsEvent[] {
-  return read().sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+/**
+ * Persistent append-only operations event log.
+ *
+ * Phase 7:
+ * - Replaces localStorage-backed ops events.
+ * - Persists operational audit events to Supabase `ops_events`.
+ * - Keeps the same public function names used by Phase 6 screens.
+ */
+export async function getOpsEvents(): Promise<OpsEvent[]> {
+  const { data, error } = await supabase
+    .from('ops_events')
+    .select('*')
+    .order('occurred_at', { ascending: false });
+
+  if (error) {
+    console.error('[ops-events] failed to load', error.message);
+    return [];
+  }
+
+  return (data ?? []) as OpsEvent[];
 }
 
-export function appendOpsEvent(ev: Omit<OpsEvent, 'event_id' | 'occurred_at'> & { actor?: string }) {
-  const list = read();
-  list.push({
-    ...ev,
-    actor: ev.actor ?? 'Current User',
-    event_id: `EV-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+export async function getOpsEventsForClaim(claimId: string): Promise<OpsEvent[]> {
+  const { data, error } = await supabase
+    .from('ops_events')
+    .select('*')
+    .eq('claim_id', claimId)
+    .order('occurred_at', { ascending: false });
+
+  if (error) {
+    console.error('[ops-events] failed to load claim events', error.message);
+    return [];
+  }
+
+  return (data ?? []) as OpsEvent[];
+}
+
+export async function appendOpsEvent(
+  ev: Omit<OpsEvent, 'event_id' | 'occurred_at' | 'created_at'> & { actor?: string | null },
+): Promise<OpsEvent | null> {
+  const row = {
+    event_id: makeEventId(),
     occurred_at: new Date().toISOString(),
-  });
-  // Cap retention so localStorage stays small.
-  write(list.slice(-2000));
+    kind: ev.kind,
+    claim_id: ev.claim_id ?? null,
+    actor: ev.actor ?? 'Current User',
+    summary: ev.summary,
+    payload: ev.payload ?? null,
+  };
+
+  const { data, error } = await supabase
+    .from('ops_events')
+    .insert(row)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[ops-events] failed to append', error.message);
+    return null;
+  }
+
+  window.dispatchEvent(new Event('clarity-ops-events'));
+  return data as OpsEvent;
 }
 
-export function clearOpsEvents() { write([]); }
+/**
+ * Append-only means no destructive clear in persistent mode.
+ * Kept for compatibility with existing imports/buttons.
+ */
+export async function clearOpsEvents(): Promise<void> {
+  console.warn('[ops-events] clearOpsEvents skipped: ops_events is append-only in persistent mode');
+}
