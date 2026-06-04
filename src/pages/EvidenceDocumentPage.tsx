@@ -24,7 +24,7 @@ export default function EvidenceDocumentPage() {
 
   const claim = claims?.find(c => c.claim_id === doc.claim_id);
   const denials = claim?.intel.denial_events ?? [];
-  const docEvents = (events ?? []).filter(e => (e.payload as { document_id?: string } | null)?.document_id === doc.document_id);
+  const docEvents = events.filter(e => (e.payload as { document_id?: string } | null)?.document_id === doc.document_id);
 
   async function download() {
     const url = await getSignedUrl(doc!, 600);
