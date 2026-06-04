@@ -1188,6 +1188,42 @@ export type Database = {
           },
         ]
       }
+      scheduler_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          jobs_discovered: number
+          jobs_executed: number
+          notes: string | null
+          run_id: string
+          scheduler_name: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          jobs_discovered?: number
+          jobs_executed?: number
+          notes?: string | null
+          run_id?: string
+          scheduler_name: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          jobs_discovered?: number
+          jobs_executed?: number
+          notes?: string | null
+          run_id?: string
+          scheduler_name?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       traces: {
         Row: {
           claim_id: string
@@ -1302,11 +1338,73 @@ export type Database = {
           },
         ]
       }
+      worker_registry: {
+        Row: {
+          jobs_failed: number
+          jobs_processed: number
+          last_heartbeat: string
+          registered_at: string
+          status: string
+          updated_at: string
+          version: string
+          worker_id: string
+        }
+        Insert: {
+          jobs_failed?: number
+          jobs_processed?: number
+          last_heartbeat?: string
+          registered_at?: string
+          status?: string
+          updated_at?: string
+          version?: string
+          worker_id: string
+        }
+        Update: {
+          jobs_failed?: number
+          jobs_processed?: number
+          last_heartbeat?: string
+          registered_at?: string
+          status?: string
+          updated_at?: string
+          version?: string
+          worker_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      claim_next_queue_job: {
+        Args: { _worker_id: string }
+        Returns: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          max_attempts: number
+          next_attempt_at: string
+          org_id: string
+          payload: Json | null
+          pipeline_id: string | null
+          priority: number
+          queue_job_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "job_queue"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       current_org_id: { Args: never; Returns: string }
       has_org_role: {
         Args: { _org_id: string; _roles: string[]; _user_id: string }
@@ -1315,6 +1413,10 @@ export type Database = {
       is_org_member: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
+      }
+      recover_stalled_queue_jobs: {
+        Args: { _stale_minutes?: number }
+        Returns: number
       }
     }
     Enums: {
