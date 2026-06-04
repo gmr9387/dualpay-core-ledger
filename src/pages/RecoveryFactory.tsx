@@ -112,6 +112,7 @@ export default function RecoveryFactory() {
             <Panel title="Operational Links">
               <ul className="space-y-1.5 text-[12px]">
                 <li><Link className="text-primary hover:underline inline-flex items-center gap-1.5" to="/factory/import"><Upload className="h-3 w-3" /> Import Center</Link></li>
+                <li><Link className="text-primary hover:underline inline-flex items-center gap-1.5" to="/factory/exceptions"><AlertOctagon className="h-3 w-3" /> Exception Queue {openExc > 0 && <span className="ml-1 text-status-pending font-mono">({openExc})</span>}</Link></li>
                 <li><Link className="text-primary hover:underline inline-flex items-center gap-1.5" to="/factory/history"><ListTodo className="h-3 w-3" /> Import History</Link></li>
                 <li><Link className="text-primary hover:underline" to="/denials">→ Denial Command</Link></li>
                 <li><Link className="text-primary hover:underline" to="/ops">→ Recovery Operations</Link></li>
