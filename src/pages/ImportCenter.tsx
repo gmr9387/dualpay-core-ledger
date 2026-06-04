@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Panel, ScrollBody } from '@/components/clarity/primitives';
 import { parseFile, type ParsedFile } from '@/lib/file-parser';
 import { autoDetectMapping, CANONICAL_FIELDS, REQUIRED_BY_SOURCE } from '@/engine/import-schema';
