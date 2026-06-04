@@ -4,9 +4,11 @@
  */
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ListChecks, Cpu, AlertTriangle, Loader2, Play, Zap, History } from 'lucide-react';
+import { ListChecks, Cpu, AlertTriangle, Loader2, Play, Zap } from 'lucide-react';
 import { PageHeader, KpiStrip, ScrollBody, Panel } from '@/components/clarity/primitives';
 import { useQueueJobs, useJobRuns, platformKpis } from '@/hooks/use-platform';
+import { useWorkers } from '@/hooks/use-workers';
+import { isHealthy } from '@/lib/worker-heartbeat';
 import { useOrg } from '@/hooks/use-org';
 import { roleAtLeast } from '@/lib/role-permissions';
 import { enqueueRecoveryPipeline } from '@/engine/pipeline-orchestrator';
@@ -15,10 +17,25 @@ import { drainQueue, getWorkerId } from '@/engine/worker-executor';
 export default function PlatformHome() {
   const { jobs, loading, reload } = useQueueJobs();
   const { runs } = useJobRuns();
+  const { workers } = useWorkers();
   const { currentOrg } = useOrg();
   const [busy, setBusy] = useState<string | null>(null);
   const canRun = roleAtLeast(currentOrg?.role, 'analyst');
   const kpis = useMemo(() => platformKpis(jobs, runs), [jobs, runs]);
+  const reliability = useMemo(() => {
+    const healthy = workers.filter(isHealthy).length;
+    const totalTerminal = kpis.completed + kpis.dead + kpis.failed;
+    const retryRate = runs.length > 0
+      ? runs.filter(r => r.status === 'failed').length / runs.length : 0;
+    const deadRate = totalTerminal > 0 ? kpis.dead / totalTerminal : 0;
+    return {
+      queueDepth: kpis.queued + kpis.running,
+      workerAvailability: workers.length > 0 ? healthy / workers.length : 0,
+      throughputRuns: runs.length,
+      retryRate, deadRate,
+      hasSignal: runs.length > 0 || workers.length > 0,
+    };
+  }, [kpis, runs, workers]);
 
   const recent = jobs.slice(0, 12);
 
@@ -101,6 +118,39 @@ export default function PlatformHome() {
                 </tbody>
               </table>
             )}
+          </Panel>
+
+          <Panel title="Platform Reliability">
+            <div className="grid grid-cols-5 gap-4 p-4 text-[12px]">
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Queue Depth</div>
+                <div className="text-[18px] font-semibold mt-0.5">{reliability.queueDepth}</div>
+              </div>
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Worker Availability</div>
+                <div className="text-[18px] font-semibold mt-0.5">
+                  {workers.length === 0 ? 'Insufficient Processing History' : `${Math.round(reliability.workerAvailability*100)}%`}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Throughput</div>
+                <div className="text-[18px] font-semibold mt-0.5">{reliability.throughputRuns}</div>
+              </div>
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Retry Rate</div>
+                <div className="text-[18px] font-semibold mt-0.5">
+                  {runs.length === 0 ? 'Insufficient Processing History' : `${Math.round(reliability.retryRate*100)}%`}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Dead Letter Rate</div>
+                <div className="text-[18px] font-semibold mt-0.5">
+                  {(kpis.completed + kpis.dead + kpis.failed) === 0
+                    ? 'Insufficient Processing History'
+                    : `${Math.round(reliability.deadRate*100)}%`}
+                </div>
+              </div>
+            </div>
           </Panel>
 
           <div className="grid grid-cols-3 gap-3">

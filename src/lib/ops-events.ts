@@ -33,7 +33,12 @@ export type OpsEventKind =
   | 'pipeline_completed'
   | 'job_queued'
   | 'job_retried'
-  | 'job_dead_lettered';
+  | 'job_dead_lettered'
+  | 'worker_registered'
+  | 'worker_heartbeat'
+  | 'scheduler_started'
+  | 'scheduler_completed'
+  | 'stalled_job_recovered';
 
 export interface OpsEvent {
   event_id: string;
