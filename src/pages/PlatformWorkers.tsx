@@ -37,7 +37,7 @@ export default function PlatformWorkers() {
       ]} />
       <ScrollBody>
         <div className="p-6">
-          <Panel title="Workers" icon={Cpu}>
+          <Panel title="Workers">
             {stats.length === 0 ? (
               <div className="p-6 text-[12px] text-muted-foreground">No worker runs recorded yet.</div>
             ) : (

@@ -70,7 +70,7 @@ export default function PlatformHome() {
             Worker ID: <span className="font-mono">{getWorkerId()}</span>
           </div>
 
-          <Panel title="Recent Queue Activity" icon={ListChecks}>
+          <Panel title="Recent Queue Activity">
             {loading ? (
               <div className="p-6 text-[12px] text-muted-foreground">Loading…</div>
             ) : recent.length === 0 ? (

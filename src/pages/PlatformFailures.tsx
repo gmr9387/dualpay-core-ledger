@@ -26,7 +26,7 @@ export default function PlatformFailures() {
       <PageHeader title="Failure Center" subtitle="Inspect, retry, archive, or revive failed jobs." />
       <ScrollBody>
         <div className="p-6 space-y-4">
-          <Panel title="Failures" icon={AlertTriangle}>
+          <Panel title="Failures">
             {failures.length === 0 ? (
               <div className="p-6 text-[12px] text-muted-foreground">No active failures.</div>
             ) : (

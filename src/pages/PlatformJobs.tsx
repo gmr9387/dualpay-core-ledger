@@ -16,7 +16,7 @@ export default function PlatformJobs() {
       <PageHeader title="Job Queue" subtitle="All queued, running, and historical jobs." />
       <ScrollBody>
         <div className="p-6">
-          <Panel title="Jobs" icon={ListChecks}>
+          <Panel title="Jobs">
             {loading ? <div className="p-6 text-[12px] text-muted-foreground">Loading…</div> : (
               <table className="w-full text-[12px]">
                 <thead className="bg-muted/40 text-[10.5px] uppercase tracking-wider text-muted-foreground">
