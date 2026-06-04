@@ -18,6 +18,9 @@ import WorkQueues from "./pages/WorkQueues";
 import AppealsWorkbench from "./pages/AppealsWorkbench";
 import AppealPacket from "./pages/AppealPacket";
 import EvidenceVault from "./pages/EvidenceVault";
+import EvidenceDocumentPage from "./pages/EvidenceDocumentPage";
+import EvidenceClaimPage from "./pages/EvidenceClaimPage";
+import EvidenceDenialPage from "./pages/EvidenceDenialPage";
 import RevenueLeak from "./pages/RevenueLeak";
 import PayerIntel from "./pages/PayerIntel";
 import PayerRequirements from "./pages/PayerRequirements";
@@ -76,6 +79,10 @@ const ProtectedShell = () => (
           <Route path="/packet" element={<AppealPacket />} />
           <Route path="/packet/:claimId" element={<AppealPacket />} />
           <Route path="/evidence" element={<EvidenceVault />} />
+          <Route path="/vault" element={<EvidenceVault />} />
+          <Route path="/vault/claim/:claimId" element={<EvidenceClaimPage />} />
+          <Route path="/vault/denial/:denialId" element={<EvidenceDenialPage />} />
+          <Route path="/vault/:documentId" element={<EvidenceDocumentPage />} />
           <Route path="/leak" element={<RevenueLeak />} />
           <Route path="/payers" element={<PayerIntel />} />
           <Route path="/payer-requirements" element={<PayerRequirements />} />
