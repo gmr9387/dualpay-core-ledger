@@ -160,6 +160,38 @@ export type Database = {
         }
         Relationships: []
       }
+      claim_assignments: {
+        Row: {
+          assignee: string | null
+          claim_id: string
+          created_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assignee?: string | null
+          claim_id: string
+          created_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assignee?: string | null
+          claim_id?: string
+          created_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_assignments_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: true
+            referencedRelation: "claims"
+            referencedColumns: ["claim_id"]
+          },
+        ]
+      }
       claims: {
         Row: {
           claim_id: string
@@ -231,6 +263,103 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      ops_events: {
+        Row: {
+          actor: string | null
+          claim_id: string | null
+          created_at: string
+          event_id: string
+          kind: string
+          occurred_at: string
+          payload: Json | null
+          summary: string
+        }
+        Insert: {
+          actor?: string | null
+          claim_id?: string | null
+          created_at?: string
+          event_id: string
+          kind: string
+          occurred_at?: string
+          payload?: Json | null
+          summary: string
+        }
+        Update: {
+          actor?: string | null
+          claim_id?: string | null
+          created_at?: string
+          event_id?: string
+          kind?: string
+          occurred_at?: string
+          payload?: Json | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_events_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claims"
+            referencedColumns: ["claim_id"]
+          },
+        ]
+      }
+      recovery_outcomes: {
+        Row: {
+          claim_id: string
+          created_at: string
+          denial_id: string | null
+          denied_amount_cents: number
+          notes: string | null
+          outcome_id: string
+          payer_id: string | null
+          payload: Json | null
+          recovered_amount_cents: number
+          resolution_date: string
+          resolution_type: string
+          unrecovered_amount_cents: number
+          updated_at: string
+        }
+        Insert: {
+          claim_id: string
+          created_at?: string
+          denial_id?: string | null
+          denied_amount_cents?: number
+          notes?: string | null
+          outcome_id: string
+          payer_id?: string | null
+          payload?: Json | null
+          recovered_amount_cents?: number
+          resolution_date: string
+          resolution_type: string
+          unrecovered_amount_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          claim_id?: string
+          created_at?: string
+          denial_id?: string | null
+          denied_amount_cents?: number
+          notes?: string | null
+          outcome_id?: string
+          payer_id?: string | null
+          payload?: Json | null
+          recovered_amount_cents?: number
+          resolution_date?: string
+          resolution_type?: string
+          unrecovered_amount_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recovery_outcomes_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claims"
+            referencedColumns: ["claim_id"]
+          },
+        ]
       }
       traces: {
         Row: {
