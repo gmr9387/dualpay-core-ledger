@@ -69,7 +69,7 @@ export default function ExceptionQueue() {
 
       <div className="flex items-center gap-3 px-5 py-2 border-b bg-card text-[12px]">
         <Filter label="Status" value={statusF} onChange={(v) => setStatusF(v as ExceptionStatus | 'all')}
-          options={[['all','All']].concat(STATUSES.map(s => [s, STATUS_LABEL[s]]))} />
+          options={[['all','All'] as [string,string]].concat(STATUSES.map(s => [s, STATUS_LABEL[s]] as [string,string]))} />
         <Filter label="Severity" value={sevF} onChange={(v) => setSevF(v as ExceptionSeverity | 'all')}
           options={[['all','All'], ...SEVERITIES.map(s => [s, s] as [string,string])]} />
         <Filter label="Batch" value={batchF} onChange={setBatchF}
