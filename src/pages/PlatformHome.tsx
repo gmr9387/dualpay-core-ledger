@@ -17,10 +17,25 @@ import { drainQueue, getWorkerId } from '@/engine/worker-executor';
 export default function PlatformHome() {
   const { jobs, loading, reload } = useQueueJobs();
   const { runs } = useJobRuns();
+  const { workers } = useWorkers();
   const { currentOrg } = useOrg();
   const [busy, setBusy] = useState<string | null>(null);
   const canRun = roleAtLeast(currentOrg?.role, 'analyst');
   const kpis = useMemo(() => platformKpis(jobs, runs), [jobs, runs]);
+  const reliability = useMemo(() => {
+    const healthy = workers.filter(isHealthy).length;
+    const totalTerminal = kpis.completed + kpis.dead + kpis.failed;
+    const retryRate = runs.length > 0
+      ? runs.filter(r => r.status === 'failed').length / runs.length : 0;
+    const deadRate = totalTerminal > 0 ? kpis.dead / totalTerminal : 0;
+    return {
+      queueDepth: kpis.queued + kpis.running,
+      workerAvailability: workers.length > 0 ? healthy / workers.length : 0,
+      throughputRuns: runs.length,
+      retryRate, deadRate,
+      hasSignal: runs.length > 0 || workers.length > 0,
+    };
+  }, [kpis, runs, workers]);
 
   const recent = jobs.slice(0, 12);
 
