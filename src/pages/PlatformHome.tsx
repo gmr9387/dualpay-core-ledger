@@ -4,9 +4,11 @@
  */
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ListChecks, Cpu, AlertTriangle, Loader2, Play, Zap, History } from 'lucide-react';
+import { ListChecks, Cpu, AlertTriangle, Loader2, Play, Zap } from 'lucide-react';
 import { PageHeader, KpiStrip, ScrollBody, Panel } from '@/components/clarity/primitives';
 import { useQueueJobs, useJobRuns, platformKpis } from '@/hooks/use-platform';
+import { useWorkers } from '@/hooks/use-workers';
+import { isHealthy } from '@/lib/worker-heartbeat';
 import { useOrg } from '@/hooks/use-org';
 import { roleAtLeast } from '@/lib/role-permissions';
 import { enqueueRecoveryPipeline } from '@/engine/pipeline-orchestrator';
