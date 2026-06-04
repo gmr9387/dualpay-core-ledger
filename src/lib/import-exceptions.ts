@@ -75,7 +75,7 @@ export async function persistExceptions(batch: ImportBatch, rows: ParsedRow[]): 
   if (error) throw error;
 
   await appendOpsEvent({
-    kind: 'exception_created' as never,
+    kind: 'exception_created',
     summary: `${failing.length} exception(s) preserved from batch ${batch.batch_id.slice(0, 8)}`,
     payload: { batch_id: batch.batch_id, file: batch.file_name, count: failing.length },
   });
@@ -153,7 +153,7 @@ export async function correctException(
   if (error) throw error;
 
   await appendOpsEvent({
-    kind: 'exception_corrected' as never,
+    kind: 'exception_corrected',
     summary: `Exception ${exc.exception_id} edited (${clean ? 'now clean' : `${errCount} error(s) remaining`})`,
     payload: { exception_id: exc.exception_id, batch_id: exc.batch_id, clean, edits },
   });
@@ -172,7 +172,7 @@ export async function ignoreException(id: string): Promise<void> {
     .eq('exception_id', id);
   if (error) throw error;
   await appendOpsEvent({
-    kind: 'exception_ignored' as never,
+    kind: 'exception_ignored',
     summary: `Exception ${id} marked ignored`,
     payload: { exception_id: id },
   });
@@ -212,7 +212,7 @@ export async function importException(
   if (error) throw error;
 
   await appendOpsEvent({
-    kind: 'exception_imported' as never,
+    kind: 'exception_imported',
     claim_id: claim.claim_id,
     summary: `Exception ${exc.exception_id} imported as ${claim.claim_id}`,
     payload: { exception_id: exc.exception_id, batch_id: exc.batch_id, claim_id: claim.claim_id },
