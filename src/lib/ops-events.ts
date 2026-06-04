@@ -6,7 +6,11 @@ export type OpsEventKind =
   | 'escalation_resolved'
   | 'sla_acknowledged'
   | 'payer_followup_logged'
-  | 'workflow_transition';
+  | 'workflow_transition'
+  | 'exception_created'
+  | 'exception_corrected'
+  | 'exception_imported'
+  | 'exception_ignored';
 
 export interface OpsEvent {
   event_id: string;

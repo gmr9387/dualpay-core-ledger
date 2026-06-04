@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { ImportBatch, ImportSourceType, FieldMapping, ValidationSummary, ParsedRow } from '@/types/import';
 import { rowToClaim } from '@/engine/import-to-claim';
 import { saveClaim } from '@/data/repository';
+import { persistExceptions } from '@/lib/import-exceptions';
 
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 const J = <T>(v: T) => v as unknown as Json;
@@ -87,6 +88,14 @@ export async function commitBatch(
       // skip row on conversion failure
     }
   }
+
+  // Phase 9 — preserve every failed/warning row as an exception (no data loss).
+  try {
+    await persistExceptions(batch, rows);
+  } catch (e) {
+    console.error('[import-batches] persistExceptions failed', e);
+  }
+
   const { error } = await (supabase as any)
     .from('import_batches')
     .update({
