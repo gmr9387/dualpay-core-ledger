@@ -19,6 +19,7 @@ export type Database = {
           claim_id: string
           created_at: string
           is_retro: boolean
+          org_id: string | null
           payload: Json
           run_id: string
           total_member_responsibility_cents: number
@@ -28,6 +29,7 @@ export type Database = {
           claim_id: string
           created_at?: string
           is_retro?: boolean
+          org_id?: string | null
           payload: Json
           run_id: string
           total_member_responsibility_cents?: number
@@ -37,6 +39,7 @@ export type Database = {
           claim_id?: string
           created_at?: string
           is_retro?: boolean
+          org_id?: string | null
           payload?: Json
           run_id?: string
           total_member_responsibility_cents?: number
@@ -50,6 +53,13 @@ export type Database = {
             referencedRelation: "claims"
             referencedColumns: ["claim_id"]
           },
+          {
+            foreignKeyName: "adjudication_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
         ]
       }
       case_claim_links: {
@@ -57,16 +67,19 @@ export type Database = {
           case_id: string
           claim_id: string
           linked_at: string
+          org_id: string | null
         }
         Insert: {
           case_id: string
           claim_id: string
           linked_at?: string
+          org_id?: string | null
         }
         Update: {
           case_id?: string
           claim_id?: string
           linked_at?: string
+          org_id?: string | null
         }
         Relationships: [
           {
@@ -83,6 +96,13 @@ export type Database = {
             referencedRelation: "claims"
             referencedColumns: ["claim_id"]
           },
+          {
+            foreignKeyName: "case_claim_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
         ]
       }
       case_events: {
@@ -94,6 +114,7 @@ export type Database = {
           event_type: string
           metadata: Json | null
           occurred_at: string
+          org_id: string | null
         }
         Insert: {
           case_id: string
@@ -103,6 +124,7 @@ export type Database = {
           event_type: string
           metadata?: Json | null
           occurred_at?: string
+          org_id?: string | null
         }
         Update: {
           case_id?: string
@@ -112,6 +134,7 @@ export type Database = {
           event_type?: string
           metadata?: Json | null
           occurred_at?: string
+          org_id?: string | null
         }
         Relationships: [
           {
@@ -128,6 +151,13 @@ export type Database = {
             referencedRelation: "claims"
             referencedColumns: ["claim_id"]
           },
+          {
+            foreignKeyName: "case_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
         ]
       }
       cases: {
@@ -136,6 +166,7 @@ export type Database = {
           created_at: string
           description: string | null
           member_id: string
+          org_id: string | null
           status: string
           tags: string[]
           updated_at: string
@@ -145,6 +176,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           member_id: string
+          org_id?: string | null
           status?: string
           tags?: string[]
           updated_at?: string
@@ -154,17 +186,27 @@ export type Database = {
           created_at?: string
           description?: string | null
           member_id?: string
+          org_id?: string | null
           status?: string
           tags?: string[]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "cases_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
       }
       claim_assignments: {
         Row: {
           assignee: string | null
           claim_id: string
           created_at: string
+          org_id: string | null
           status: string
           updated_at: string
         }
@@ -172,6 +214,7 @@ export type Database = {
           assignee?: string | null
           claim_id: string
           created_at?: string
+          org_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -179,6 +222,7 @@ export type Database = {
           assignee?: string | null
           claim_id?: string
           created_at?: string
+          org_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -190,6 +234,13 @@ export type Database = {
             referencedRelation: "claims"
             referencedColumns: ["claim_id"]
           },
+          {
+            foreignKeyName: "claim_assignments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
         ]
       }
       claims: {
@@ -197,6 +248,7 @@ export type Database = {
           claim_id: string
           created_at: string
           member_id: string
+          org_id: string | null
           payload: Json
           provider_name: string | null
           service_date_from: string
@@ -209,6 +261,7 @@ export type Database = {
           claim_id: string
           created_at?: string
           member_id: string
+          org_id?: string | null
           payload: Json
           provider_name?: string | null
           service_date_from: string
@@ -221,6 +274,7 @@ export type Database = {
           claim_id?: string
           created_at?: string
           member_id?: string
+          org_id?: string | null
           payload?: Json
           provider_name?: string | null
           service_date_from?: string
@@ -229,7 +283,15 @@ export type Database = {
           total_billed_cents?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "claims_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
       }
       field_mappings: {
         Row: {
@@ -237,6 +299,7 @@ export type Database = {
           mapping: Json
           mapping_id: string
           name: string
+          org_id: string | null
           source_type: string
           updated_at: string
         }
@@ -245,6 +308,7 @@ export type Database = {
           mapping?: Json
           mapping_id?: string
           name: string
+          org_id?: string | null
           source_type: string
           updated_at?: string
         }
@@ -253,10 +317,19 @@ export type Database = {
           mapping?: Json
           mapping_id?: string
           name?: string
+          org_id?: string | null
           source_type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "field_mappings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
       }
       import_batches: {
         Row: {
@@ -269,6 +342,7 @@ export type Database = {
           generated_claim_ids: Json
           import_score: number
           mapping: Json
+          org_id: string | null
           record_count: number
           source_type: string
           status: string
@@ -289,6 +363,7 @@ export type Database = {
           generated_claim_ids?: Json
           import_score?: number
           mapping?: Json
+          org_id?: string | null
           record_count?: number
           source_type: string
           status?: string
@@ -309,6 +384,7 @@ export type Database = {
           generated_claim_ids?: Json
           import_score?: number
           mapping?: Json
+          org_id?: string | null
           record_count?: number
           source_type?: string
           status?: string
@@ -319,7 +395,15 @@ export type Database = {
           validation?: Json
           warning_count?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "import_batches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
       }
       import_exceptions: {
         Row: {
@@ -329,6 +413,7 @@ export type Database = {
           exception_id: string
           generated_claim_id: string | null
           mapped_row: Json | null
+          org_id: string | null
           resolved_at: string | null
           row_number: number
           severity: string
@@ -345,6 +430,7 @@ export type Database = {
           exception_id: string
           generated_claim_id?: string | null
           mapped_row?: Json | null
+          org_id?: string | null
           resolved_at?: string | null
           row_number: number
           severity: string
@@ -361,6 +447,7 @@ export type Database = {
           exception_id?: string
           generated_claim_id?: string | null
           mapped_row?: Json | null
+          org_id?: string | null
           resolved_at?: string | null
           row_number?: number
           severity?: string
@@ -378,6 +465,13 @@ export type Database = {
             referencedRelation: "import_batches"
             referencedColumns: ["batch_id"]
           },
+          {
+            foreignKeyName: "import_exceptions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
         ]
       }
       member_accumulators: {
@@ -387,6 +481,7 @@ export type Database = {
           individual_deductible_used_cents: number
           individual_oop_used_cents: number
           member_id: string
+          org_id: string | null
           payload: Json | null
           plan_year: number
           updated_at: string
@@ -397,6 +492,7 @@ export type Database = {
           individual_deductible_used_cents?: number
           individual_oop_used_cents?: number
           member_id: string
+          org_id?: string | null
           payload?: Json | null
           plan_year: number
           updated_at?: string
@@ -407,40 +503,61 @@ export type Database = {
           individual_deductible_used_cents?: number
           individual_oop_used_cents?: number
           member_id?: string
+          org_id?: string | null
           payload?: Json | null
           plan_year?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "member_accumulators_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
       }
       ops_events: {
         Row: {
           actor: string | null
+          actor_email: string | null
+          actor_name: string | null
+          actor_user_id: string | null
           claim_id: string | null
           created_at: string
           event_id: string
           kind: string
           occurred_at: string
+          org_id: string | null
           payload: Json | null
           summary: string
         }
         Insert: {
           actor?: string | null
+          actor_email?: string | null
+          actor_name?: string | null
+          actor_user_id?: string | null
           claim_id?: string | null
           created_at?: string
           event_id: string
           kind: string
           occurred_at?: string
+          org_id?: string | null
           payload?: Json | null
           summary: string
         }
         Update: {
           actor?: string | null
+          actor_email?: string | null
+          actor_name?: string | null
+          actor_user_id?: string | null
           claim_id?: string | null
           created_at?: string
           event_id?: string
           kind?: string
           occurred_at?: string
+          org_id?: string | null
           payload?: Json | null
           summary?: string
         }
@@ -452,7 +569,61 @@ export type Database = {
             referencedRelation: "claims"
             referencedColumns: ["claim_id"]
           },
+          {
+            foreignKeyName: "ops_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
         ]
+      }
+      organization_members: {
+        Row: {
+          created_at: string
+          org_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          name: string
+          org_id?: string
+        }
+        Update: {
+          created_at?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: []
       }
       recovery_outcomes: {
         Row: {
@@ -461,6 +632,7 @@ export type Database = {
           denial_id: string | null
           denied_amount_cents: number
           notes: string | null
+          org_id: string | null
           outcome_id: string
           payer_id: string | null
           payload: Json | null
@@ -476,6 +648,7 @@ export type Database = {
           denial_id?: string | null
           denied_amount_cents?: number
           notes?: string | null
+          org_id?: string | null
           outcome_id: string
           payer_id?: string | null
           payload?: Json | null
@@ -491,6 +664,7 @@ export type Database = {
           denial_id?: string | null
           denied_amount_cents?: number
           notes?: string | null
+          org_id?: string | null
           outcome_id?: string
           payer_id?: string | null
           payload?: Json | null
@@ -508,6 +682,13 @@ export type Database = {
             referencedRelation: "claims"
             referencedColumns: ["claim_id"]
           },
+          {
+            foreignKeyName: "recovery_outcomes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
         ]
       }
       remittance_batches: {
@@ -520,6 +701,7 @@ export type Database = {
           file_name: string
           id: string
           imported_by: string | null
+          org_id: string | null
           payer_name: string | null
           record_count: number
           total_adjustment_cents: number
@@ -538,6 +720,7 @@ export type Database = {
           file_name: string
           id?: string
           imported_by?: string | null
+          org_id?: string | null
           payer_name?: string | null
           record_count?: number
           total_adjustment_cents?: number
@@ -556,6 +739,7 @@ export type Database = {
           file_name?: string
           id?: string
           imported_by?: string | null
+          org_id?: string | null
           payer_name?: string | null
           record_count?: number
           total_adjustment_cents?: number
@@ -565,12 +749,21 @@ export type Database = {
           updated_at?: string
           uploaded_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "remittance_batches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
       }
       traces: {
         Row: {
           claim_id: string
           created_at: string
+          org_id: string | null
           payload: Json
           run_id: string
           trace_id: string
@@ -578,6 +771,7 @@ export type Database = {
         Insert: {
           claim_id: string
           created_at?: string
+          org_id?: string | null
           payload: Json
           run_id: string
           trace_id: string
@@ -585,6 +779,7 @@ export type Database = {
         Update: {
           claim_id?: string
           created_at?: string
+          org_id?: string | null
           payload?: Json
           run_id?: string
           trace_id?: string
@@ -596,6 +791,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "claims"
             referencedColumns: ["claim_id"]
+          },
+          {
+            foreignKeyName: "traces_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
           },
           {
             foreignKeyName: "traces_run_id_fkey"
@@ -611,7 +813,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      current_org_id: { Args: never; Returns: string }
+      has_org_role: {
+        Args: { _org_id: string; _roles: string[]; _user_id: string }
+        Returns: boolean
+      }
+      is_org_member: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

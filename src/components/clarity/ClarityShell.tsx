@@ -3,10 +3,12 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, AlertOctagon, ListChecks, FileSearch, Gavel,
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
-  HelpCircle, Bell, User, Database, Activity, Target, FolderOpen, BarChart3,
+  HelpCircle, Bell, Database, Activity, Target, FolderOpen, BarChart3,
   BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText, ShieldCheck,
   Award, ClipboardList, Siren, Scale, Phone, Gauge, Factory, FileInput, History, AlertOctagon as AlertIcon,
 } from 'lucide-react';
+import { UserOrgMenu, NoOrgEmptyState } from '@/components/auth/UserOrgMenu';
+import { useOrg } from '@/hooks/use-org';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
 interface NavSection { title: string; items: NavItem[] }
@@ -201,16 +203,21 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
               <Bell className="h-4 w-4" />
               <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-status-denied" />
             </button>
-            <div className="h-7 w-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <User className="h-3.5 w-3.5 text-primary" />
-            </div>
+            <UserOrgMenu />
           </div>
         </header>
 
-        <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+        <main className="flex-1 min-h-0 overflow-hidden"><ShellBody>{children}</ShellBody></main>
       </div>
     </div>
   );
+}
+
+function ShellBody({ children }: { children: ReactNode }) {
+  const { orgs, loading } = useOrg();
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading organization…</div>;
+  if (orgs.length === 0) return <NoOrgEmptyState />;
+  return <>{children}</>;
 }
 
 function breadcrumbsFor(pathname: string): string[] {

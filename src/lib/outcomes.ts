@@ -216,6 +216,9 @@ const SEED_KEY = 'clarity:outcomes:seeded:v2';
 export async function seedOutcomesIfEmpty(claims: Array<Claim & { intel: ClaimIntel }>) {
   if (seedAttempted) return;
   seedAttempted = true;
+  // Phase 12 — demo seeders gated; production orgs never receive derived outcomes.
+  const { isDemoModeEnabled } = await import('@/lib/demo-flag');
+  if (!isDemoModeEnabled()) { await loadOutcomes(); return; }
   if (localStorage.getItem(SEED_KEY)) { await loadOutcomes(); return; }
 
   const existing = await loadOutcomes();

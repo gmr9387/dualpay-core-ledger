@@ -246,6 +246,10 @@ export async function saveCaseEvent(evt: CaseEvent): Promise<void> {
 // ── Seed ──────────────────────────────────────────────────────
 
 export async function seedIfEmpty(): Promise<{ seeded: boolean }> {
+  // Phase 12 — demo seeds gated behind dev / VITE_DEMO_MODE.
+  const { isDemoModeEnabled } = await import('@/lib/demo-flag');
+  if (!isDemoModeEnabled()) return { seeded: false };
+
   // Detect whether the Claim Clarity dataset is present (sentinel: CLM-2024-00100).
   const { data: sentinel } = await supabase
     .from('claims')
