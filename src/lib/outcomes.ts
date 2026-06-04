@@ -1,47 +1,125 @@
 /**
- * Recovery Outcome store (localStorage).
+ * Recovery Outcome store — persisted in Supabase `recovery_outcomes`.
  *
- * Phase 5 introduces outcome tracking without schema changes.
- * Outcomes are derived deterministically from terminal claim state
- * on first run, then user-edited via the Outcome Log page.
+ * The RecoveryOutcome shape used by analytics carries a number of
+ * derived fields (payer_name, category, workflow_owner, playbook_used,
+ * days_to_resolution, predicted_recoverability_score, denial_date) that
+ * do not have dedicated columns in the persisted schema.  Those fields
+ * are stored inside the `payload` JSON column and rehydrated on read so
+ * the existing analytics engines continue to work unchanged.
  */
 import type { Claim } from '@/types/claim';
 import type { ClaimIntel, DenialCategory } from '@/types/clarity';
 import type { RecoveryOutcome, ResolutionType } from '@/types/outcomes';
 import { explainRecoverability } from '@/engine/recoverability';
+import { supabase } from '@/integrations/supabase/client';
 
-const KEY = 'clarity:outcomes:v1';
-const SEED_KEY = 'clarity:outcomes:seeded:v1';
+type Row = {
+  outcome_id: string;
+  claim_id: string;
+  denial_id: string | null;
+  payer_id: string | null;
+  resolution_type: string;
+  resolution_date: string;
+  denied_amount_cents: number;
+  recovered_amount_cents: number;
+  unrecovered_amount_cents: number;
+  notes: string | null;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
 
-type Store = Record<string, RecoveryOutcome>;
-
-function read(): Store {
-  try { return JSON.parse(localStorage.getItem(KEY) || '{}') as Store; }
-  catch { return {}; }
+function rowToOutcome(r: Row): RecoveryOutcome {
+  const p = (r.payload ?? {}) as Partial<RecoveryOutcome> & Record<string, unknown>;
+  return {
+    outcome_id: r.outcome_id,
+    claim_id: r.claim_id,
+    denial_id: r.denial_id ?? undefined,
+    payer_id: r.payer_id ?? (p.payer_id as string) ?? '',
+    payer_name: (p.payer_name as string) ?? '',
+    category: (p.category as DenialCategory) ?? 'contractual',
+    workflow_owner: (p.workflow_owner as RecoveryOutcome['workflow_owner']) ?? 'billing',
+    playbook_used: (p.playbook_used as DenialCategory) ?? undefined,
+    resolution_type: r.resolution_type as ResolutionType,
+    denied_amount_cents: Number(r.denied_amount_cents),
+    recovered_amount_cents: Number(r.recovered_amount_cents),
+    unrecovered_amount_cents: Number(r.unrecovered_amount_cents),
+    denial_date: (p.denial_date as string) ?? r.resolution_date,
+    resolution_date: r.resolution_date,
+    days_to_resolution: Number(p.days_to_resolution ?? 0),
+    predicted_recoverability_score: Number(p.predicted_recoverability_score ?? 0),
+    notes: r.notes ?? undefined,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
 }
-function write(s: Store) {
-  localStorage.setItem(KEY, JSON.stringify(s));
-  window.dispatchEvent(new Event('clarity-outcomes'));
+
+function outcomeToRow(o: RecoveryOutcome): Row {
+  return {
+    outcome_id: o.outcome_id,
+    claim_id: o.claim_id,
+    denial_id: o.denial_id ?? null,
+    payer_id: o.payer_id ?? null,
+    resolution_type: o.resolution_type,
+    resolution_date: o.resolution_date,
+    denied_amount_cents: o.denied_amount_cents,
+    recovered_amount_cents: o.recovered_amount_cents,
+    unrecovered_amount_cents: o.unrecovered_amount_cents,
+    notes: o.notes ?? null,
+    payload: {
+      payer_name: o.payer_name,
+      category: o.category,
+      workflow_owner: o.workflow_owner,
+      playbook_used: o.playbook_used,
+      denial_date: o.denial_date,
+      days_to_resolution: o.days_to_resolution,
+      predicted_recoverability_score: o.predicted_recoverability_score,
+    },
+    created_at: o.created_at,
+    updated_at: o.updated_at,
+  };
 }
 
-export function getAllOutcomes(): RecoveryOutcome[] {
-  return Object.values(read()).sort((a, b) => b.resolution_date.localeCompare(a.resolution_date));
+function notify() { window.dispatchEvent(new Event('clarity-outcomes')); }
+
+let cache: RecoveryOutcome[] = [];
+let loaded = false;
+let seedAttempted = false;
+
+export function getAllOutcomes(): RecoveryOutcome[] { return cache; }
+export function _setOutcomeCache(next: RecoveryOutcome[]) { cache = next; loaded = true; }
+export function isOutcomeCacheLoaded() { return loaded; }
+
+export async function loadOutcomes(): Promise<RecoveryOutcome[]> {
+  const { data, error } = await supabase
+    .from('recovery_outcomes')
+    .select('*')
+    .order('resolution_date', { ascending: false });
+  if (error) {
+    console.error('[outcomes] load failed', error.message);
+    return [];
+  }
+  const list = (data ?? []).map(r => rowToOutcome(r as never));
+  cache = list; loaded = true;
+  return list;
 }
 
-export function getOutcome(id: string): RecoveryOutcome | undefined {
-  return read()[id];
+export async function upsertOutcome(o: RecoveryOutcome): Promise<void> {
+  const row = outcomeToRow({ ...o, updated_at: new Date().toISOString() });
+  const { error } = await supabase
+    .from('recovery_outcomes')
+    .upsert(row as never, { onConflict: 'outcome_id' });
+  if (error) { console.error('[outcomes] upsert failed', error.message); return; }
+  await loadOutcomes();
+  notify();
 }
 
-export function upsertOutcome(o: RecoveryOutcome) {
-  const s = read();
-  s[o.outcome_id] = { ...o, updated_at: new Date().toISOString() };
-  write(s);
-}
-
-export function deleteOutcome(id: string) {
-  const s = read();
-  delete s[id];
-  write(s);
+export async function deleteOutcome(id: string): Promise<void> {
+  const { error } = await supabase.from('recovery_outcomes').delete().eq('outcome_id', id);
+  if (error) { console.error('[outcomes] delete failed', error.message); return; }
+  await loadOutcomes();
+  notify();
 }
 
 function daysBetween(a: string, b: string): number {
@@ -49,9 +127,8 @@ function daysBetween(a: string, b: string): number {
 }
 
 /**
- * Derive an initial outcome history from the existing operational
- * dataset.  Honest derivation — uses terminal states (paid /
- * written_off / appeal decided) already present on claims.
+ * Derive an initial outcome history from terminal claim states.
+ * Honest derivation — no fabricated data.
  */
 export function deriveOutcomesFromClaims(claims: Array<Claim & { intel: ClaimIntel }>): RecoveryOutcome[] {
   const out: RecoveryOutcome[] = [];
@@ -66,7 +143,6 @@ export function deriveOutcomesFromClaims(claims: Array<Claim & { intel: ClaimInt
     const category: DenialCategory = primary?.category ?? 'contractual';
     const predicted = explainRecoverability(c).score;
 
-    // Decided appeals → one outcome per decided appeal
     const decided = intel.appeals.filter(a => ['approved', 'denied', 'partial'].includes(a.status));
     for (const a of decided) {
       const recovered = a.amount_recovered_cents ?? 0;
@@ -79,118 +155,91 @@ export function deriveOutcomesFromClaims(claims: Array<Claim & { intel: ClaimInt
         outcome_id: `OUT-${a.appeal_id}`,
         claim_id: c.claim_id,
         denial_id: a.denial_id ?? primary?.denial_id,
-        payer_id: intel.payer_id,
-        payer_name: intel.payer_name,
-        category,
-        workflow_owner: intel.workflow_owner,
-        playbook_used: category,
+        payer_id: intel.payer_id, payer_name: intel.payer_name,
+        category, workflow_owner: intel.workflow_owner, playbook_used: category,
         resolution_type: resolution,
         denied_amount_cents: a.amount_in_dispute_cents,
         recovered_amount_cents: recovered,
         unrecovered_amount_cents: Math.max(0, a.amount_in_dispute_cents - recovered),
-        denial_date,
-        resolution_date,
+        denial_date, resolution_date,
         days_to_resolution: daysBetween(denial_date, resolution_date),
         predicted_recoverability_score: predicted,
-        created_at: now,
-        updated_at: now,
+        created_at: now, updated_at: now,
       });
     }
 
-    // Terminal claim states without decided appeal
     if (decided.length === 0) {
+      const last = intel.timeline[intel.timeline.length - 1]?.occurred_at ?? now;
       if (intel.reimbursement_state === 'paid' && primary) {
-        // Denial that was corrected/resubmitted and paid
-        const recovered = intel.actual_reimbursement_cents;
         const denied = primary.amount_cents;
-        out.push({
-          outcome_id: `OUT-${c.claim_id}-CORR`,
-          claim_id: c.claim_id,
-          denial_id: primary.denial_id,
-          payer_id: intel.payer_id,
-          payer_name: intel.payer_name,
-          category,
-          workflow_owner: intel.workflow_owner,
-          playbook_used: category,
-          resolution_type: 'corrected_and_paid',
-          denied_amount_cents: denied,
-          recovered_amount_cents: Math.min(recovered, denied),
-          unrecovered_amount_cents: Math.max(0, denied - recovered),
-          denial_date,
-          resolution_date: intel.timeline[intel.timeline.length - 1]?.occurred_at ?? now,
-          days_to_resolution: daysBetween(denial_date, intel.timeline[intel.timeline.length - 1]?.occurred_at ?? now),
-          predicted_recoverability_score: predicted,
-          created_at: now,
-          updated_at: now,
-        });
+        out.push(buildOutcome(c, 'corrected_and_paid', primary, denied, Math.min(intel.actual_reimbursement_cents, denied), denial_date, last, predicted, '-CORR'));
       } else if (intel.reimbursement_state === 'written_off') {
         const denied = primary?.amount_cents ?? intel.amount_at_risk_cents;
-        out.push({
-          outcome_id: `OUT-${c.claim_id}-WO`,
-          claim_id: c.claim_id,
-          denial_id: primary?.denial_id,
-          payer_id: intel.payer_id,
-          payer_name: intel.payer_name,
-          category,
-          workflow_owner: intel.workflow_owner,
-          playbook_used: category,
-          resolution_type: 'written_off',
-          denied_amount_cents: denied,
-          recovered_amount_cents: 0,
-          unrecovered_amount_cents: denied,
-          denial_date,
-          resolution_date: intel.timeline[intel.timeline.length - 1]?.occurred_at ?? now,
-          days_to_resolution: daysBetween(denial_date, intel.timeline[intel.timeline.length - 1]?.occurred_at ?? now),
-          predicted_recoverability_score: predicted,
-          created_at: now,
-          updated_at: now,
-        });
+        out.push(buildOutcome(c, 'written_off', primary, denied, 0, denial_date, last, predicted, '-WO'));
       } else if (intel.reimbursement_state === 'partially_paid' && primary) {
-        const recovered = intel.actual_reimbursement_cents;
         const denied = primary.amount_cents;
-        out.push({
-          outcome_id: `OUT-${c.claim_id}-PART`,
-          claim_id: c.claim_id,
-          denial_id: primary.denial_id,
-          payer_id: intel.payer_id,
-          payer_name: intel.payer_name,
-          category,
-          workflow_owner: intel.workflow_owner,
-          playbook_used: category,
-          resolution_type: 'recovered_partial',
-          denied_amount_cents: denied,
-          recovered_amount_cents: Math.min(recovered, denied),
-          unrecovered_amount_cents: Math.max(0, denied - recovered),
-          denial_date,
-          resolution_date: intel.timeline[intel.timeline.length - 1]?.occurred_at ?? now,
-          days_to_resolution: daysBetween(denial_date, intel.timeline[intel.timeline.length - 1]?.occurred_at ?? now),
-          predicted_recoverability_score: predicted,
-          created_at: now,
-          updated_at: now,
-        });
+        out.push(buildOutcome(c, 'recovered_partial', primary, denied, Math.min(intel.actual_reimbursement_cents, denied), denial_date, last, predicted, '-PART'));
       }
     }
   }
-
   return out;
 }
 
-export function seedOutcomesIfEmpty(claims: Array<Claim & { intel: ClaimIntel }>) {
-  if (localStorage.getItem(SEED_KEY)) return;
-  const existing = read();
-  if (Object.keys(existing).length > 0) {
-    localStorage.setItem(SEED_KEY, '1');
-    return;
-  }
-  const derived = deriveOutcomesFromClaims(claims);
-  const s: Store = {};
-  for (const o of derived) s[o.outcome_id] = o;
-  write(s);
-  localStorage.setItem(SEED_KEY, '1');
+function buildOutcome(
+  c: Claim & { intel: ClaimIntel },
+  resolution: ResolutionType,
+  primary: ClaimIntel['denial_events'][number] | undefined,
+  denied: number, recovered: number,
+  denial_date: string, resolution_date: string,
+  predicted: number, suffix: string,
+): RecoveryOutcome {
+  const now = new Date().toISOString();
+  const category: DenialCategory = primary?.category ?? 'contractual';
+  return {
+    outcome_id: `OUT-${c.claim_id}${suffix}`,
+    claim_id: c.claim_id,
+    denial_id: primary?.denial_id,
+    payer_id: c.intel.payer_id, payer_name: c.intel.payer_name,
+    category, workflow_owner: c.intel.workflow_owner, playbook_used: category,
+    resolution_type: resolution,
+    denied_amount_cents: denied,
+    recovered_amount_cents: recovered,
+    unrecovered_amount_cents: Math.max(0, denied - recovered),
+    denial_date, resolution_date,
+    days_to_resolution: daysBetween(denial_date, resolution_date),
+    predicted_recoverability_score: predicted,
+    created_at: now, updated_at: now,
+  };
 }
 
-export function resetOutcomes() {
-  localStorage.removeItem(KEY);
+const SEED_KEY = 'clarity:outcomes:seeded:v2';
+export async function seedOutcomesIfEmpty(claims: Array<Claim & { intel: ClaimIntel }>) {
+  if (seedAttempted) return;
+  seedAttempted = true;
+  if (localStorage.getItem(SEED_KEY)) { await loadOutcomes(); return; }
+
+  const existing = await loadOutcomes();
+  if (existing.length > 0) { localStorage.setItem(SEED_KEY, '1'); return; }
+
+  const derived = deriveOutcomesFromClaims(claims);
+  if (derived.length === 0) { localStorage.setItem(SEED_KEY, '1'); return; }
+
+  const rows = derived.map(outcomeToRow);
+  const { error } = await supabase.from('recovery_outcomes').upsert(rows as never, { onConflict: 'outcome_id' });
+  if (error) { console.error('[outcomes] seed failed', error.message); seedAttempted = false; return; }
+  localStorage.setItem(SEED_KEY, '1');
+  await loadOutcomes();
+  notify();
+}
+
+export async function resetOutcomes(): Promise<void> {
+  const ids = cache.map(o => o.outcome_id);
+  if (ids.length > 0) {
+    const { error } = await supabase.from('recovery_outcomes').delete().in('outcome_id', ids);
+    if (error) console.error('[outcomes] reset failed', error.message);
+  }
   localStorage.removeItem(SEED_KEY);
-  window.dispatchEvent(new Event('clarity-outcomes'));
+  seedAttempted = false;
+  cache = [];
+  notify();
 }
