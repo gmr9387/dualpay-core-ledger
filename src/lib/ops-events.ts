@@ -82,7 +82,7 @@ export async function appendOpsEvent(
 
   const { data, error } = await supabase
     .from('ops_events')
-    .insert([row])
+    .insert([row] as never)
     .select('*')
     .single();
 
