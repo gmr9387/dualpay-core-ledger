@@ -247,6 +247,11 @@ function breadcrumbsFor(pathname: string): string[] {
     '/factory/history':      ['Recovery Factory', 'Import History'],
     '/ingest':              ['Admin',      'Ingestion'],
     '/audit':               ['Admin',      'Audit & Trace'],
+    '/executive':            ['Executive Intelligence', 'Executive Home'],
+    '/executive/value':      ['Executive Intelligence', 'Value Realization'],
+    '/executive/recovery':   ['Executive Intelligence', 'Recovery Attribution'],
+    '/executive/payers':     ['Executive Intelligence', 'Payer Scorecards'],
+    '/executive/playbooks':  ['Executive Intelligence', 'Playbook Effectiveness'],
   };
   if (map[pathname]) return map[pathname];
   if (pathname.startsWith('/denials/')) return ['Intelligence', 'Denial Command', pathname.split('/')[2]];
