@@ -30,7 +30,10 @@ export type OpsEventKind =
   | 'case_auto_created'
   | 'dispute_auto_created'
   | 'pipeline_started'
-  | 'pipeline_completed';
+  | 'pipeline_completed'
+  | 'job_queued'
+  | 'job_retried'
+  | 'job_dead_lettered';
 
 export interface OpsEvent {
   event_id: string;

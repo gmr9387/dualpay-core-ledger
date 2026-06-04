@@ -65,6 +65,10 @@ import AutomationHome from "./pages/AutomationHome";
 import AutomationJobs from "./pages/AutomationJobs";
 import AutomationRules from "./pages/AutomationRules";
 import AutomationHistory from "./pages/AutomationHistory";
+import PlatformHome from "./pages/PlatformHome";
+import PlatformJobs from "./pages/PlatformJobs";
+import PlatformWorkers from "./pages/PlatformWorkers";
+import PlatformFailures from "./pages/PlatformFailures";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -134,6 +138,10 @@ const ProtectedShell = () => (
           <Route path="/automation/jobs" element={<AutomationJobs />} />
           <Route path="/automation/rules" element={<AutomationRules />} />
           <Route path="/automation/history" element={<AutomationHistory />} />
+          <Route path="/platform" element={<PlatformHome />} />
+          <Route path="/platform/jobs" element={<PlatformJobs />} />
+          <Route path="/platform/workers" element={<PlatformWorkers />} />
+          <Route path="/platform/failures" element={<PlatformFailures />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>

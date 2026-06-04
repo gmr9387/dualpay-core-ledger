@@ -704,6 +704,160 @@ export type Database = {
           },
         ]
       }
+      job_failures: {
+        Row: {
+          archived: boolean
+          created_at: string
+          error_message: string
+          failure_id: string
+          org_id: string
+          queue_job_id: string
+          retry_count: number
+          stack_trace: string | null
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          error_message: string
+          failure_id?: string
+          org_id: string
+          queue_job_id: string
+          retry_count?: number
+          stack_trace?: string | null
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          error_message?: string
+          failure_id?: string
+          org_id?: string
+          queue_job_id?: string
+          retry_count?: number
+          stack_trace?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_failures_queue_job_id_fkey"
+            columns: ["queue_job_id"]
+            isOneToOne: false
+            referencedRelation: "job_queue"
+            referencedColumns: ["queue_job_id"]
+          },
+        ]
+      }
+      job_queue: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          max_attempts: number
+          next_attempt_at: string
+          org_id: string
+          payload: Json | null
+          pipeline_id: string | null
+          priority: number
+          queue_job_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          job_type: string
+          last_error?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          org_id: string
+          payload?: Json | null
+          pipeline_id?: string | null
+          priority?: number
+          queue_job_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          job_type?: string
+          last_error?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          org_id?: string
+          payload?: Json | null
+          pipeline_id?: string | null
+          priority?: number
+          queue_job_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Relationships: []
+      }
+      job_runs: {
+        Row: {
+          created_at: string
+          duration_ms: number
+          org_id: string
+          queue_job_id: string
+          records_failed: number
+          records_processed: number
+          records_succeeded: number
+          result_summary: Json | null
+          run_id: string
+          status: string
+          worker_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number
+          org_id: string
+          queue_job_id: string
+          records_failed?: number
+          records_processed?: number
+          records_succeeded?: number
+          result_summary?: Json | null
+          run_id?: string
+          status: string
+          worker_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number
+          org_id?: string
+          queue_job_id?: string
+          records_failed?: number
+          records_processed?: number
+          records_succeeded?: number
+          result_summary?: Json | null
+          run_id?: string
+          status?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_runs_queue_job_id_fkey"
+            columns: ["queue_job_id"]
+            isOneToOne: false
+            referencedRelation: "job_queue"
+            referencedColumns: ["queue_job_id"]
+          },
+        ]
+      }
       member_accumulators: {
         Row: {
           family_deductible_used_cents: number
