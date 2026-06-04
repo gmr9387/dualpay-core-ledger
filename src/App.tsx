@@ -96,6 +96,11 @@ const App = () => (
             <Route path="/factory/remittance" element={<RemittanceIntake />} />
             <Route path="/ingest" element={<Ingestion />} />
             <Route path="/audit" element={<AuditTrace />} />
+            <Route path="/executive" element={<ExecutiveHome />} />
+            <Route path="/executive/recovery" element={<ExecutiveRecovery />} />
+            <Route path="/executive/payers" element={<ExecutivePayers />} />
+            <Route path="/executive/playbooks" element={<ExecutivePlaybooks />} />
+            <Route path="/executive/value" element={<ExecutiveValue />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ClarityShell>
