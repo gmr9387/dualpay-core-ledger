@@ -10,7 +10,12 @@ export type OpsEventKind =
   | 'exception_created'
   | 'exception_corrected'
   | 'exception_imported'
-  | 'exception_ignored';
+  | 'exception_ignored'
+  | 'document_uploaded'
+  | 'document_updated'
+  | 'document_linked'
+  | 'document_removed'
+  | 'appeal_packet_generated';
 
 export interface OpsEvent {
   event_id: string;
