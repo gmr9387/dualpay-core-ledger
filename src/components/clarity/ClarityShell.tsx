@@ -203,9 +203,7 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
               <Bell className="h-4 w-4" />
               <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-status-denied" />
             </button>
-            <div className="h-7 w-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <User className="h-3.5 w-3.5 text-primary" />
-            </div>
+            <UserOrgMenu />
           </div>
         </header>
 
