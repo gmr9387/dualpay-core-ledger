@@ -268,5 +268,8 @@ function breadcrumbsFor(pathname: string): string[] {
   if (pathname.startsWith('/packet/'))       return ['Execute', 'Appeal Packet', pathname.split('/')[2]];
   if (pathname.startsWith('/transparency/')) return ['Intelligence', 'Decision Transparency', pathname.split('/')[2]];
   if (pathname.startsWith('/factory/exceptions/')) return ['Recovery Factory', 'Exception Queue', pathname.split('/')[3]];
+  if (pathname.startsWith('/vault/claim/'))   return ['Intelligence', 'Evidence Vault', 'Claim ' + pathname.split('/')[3]];
+  if (pathname.startsWith('/vault/denial/'))  return ['Intelligence', 'Evidence Vault', 'Denial ' + pathname.split('/')[3]];
+  if (pathname.startsWith('/vault/'))         return ['Intelligence', 'Evidence Vault', 'Document'];
   return ['Operations'];
 }
