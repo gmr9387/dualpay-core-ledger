@@ -39,6 +39,16 @@ const TEMPLATES: Record<ImportSourceType, { headers: string[]; example: string[]
       ['CLM-2024-55001', 'Cigna', '42', '512.00'],
     ],
   },
+  remittance_835: {
+    headers: ['Claim Number', 'Payer Name', 'Service Date', 'Remittance Date', 'CPT', 'Billed Amount', 'Allowed Amount', 'Paid Amount', 'Patient Responsibility', 'Adjustment Amount', 'CARC', 'RARC', 'Group Code', 'Denial Reason', 'Payment Reference', 'Check Number'],
+    example: [
+      ['CLM-2024-83001', 'Aetna',                '2024-10-02', '2024-10-25', '99214', '380.00', '210.00', '168.00', '42.00',  '170.00', '45',  '',     'CO', 'Contractual reduction.',         'EFT-998812', '00457821'],
+      ['CLM-2024-83002', 'BlueCross BlueShield', '2024-10-04', '2024-10-26', '73721', '925.00', '480.00', '320.00', '0.00',   '445.00', '197', '',     'CO', 'Authorization not on file.',     'EFT-998813', '00457822'],
+      ['CLM-2024-83003', 'UnitedHealthcare',     '2024-10-05', '2024-10-26', '29881', '2150.00','1180.00','1180.00','0.00',  '970.00', '',    '',     'CO', '',                               'EFT-998814', '00457823'],
+      ['CLM-2024-83004', 'Cigna',                '2024-10-06', '2024-10-27', '99215', '420.00', '0.00',   '0.00',   '0.00',   '420.00', '22',  'MA04', 'OA', 'Coordination of benefits — other carrier primary.', 'EFT-998815', '00457824'],
+      ['CLM-2024-83005', 'Medicare',             '2024-10-07', '2024-10-28', '93000', '85.00',  '62.00',  '40.00',  '12.00',  '23.00',  '',    '',     'CO', '',                               'EFT-998816', '00457825'],
+    ],
+  },
 };
 
 function toCsv(headers: string[], rows: string[][]): string {
