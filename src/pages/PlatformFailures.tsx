@@ -81,7 +81,7 @@ export default function PlatformFailures() {
           </Panel>
 
           {inspecting && inspected && (
-            <Panel title={`Inspection · ${inspecting.slice(0,8)}`} icon={Eye}>
+            <Panel title={`Inspection · ${inspecting.slice(0,8)}`} >
               <pre className="p-4 text-[11px] font-mono whitespace-pre-wrap overflow-auto max-h-[400px]">
                 {JSON.stringify(inspected, null, 2)}
               </pre>
