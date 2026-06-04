@@ -213,6 +213,13 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
   );
 }
 
+function ShellBody({ children }: { children: ReactNode }) {
+  const { orgs, loading } = useOrg();
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading organization…</div>;
+  if (orgs.length === 0) return <NoOrgEmptyState />;
+  return <>{children}</>;
+}
+
 function breadcrumbsFor(pathname: string): string[] {
   const map: Record<string, string[]> = {
     '/':                    ['Operations', 'Command Center'],
