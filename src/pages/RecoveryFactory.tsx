@@ -1,22 +1,29 @@
 import { Link } from 'react-router-dom';
 import { PageHeader, KpiStrip, Panel, ScrollBody } from '@/components/clarity/primitives';
 import { useImportBatches } from '@/hooks/use-import-batches';
+import { useImportExceptions } from '@/hooks/use-import-exceptions';
 import { formatCentsCompact, relativeTime } from '@/hooks/use-clarity-data';
 import { SOURCE_LABEL } from '@/types/import';
-import { Upload, FileSpreadsheet, ListTodo, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, ListTodo, Download, AlertOctagon } from 'lucide-react';
 import { downloadTemplate, listTemplates } from '@/lib/import-templates';
 
 export default function RecoveryFactory() {
   const { batches, loading } = useImportBatches();
+  const { exceptions } = useImportExceptions();
 
   const totalFiles = batches.length;
   const committed = batches.filter(b => b.status === 'committed');
   const claimsProcessed = committed.reduce((s, b) => s + b.success_count, 0);
-  const denialsClassified = committed.reduce((s, b) => s + b.generated_claim_ids.length, 0);
   const expectedRecovery = committed.reduce((s, b) => s + b.expected_recovery_cents, 0);
   const totalRows = batches.reduce((s, b) => s + b.record_count, 0);
   const goodRows = batches.reduce((s, b) => s + b.success_count + b.warning_count, 0);
+  const failRows = batches.reduce((s, b) => s + b.error_count, 0);
   const successRate = totalRows > 0 ? Math.round((goodRows / totalRows) * 100) : 0;
+  const failureRate = totalRows > 0 ? Math.round((failRows / totalRows) * 100) : 0;
+  const avgScore = batches.length === 0 ? 0
+    : Math.round(batches.reduce((s, b) => s + b.import_score, 0) / batches.length);
+  const openExc = exceptions.filter(e => e.status === 'open').length;
+  const resolvedExc = exceptions.filter(e => e.status !== 'open').length;
 
   return (
     <div className="flex flex-col h-full">
@@ -30,11 +37,14 @@ export default function RecoveryFactory() {
         }
       />
       <KpiStrip tiles={[
-        { label: 'Files Imported',         value: String(totalFiles) },
-        { label: 'Claims Processed',       value: String(claimsProcessed) },
-        { label: 'Denials Classified',     value: String(denialsClassified) },
-        { label: 'Expected Recovery',      value: formatCentsCompact(expectedRecovery), tone: 'kpi-value-good' },
-        { label: 'Import Success Rate',    value: `${successRate}%`, tone: successRate >= 85 ? 'kpi-value-good' : 'kpi-value-warn' },
+        { label: 'Files Imported',      value: String(totalFiles) },
+        { label: 'Claims Processed',    value: String(claimsProcessed) },
+        { label: 'Expected Recovery',   value: formatCentsCompact(expectedRecovery), tone: 'kpi-value-good' },
+        { label: 'Open Exceptions',     value: String(openExc), tone: openExc > 0 ? 'kpi-value-warn' : undefined },
+        { label: 'Resolved Exceptions', value: String(resolvedExc) },
+        { label: 'Import Success %',    value: `${successRate}%`, tone: successRate >= 85 ? 'kpi-value-good' : 'kpi-value-warn' },
+        { label: 'Import Failure %',    value: `${failureRate}%` },
+        { label: 'Avg Validation',      value: `${avgScore}/100` },
       ]} />
 
       <ScrollBody>
@@ -102,6 +112,7 @@ export default function RecoveryFactory() {
             <Panel title="Operational Links">
               <ul className="space-y-1.5 text-[12px]">
                 <li><Link className="text-primary hover:underline inline-flex items-center gap-1.5" to="/factory/import"><Upload className="h-3 w-3" /> Import Center</Link></li>
+                <li><Link className="text-primary hover:underline inline-flex items-center gap-1.5" to="/factory/exceptions"><AlertOctagon className="h-3 w-3" /> Exception Queue {openExc > 0 && <span className="ml-1 text-status-pending font-mono">({openExc})</span>}</Link></li>
                 <li><Link className="text-primary hover:underline inline-flex items-center gap-1.5" to="/factory/history"><ListTodo className="h-3 w-3" /> Import History</Link></li>
                 <li><Link className="text-primary hover:underline" to="/denials">→ Denial Command</Link></li>
                 <li><Link className="text-primary hover:underline" to="/ops">→ Recovery Operations</Link></li>

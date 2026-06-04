@@ -321,6 +321,65 @@ export type Database = {
         }
         Relationships: []
       }
+      import_exceptions: {
+        Row: {
+          batch_id: string
+          created_at: string
+          error_count: number
+          exception_id: string
+          generated_claim_id: string | null
+          mapped_row: Json | null
+          resolved_at: string | null
+          row_number: number
+          severity: string
+          source_row: Json
+          status: string
+          updated_at: string
+          validation_errors: Json
+          warning_count: number
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          error_count?: number
+          exception_id: string
+          generated_claim_id?: string | null
+          mapped_row?: Json | null
+          resolved_at?: string | null
+          row_number: number
+          severity: string
+          source_row: Json
+          status?: string
+          updated_at?: string
+          validation_errors?: Json
+          warning_count?: number
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          error_count?: number
+          exception_id?: string
+          generated_claim_id?: string | null
+          mapped_row?: Json | null
+          resolved_at?: string | null
+          row_number?: number
+          severity?: string
+          source_row?: Json
+          status?: string
+          updated_at?: string
+          validation_errors?: Json
+          warning_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_exceptions_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["batch_id"]
+          },
+        ]
+      }
       member_accumulators: {
         Row: {
           family_deductible_used_cents: number

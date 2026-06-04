@@ -5,7 +5,7 @@ import {
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
   HelpCircle, Bell, User, Database, Activity, Target, FolderOpen, BarChart3,
   BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText, ShieldCheck,
-  Award, ClipboardList, Siren, Scale, Phone, Gauge, Factory, FileInput, History,
+  Award, ClipboardList, Siren, Scale, Phone, Gauge, Factory, FileInput, History, AlertOctagon as AlertIcon,
 } from 'lucide-react';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
@@ -34,9 +34,10 @@ const SECTIONS: NavSection[] = [
   {
     title: 'Recovery Factory',
     items: [
-      { to: '/factory',         label: 'Factory Dashboard', icon: Factory,   badge: 'NEW' },
-      { to: '/factory/import',  label: 'Import Center',     icon: FileInput, badge: 'NEW' },
-      { to: '/factory/history', label: 'Import History',    icon: History,   badge: 'NEW' },
+      { to: '/factory',            label: 'Factory Dashboard', icon: Factory,   badge: 'NEW' },
+      { to: '/factory/import',     label: 'Import Center',     icon: FileInput, badge: 'NEW' },
+      { to: '/factory/exceptions', label: 'Exception Queue',   icon: AlertIcon, badge: 'NEW' },
+      { to: '/factory/history',    label: 'Import History',    icon: History,   badge: 'NEW' },
     ],
   },
   {
@@ -229,9 +230,10 @@ function breadcrumbsFor(pathname: string): string[] {
     '/transparency':        ['Intelligence','Decision Transparency'],
     '/recovery-intel':      ['Intelligence','Recovery Intelligence'],
     '/outcomes':            ['Intelligence','Outcome Log'],
-    '/factory':             ['Recovery Factory', 'Factory Dashboard'],
-    '/factory/import':      ['Recovery Factory', 'Import Center'],
-    '/factory/history':     ['Recovery Factory', 'Import History'],
+    '/factory':              ['Recovery Factory', 'Factory Dashboard'],
+    '/factory/import':       ['Recovery Factory', 'Import Center'],
+    '/factory/exceptions':   ['Recovery Factory', 'Exception Queue'],
+    '/factory/history':      ['Recovery Factory', 'Import History'],
     '/ingest':              ['Admin',      'Ingestion'],
     '/audit':               ['Admin',      'Audit & Trace'],
   };
@@ -241,5 +243,6 @@ function breadcrumbsFor(pathname: string): string[] {
   if (pathname.startsWith('/queues/'))       return ['Execute', 'Work Queues', decodeURIComponent(pathname.split('/')[2])];
   if (pathname.startsWith('/packet/'))       return ['Execute', 'Appeal Packet', pathname.split('/')[2]];
   if (pathname.startsWith('/transparency/')) return ['Intelligence', 'Decision Transparency', pathname.split('/')[2]];
+  if (pathname.startsWith('/factory/exceptions/')) return ['Recovery Factory', 'Exception Queue', pathname.split('/')[3]];
   return ['Operations'];
 }
