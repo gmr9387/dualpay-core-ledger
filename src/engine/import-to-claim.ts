@@ -21,6 +21,8 @@ import {
   computeSeverity,
   computeSlaDueAt,
 } from './denial-intelligence';
+import { normalizeRemittance } from './remittance-normalizer';
+import { classifyRemittance, extractDenialEvent } from './remittance-denial-extractor';
 
 const PAYER_CLASS_MAP: Array<[RegExp, ClaimIntel['payer_class']]> = [
   [/medicare/i,  'medicare'],
