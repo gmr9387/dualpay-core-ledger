@@ -72,7 +72,7 @@ const SECTIONS: NavSection[] = [
       { to: '/transparency',    label: 'Decision Transparency', icon: ShieldCheck, badge: 'TRUST' },
       { to: '/leak',            label: 'Revenue Leak',        icon: TrendingDown },
       { to: '/forecast',        label: 'Recovery Forecast',   icon: TrendingUp },
-      { to: '/evidence',        label: 'Evidence Vault',      icon: FolderOpen },
+      { to: '/vault',           label: 'Evidence Vault',      icon: FolderOpen, badge: 'NEW' },
     ],
   },
   {
@@ -241,6 +241,7 @@ function breadcrumbsFor(pathname: string): string[] {
     '/appeals':             ['Execute',    'Appeals Workbench'],
     '/packet':              ['Execute',    'Appeal Packet'],
     '/evidence':            ['Intelligence','Evidence Vault'],
+    '/vault':               ['Intelligence','Evidence Vault'],
     '/leak':                ['Intelligence','Revenue Leak'],
     '/payers':              ['Payers & Team','Payer Intelligence'],
     '/payer-requirements':  ['Payers & Team','Payer Requirements'],
@@ -267,5 +268,8 @@ function breadcrumbsFor(pathname: string): string[] {
   if (pathname.startsWith('/packet/'))       return ['Execute', 'Appeal Packet', pathname.split('/')[2]];
   if (pathname.startsWith('/transparency/')) return ['Intelligence', 'Decision Transparency', pathname.split('/')[2]];
   if (pathname.startsWith('/factory/exceptions/')) return ['Recovery Factory', 'Exception Queue', pathname.split('/')[3]];
+  if (pathname.startsWith('/vault/claim/'))   return ['Intelligence', 'Evidence Vault', 'Claim ' + pathname.split('/')[3]];
+  if (pathname.startsWith('/vault/denial/'))  return ['Intelligence', 'Evidence Vault', 'Denial ' + pathname.split('/')[3]];
+  if (pathname.startsWith('/vault/'))         return ['Intelligence', 'Evidence Vault', 'Document'];
   return ['Operations'];
 }

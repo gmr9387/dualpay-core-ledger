@@ -293,6 +293,84 @@ export type Database = {
           },
         ]
       }
+      evidence_documents: {
+        Row: {
+          claim_id: string | null
+          created_at: string
+          denial_id: string | null
+          document_id: string
+          document_type: string
+          file_size: number
+          filename: string
+          mime_type: string
+          notes: string | null
+          org_id: string | null
+          parent_document_id: string | null
+          storage_bucket: string
+          storage_path: string
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string | null
+          uploaded_by_email: string | null
+          version: number
+        }
+        Insert: {
+          claim_id?: string | null
+          created_at?: string
+          denial_id?: string | null
+          document_id?: string
+          document_type?: string
+          file_size?: number
+          filename: string
+          mime_type: string
+          notes?: string | null
+          org_id?: string | null
+          parent_document_id?: string | null
+          storage_bucket?: string
+          storage_path: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          uploaded_by_email?: string | null
+          version?: number
+        }
+        Update: {
+          claim_id?: string | null
+          created_at?: string
+          denial_id?: string | null
+          document_id?: string
+          document_type?: string
+          file_size?: number
+          filename?: string
+          mime_type?: string
+          notes?: string | null
+          org_id?: string | null
+          parent_document_id?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          uploaded_by_email?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "evidence_documents_parent_document_id_fkey"
+            columns: ["parent_document_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_documents"
+            referencedColumns: ["document_id"]
+          },
+        ]
+      }
       field_mappings: {
         Row: {
           created_at: string

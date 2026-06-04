@@ -96,3 +96,61 @@ Strategic Direction
 Claim Clarity is the commercial wedge of the Valtaris ecosystem,
 supported by Cloud (tenancy/security/audit), Glue (workflow runtime),
 Core (COB/adjudication), and Weaver (context intelligence).
+
+---
+
+## Phase 13 — Evidence Vault & Appeal Document Lifecycle
+
+Real document management for denials, appeals, and recovery actions.
+
+Routes
+
+* /vault                       — Evidence Vault (search, filter, upload)
+* /vault/:documentId           — Document detail + versions + audit
+* /vault/claim/:claimId        — All documents for a claim + readiness + packet generator
+* /vault/denial/:denialId      — Denial-scoped evidence upload + required-items checklist
+
+Storage
+
+* `evidence-documents` (private bucket) — uploaded evidence
+* `appeal-packets`     (private bucket) — generated appeal packet snapshots
+* Path convention: `<org_id>/<claim_id>/<uuid>_v<n>_<filename>`
+* Supported formats: PDF, PNG, JPG, DOCX, XLSX
+
+Persistence
+
+* `evidence_documents` — org_id, claim_id, denial_id, storage_path, filename,
+  mime_type, file_size, document_type, version, parent_document_id, uploader.
+* RLS: org-scoped via `is_org_member` / `has_org_role`.
+* Storage RLS keyed off the first path segment (`org_id`).
+
+Security model
+
+* Viewers — read.
+* Analysts / Managers / Admins / Owners — upload + update.
+* Managers / Admins / Owners — delete.
+
+Versioning
+
+* Re-uploading the same filename + type to the same claim auto-bumps
+  the version; parent links are preserved. No file is ever overwritten
+  in storage.
+
+Auditability
+
+* Every action appends to `ops_events`: `document_uploaded`,
+  `document_linked`, `document_removed`, `appeal_packet_generated`.
+
+Appeal Packet Generator
+
+* `src/engine/appeal-packet-generator.ts` — deterministic Markdown packet
+  with claim, denial, evidence checklist, attached documents, timeline,
+  and recovery opportunity.
+* Reuses `scoreEvidenceReadiness` — does not duplicate readiness logic.
+* If readiness is not READY, the packet header reads
+  "Appeal Packet Incomplete" and enumerates blocking gaps.
+
+Reused engines (no duplication)
+
+* `evidence-readiness`, `appeal-readiness`, `sufficiency`,
+  `ops-events`, `use-org`.
