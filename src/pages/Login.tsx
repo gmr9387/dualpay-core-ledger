@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -13,9 +13,9 @@ export default function Login() {
   const loc = useLocation() as { state?: { from?: string } };
   const { user } = useAuth();
 
-  if (user) {
-    nav((loc.state?.from as string) || '/', { replace: true });
-  }
+  useEffect(() => {
+    if (user) nav((loc.state?.from as string) || '/', { replace: true });
+  }, [user, nav, loc.state]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
