@@ -37,6 +37,8 @@ import PayerOperations from "./pages/PayerOperations";
 import RecoveryFactory from "./pages/RecoveryFactory";
 import ImportCenter from "./pages/ImportCenter";
 import ImportHistory from "./pages/ImportHistory";
+import ExceptionQueue from "./pages/ExceptionQueue";
+import ExceptionDetail from "./pages/ExceptionDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -83,6 +85,8 @@ const App = () => (
             <Route path="/factory" element={<RecoveryFactory />} />
             <Route path="/factory/import" element={<ImportCenter />} />
             <Route path="/factory/history" element={<ImportHistory />} />
+            <Route path="/factory/exceptions" element={<ExceptionQueue />} />
+            <Route path="/factory/exceptions/:exceptionId" element={<ExceptionDetail />} />
             <Route path="/ingest" element={<Ingestion />} />
             <Route path="/audit" element={<AuditTrace />} />
             <Route path="*" element={<NotFound />} />
