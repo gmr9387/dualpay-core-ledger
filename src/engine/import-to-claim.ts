@@ -194,7 +194,10 @@ export function rowToClaim(row: ParsedRow, source: ImportSourceType, batchId: st
     ],
     appeals: [],
     evidence_missing: [],
-    notes: [`Imported from batch ${batchId.slice(0, 8)}`],
+    notes: [
+      `Imported from batch ${batchId.slice(0, 8)}`,
+      ...(remittanceClassificationReason ? [`Remittance classification: ${remittanceClassificationReason}`] : []),
+    ],
     queues: deriveQueues(intelDraft),
   };
 
