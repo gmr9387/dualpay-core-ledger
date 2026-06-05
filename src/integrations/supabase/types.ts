@@ -351,6 +351,39 @@ export type Database = {
           },
         ]
       }
+      claim_source_links: {
+        Row: {
+          claim_id: string
+          created_at: string
+          link_id: string
+          org_id: string
+          payload: Json | null
+          source_id: string | null
+          source_row_number: number | null
+          source_type: string
+        }
+        Insert: {
+          claim_id: string
+          created_at?: string
+          link_id?: string
+          org_id: string
+          payload?: Json | null
+          source_id?: string | null
+          source_row_number?: number | null
+          source_type: string
+        }
+        Update: {
+          claim_id?: string
+          created_at?: string
+          link_id?: string
+          org_id?: string
+          payload?: Json | null
+          source_id?: string | null
+          source_row_number?: number | null
+          source_type?: string
+        }
+        Relationships: []
+      }
       claims: {
         Row: {
           claim_id: string
@@ -1054,6 +1087,45 @@ export type Database = {
         }
         Relationships: []
       }
+      recovery_lineage_events: {
+        Row: {
+          claim_id: string | null
+          created_at: string
+          dispute_id: string | null
+          event_summary: string
+          event_type: string
+          lineage_event_id: string
+          org_id: string
+          outcome_id: string | null
+          payload: Json | null
+          remittance_line_id: string | null
+        }
+        Insert: {
+          claim_id?: string | null
+          created_at?: string
+          dispute_id?: string | null
+          event_summary: string
+          event_type: string
+          lineage_event_id?: string
+          org_id: string
+          outcome_id?: string | null
+          payload?: Json | null
+          remittance_line_id?: string | null
+        }
+        Update: {
+          claim_id?: string | null
+          created_at?: string
+          dispute_id?: string | null
+          event_summary?: string
+          event_type?: string
+          lineage_event_id?: string
+          org_id?: string
+          outcome_id?: string | null
+          payload?: Json | null
+          remittance_line_id?: string | null
+        }
+        Relationships: []
+      }
       recovery_outcomes: {
         Row: {
           claim_id: string
@@ -1188,6 +1260,78 @@ export type Database = {
           },
         ]
       }
+      remittance_lines: {
+        Row: {
+          adjustment_amount_cents: number
+          allowed_amount_cents: number
+          billed_amount_cents: number
+          carc_code: string | null
+          claim_id: string | null
+          classification: string | null
+          created_at: string
+          group_code: string | null
+          import_batch_id: string | null
+          modifier: string | null
+          org_id: string
+          paid_amount_cents: number
+          patient_responsibility_cents: number
+          payer_name: string | null
+          payload: Json | null
+          procedure_code: string | null
+          rarc_code: string | null
+          remittance_batch_id: string | null
+          remittance_line_id: string
+          service_date: string | null
+          source_row_number: number | null
+        }
+        Insert: {
+          adjustment_amount_cents?: number
+          allowed_amount_cents?: number
+          billed_amount_cents?: number
+          carc_code?: string | null
+          claim_id?: string | null
+          classification?: string | null
+          created_at?: string
+          group_code?: string | null
+          import_batch_id?: string | null
+          modifier?: string | null
+          org_id: string
+          paid_amount_cents?: number
+          patient_responsibility_cents?: number
+          payer_name?: string | null
+          payload?: Json | null
+          procedure_code?: string | null
+          rarc_code?: string | null
+          remittance_batch_id?: string | null
+          remittance_line_id?: string
+          service_date?: string | null
+          source_row_number?: number | null
+        }
+        Update: {
+          adjustment_amount_cents?: number
+          allowed_amount_cents?: number
+          billed_amount_cents?: number
+          carc_code?: string | null
+          claim_id?: string | null
+          classification?: string | null
+          created_at?: string
+          group_code?: string | null
+          import_batch_id?: string | null
+          modifier?: string | null
+          org_id?: string
+          paid_amount_cents?: number
+          patient_responsibility_cents?: number
+          payer_name?: string | null
+          payload?: Json | null
+          procedure_code?: string | null
+          rarc_code?: string | null
+          remittance_batch_id?: string | null
+          remittance_line_id?: string
+          service_date?: string | null
+          source_row_number?: number | null
+        }
+        Relationships: []
+      }
       scheduler_runs: {
         Row: {
           completed_at: string | null
@@ -1287,8 +1431,10 @@ export type Database = {
           paid_amount_cents: number
           payer_name: string
           procedure_code: string | null
+          remittance_line_id: string | null
           service_date: string | null
           severity: string
+          source_metadata: Json | null
           status: string
           updated_at: string
           variance_amount_cents: number
@@ -1307,8 +1453,10 @@ export type Database = {
           paid_amount_cents?: number
           payer_name: string
           procedure_code?: string | null
+          remittance_line_id?: string | null
           service_date?: string | null
           severity?: string
+          source_metadata?: Json | null
           status?: string
           updated_at?: string
           variance_amount_cents?: number
@@ -1327,8 +1475,10 @@ export type Database = {
           paid_amount_cents?: number
           payer_name?: string
           procedure_code?: string | null
+          remittance_line_id?: string | null
           service_date?: string | null
           severity?: string
+          source_metadata?: Json | null
           status?: string
           updated_at?: string
           variance_amount_cents?: number
