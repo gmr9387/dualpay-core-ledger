@@ -391,3 +391,43 @@ Remaining limitations
 * Executive metrics refresh on read (dashboards re-aggregate `underpayment_disputes`).
 
 Typecheck — clean (`tsc --noEmit`).
+
+---
+
+## Phase 21 — X12 Gateway & Native EDI Processing
+
+Native ingestion of healthcare X12 transactions without intermediate CSV.
+
+Tables added
+* `edi_transactions` — uploaded files with envelope metadata (sender/receiver, ICN, GS, ST), transaction type (835/837P/837I), status, validation status, segment & error counts.
+* `edi_segments` — parsed X12 segments with sequence, type, raw text, parsed JSON.
+* `edi_errors` — validation errors keyed to transaction and (optional) segment.
+
+Routes added
+* `/edi` — EDI Gateway overview with KPIs (Files Imported, Transactions Processed, Validation Errors, Claims, Remittances).
+* `/edi/import` — raw X12 upload / paste with parse + validate + normalize.
+* `/edi/transactions` — searchable list of all parsed transactions.
+* `/edi/errors` — validation error stream.
+
+Engines added
+* `src/engine/x12-parser.ts` — delimiter detection, segment & element splitting, envelope extraction (ISA/GS/ST), transaction-type classification (835 vs 837P vs 837I via GS08 implementation guide).
+* `src/engine/edi-validator.ts` — envelope integrity, ISA13↔IEA02 / GS06↔GE02 / ST02↔SE02 control-number matching, SE01 segment-count balancing, supported-type gate.
+* `src/engine/edi-normalizer.ts` — `normalize835 → CanonicalRemittance[]` (CLP/CAS/SVC/DTM/LQ walk), `normalize837 → CanonicalClaim837[]` (NM1/CLM/SV1·SV2·SV3/DTP walk).
+
+Existing engines reused
+* `CanonicalRemittance` (Phase 10) consumed by Remittance Intelligence, Contract Intelligence, and Recovery Factory unchanged.
+* `ops-events` audit chain extended with `edi_received`, `edi_parsed`, `edi_validated`, `edi_rejected`, `edi_normalized`, `edi_imported`.
+* Lineage substrate (`recovery_lineage_events`) is ready to attach `transaction_id` / `segment_id` to downstream rows.
+
+EDI transactions supported
+* 835 Health Care Claim Payment / Advice.
+* 837P Health Care Claim — Professional.
+* 837I Health Care Claim — Institutional.
+* Future: 270/271/277/278/999/TA1 (parser & schema accommodate, normalizers TBD).
+
+Remaining limitations
+* Normalized output is not yet auto-promoted into `remittance_batches` / `claims` rows — Phase 21 persists the EDI source-of-record and surfaces normalized output for downstream pipelines. A follow-up phase will wire the promote step.
+* Raw EDI is stored in `edi_transactions.raw_content` (immutable per RLS); a dedicated object-storage path can be added later for very large files.
+* Validation is structural; payer-business validation (e.g. SNIP-2/3) is not yet implemented.
+
+Typecheck — clean (`tsc --noEmit`).
