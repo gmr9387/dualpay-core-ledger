@@ -349,7 +349,7 @@ async function runHandler(client: ReturnType<typeof createClient>, job: QueueJob
   }
   if (k === 'contract_matching') {
     const [{ data: claims }, { data: contracts }] = await Promise.all([
-      client.from('claims').select('payer_name:payload, payload').eq('org_id', job.org_id),
+      client.from('claims').select('payload').eq('org_id', job.org_id),
       client.from('payer_contracts').select('payer_name').eq('org_id', job.org_id),
     ]);
     const set = new Set(((contracts ?? []) as Array<{ payer_name: string }>).map(c => (c.payer_name ?? '').toLowerCase()));
