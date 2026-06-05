@@ -144,6 +144,8 @@ const ProtectedShell = () => (
           <Route path="/platform/jobs" element={<PlatformJobs />} />
           <Route path="/platform/workers" element={<PlatformWorkers />} />
           <Route path="/platform/failures" element={<PlatformFailures />} />
+          <Route path="/lineage" element={<LineageHome />} />
+          <Route path="/lineage/claim/:claimId" element={<LineageClaim />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>
