@@ -43,7 +43,11 @@ export type OpsEventKind =
   | 'contract_match_found'
   | 'contract_match_missing'
   | 'dispute_duplicate_skipped'
-  | 'contract_recovery_completed';
+  | 'contract_recovery_completed'
+  | 'lineage_created'
+  | 'lineage_linked'
+  | 'lineage_missing'
+  | 'lineage_repaired';
 
 export interface OpsEvent {
   event_id: string;
