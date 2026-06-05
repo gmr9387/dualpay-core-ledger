@@ -71,6 +71,10 @@ import PlatformWorkers from "./pages/PlatformWorkers";
 import PlatformFailures from "./pages/PlatformFailures";
 import LineageHome from "./pages/LineageHome";
 import LineageClaim from "./pages/LineageClaim";
+import EdiHome from "./pages/EdiHome";
+import EdiImport from "./pages/EdiImport";
+import EdiTransactions from "./pages/EdiTransactions";
+import EdiErrors from "./pages/EdiErrors";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -146,6 +150,10 @@ const ProtectedShell = () => (
           <Route path="/platform/failures" element={<PlatformFailures />} />
           <Route path="/lineage" element={<LineageHome />} />
           <Route path="/lineage/claim/:claimId" element={<LineageClaim />} />
+          <Route path="/edi" element={<EdiHome />} />
+          <Route path="/edi/import" element={<EdiImport />} />
+          <Route path="/edi/transactions" element={<EdiTransactions />} />
+          <Route path="/edi/errors" element={<EdiErrors />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>
