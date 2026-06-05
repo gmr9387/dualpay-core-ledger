@@ -295,6 +295,29 @@ Remaining limitations
 
 ---
 
+## Phase 20 — Remittance Lineage & Batch-to-Claim Traceability
+
+End-to-end lineage from every imported remittance row through claims,
+underpayments, disputes, cases, and outcomes.
+
+- New tables: `remittance_lines`, `claim_source_links`, `recovery_lineage_events`.
+- `underpayment_disputes` extended with `remittance_line_id` + `source_metadata`.
+- `commitBatch` now persists a remittance line, claim source link, and lineage
+  events (`row_imported`, `claim_created`) for every imported row.
+- Worker-side `contract_recovery_analysis` prefers `remittance_lines` for
+  candidate discovery, falls back to claim payload — disputes are stamped
+  with their originating `remittance_line_id` and emit `underpayment_detected`
+  + `dispute_created` lineage events.
+- New routes: `/lineage` (org-wide activity) and `/lineage/claim/:claimId`
+  (full chain per claim) with “Lineage unavailable” fallback.
+- Ops events: `lineage_created`, `lineage_linked`, `lineage_missing`, `lineage_repaired`.
+
+Limitations: lineage events for `case_created`, `outcome_recorded`, and
+`executive_value_attributed` are reserved but not yet emitted by the case /
+outcome engines — they'll attach in a later phase.
+
+---
+
 ## Phase 19 — Server-Side Contract Recovery Execution
 
 Moves contract matching and true-underpayment detection into the durable

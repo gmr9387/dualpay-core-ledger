@@ -69,6 +69,8 @@ import PlatformHome from "./pages/PlatformHome";
 import PlatformJobs from "./pages/PlatformJobs";
 import PlatformWorkers from "./pages/PlatformWorkers";
 import PlatformFailures from "./pages/PlatformFailures";
+import LineageHome from "./pages/LineageHome";
+import LineageClaim from "./pages/LineageClaim";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -142,6 +144,8 @@ const ProtectedShell = () => (
           <Route path="/platform/jobs" element={<PlatformJobs />} />
           <Route path="/platform/workers" element={<PlatformWorkers />} />
           <Route path="/platform/failures" element={<PlatformFailures />} />
+          <Route path="/lineage" element={<LineageHome />} />
+          <Route path="/lineage/claim/:claimId" element={<LineageClaim />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>
