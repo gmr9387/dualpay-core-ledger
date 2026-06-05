@@ -38,7 +38,12 @@ export type OpsEventKind =
   | 'worker_heartbeat'
   | 'scheduler_started'
   | 'scheduler_completed'
-  | 'stalled_job_recovered';
+  | 'stalled_job_recovered'
+  | 'contract_recovery_started'
+  | 'contract_match_found'
+  | 'contract_match_missing'
+  | 'dispute_duplicate_skipped'
+  | 'contract_recovery_completed';
 
 export interface OpsEvent {
   event_id: string;

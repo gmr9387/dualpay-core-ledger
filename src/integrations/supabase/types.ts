@@ -1279,6 +1279,7 @@ export type Database = {
           claim_id: string
           contract_id: string | null
           created_at: string
+          dedupe_key: string | null
           dispute_id: string
           expected_amount_cents: number
           explanation: string | null
@@ -1286,6 +1287,7 @@ export type Database = {
           paid_amount_cents: number
           payer_name: string
           procedure_code: string | null
+          service_date: string | null
           severity: string
           status: string
           updated_at: string
@@ -1297,6 +1299,7 @@ export type Database = {
           claim_id: string
           contract_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           dispute_id?: string
           expected_amount_cents?: number
           explanation?: string | null
@@ -1304,6 +1307,7 @@ export type Database = {
           paid_amount_cents?: number
           payer_name: string
           procedure_code?: string | null
+          service_date?: string | null
           severity?: string
           status?: string
           updated_at?: string
@@ -1315,6 +1319,7 @@ export type Database = {
           claim_id?: string
           contract_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           dispute_id?: string
           expected_amount_cents?: number
           explanation?: string | null
@@ -1322,6 +1327,7 @@ export type Database = {
           paid_amount_cents?: number
           payer_name?: string
           procedure_code?: string | null
+          service_date?: string | null
           severity?: string
           status?: string
           updated_at?: string

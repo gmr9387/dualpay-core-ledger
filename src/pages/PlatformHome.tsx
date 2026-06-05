@@ -13,6 +13,7 @@ import { useOrg } from '@/hooks/use-org';
 import { roleAtLeast } from '@/lib/role-permissions';
 import { enqueueRecoveryPipeline } from '@/engine/pipeline-orchestrator';
 import { drainQueue, getWorkerId } from '@/engine/worker-executor';
+import { enqueueJob } from '@/engine/queue-manager';
 
 export default function PlatformHome() {
   const { jobs, loading, reload } = useQueueJobs();
@@ -47,6 +48,13 @@ export default function PlatformHome() {
     setBusy('drain');
     try { await drainQueue(50); reload(); } finally { setBusy(null); }
   };
+  const enqueueContractRecovery = async () => {
+    setBusy('cra');
+    try {
+      await enqueueJob({ job_type: 'contract_recovery_analysis', priority: 50, payload: {} });
+      reload();
+    } finally { setBusy(null); }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -59,6 +67,11 @@ export default function PlatformHome() {
               className="inline-flex items-center gap-1.5 rounded border bg-card text-[12px] px-3 py-1.5 hover:bg-muted disabled:opacity-40">
               {busy === 'enqueue' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
               Enqueue Pipeline
+            </button>
+            <button onClick={enqueueContractRecovery} disabled={!canRun || !!busy}
+              className="inline-flex items-center gap-1.5 rounded border bg-card text-[12px] px-3 py-1.5 hover:bg-muted disabled:opacity-40">
+              {busy === 'cra' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+              Contract Recovery
             </button>
             <button onClick={drain} disabled={!canRun || !!busy}
               className="inline-flex items-center gap-1.5 rounded bg-primary text-primary-foreground text-[12px] px-3 py-1.5 font-medium hover:opacity-90 disabled:opacity-40">

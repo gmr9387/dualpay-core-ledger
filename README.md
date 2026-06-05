@@ -292,3 +292,79 @@ Remaining limitations
   no in-app config editor for thresholds and actions.
 * Pipelines run synchronously in the browser session of the user who
   triggers them — no background worker / cron yet.
+
+---
+
+## Phase 19 — Server-Side Contract Recovery Execution
+
+Moves contract matching and true-underpayment detection into the durable
+edge worker pipeline. The browser session is no longer required to detect
+or persist contract-based recoveries.
+
+New durable job type
+
+* `contract_recovery_analysis` — runs inside `worker-dispatcher`:
+  loads org-scoped contracts + fee schedules, discovers candidates from
+  `claims.payload.intel.payer_responses` (latest non-zero response per
+  claim, with per-line proration when `payload.lines` is present),
+  matches the applicable contract version, computes expected
+  reimbursement (fixed / case / per-diem / percent-of-billed /
+  percent-of-Medicare), detects variance, and creates
+  `underpayment_disputes` rows.
+
+Idempotency
+
+* New `dedupe_key` + `service_date` columns on `underpayment_disputes`.
+* Unique index `(org_id, dedupe_key)` prevents duplicate disputes.
+* Key formula: `claim_id|contract_id|variance_amount_cents|service_date`.
+* Worker checks before insert; races also caught by the unique index and
+  counted as `skipped` (not `failed`).
+
+`dispute_generation` upgrade
+
+* When invoked without an explicit `candidates` payload, the server-side
+  handler now delegates to the contract recovery path (no longer a no-op).
+
+Schema changes (migration)
+
+* `underpayment_disputes` + `dedupe_key text`, `service_date date`,
+  unique index `(org_id, dedupe_key)`.
+
+Edge functions
+
+* `worker-dispatcher` (v19.0.0): adds the two new handlers, deterministic
+  contract math, audit emissions, and idempotent dispute writes.
+
+New `ops_events` kinds
+
+* `contract_recovery_started`, `contract_match_found`,
+  `contract_match_missing`, `underpayment_detected`,
+  `dispute_duplicate_skipped`, `contract_recovery_completed`.
+  (Plus the existing `dispute_created`, `job_completed`, etc.)
+
+UI
+
+* `/platform` adds a one-click "Contract Recovery" enqueue button.
+* `PlatformJobs` and `AutomationJobs` now display the new job type alongside
+  existing types — no redesign.
+
+Engines reused (not rebuilt)
+
+* `src/engine/contract-match.ts`, `src/engine/contract-underpayment.ts`,
+  `src/engine/dispute-generator.ts`, `src/engine/remittance-denial-extractor.ts`,
+  `src/engine/job-runner.ts`. Server-side logic mirrors these deterministic
+  rules; the browser engines remain authoritative for UI-driven exploration.
+
+Remaining limitations
+
+* Candidate discovery reads claim payloads (`intel.payer_responses` + `lines`).
+  Standalone EDI 835 lines are not persisted as a separate table, so claims
+  imported without payer-response payloads will not produce server-side
+  candidates.
+* Per-line allowed/paid is prorated by billed share when only a claim-level
+  remittance response is available.
+* `remittance_batch_id` filter currently scopes auditing only — there is no
+  batch↔claim join table yet.
+* Executive metrics refresh on read (dashboards re-aggregate `underpayment_disputes`).
+
+Typecheck — clean (`tsc --noEmit`).

@@ -9,7 +9,8 @@ export type QueueJobType =
   | 'dispute_generation'
   | 'recovery_case_generation'
   | 'queue_assignment'
-  | 'executive_recalculation';
+  | 'executive_recalculation'
+  | 'contract_recovery_analysis';
 
 export interface QueueJob {
   queue_job_id: string;

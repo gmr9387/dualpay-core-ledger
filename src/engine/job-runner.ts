@@ -187,6 +187,19 @@ const executive_recalculation: Handler = async () => {
   };
 };
 
+/**
+ * Phase 19 — contract_recovery_analysis runs server-side in the worker
+ * dispatcher edge function. The foreground stub just returns zero counts so
+ * synchronous browser-driven invocations are idempotent no-ops; real work is
+ * performed when the same job_type is claimed off `job_queue`.
+ */
+const contract_recovery_analysis: Handler = async () => ({
+  records_processed: 0,
+  records_succeeded: 0,
+  records_failed: 0,
+  details: { note: 'contract_recovery_analysis executes server-side via worker-dispatcher' },
+});
+
 const HANDLERS: Record<Exclude<JobType, 'pipeline'>, Handler> = {
   remittance_analysis,
   contract_matching,
@@ -195,6 +208,7 @@ const HANDLERS: Record<Exclude<JobType, 'pipeline'>, Handler> = {
   recovery_case_generation,
   queue_assignment,
   executive_recalculation,
+  contract_recovery_analysis,
 };
 
 // ---------- Public API ----------
@@ -222,4 +236,5 @@ export const JOB_TYPES: Array<Exclude<JobType, 'pipeline'>> = [
   'recovery_case_generation',
   'queue_assignment',
   'executive_recalculation',
+  'contract_recovery_analysis',
 ];

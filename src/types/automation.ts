@@ -13,6 +13,7 @@ export type JobType =
   | 'recovery_case_generation'
   | 'queue_assignment'
   | 'executive_recalculation'
+  | 'contract_recovery_analysis'
   | 'pipeline';
 
 export interface AutomationJob {
