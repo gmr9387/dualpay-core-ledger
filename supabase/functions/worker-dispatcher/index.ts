@@ -113,7 +113,7 @@ function makeDedupeKey(claim_id: string, contract_id: string | null, variance_ce
   return `${claim_id}|${contract_id ?? 'none'}|${variance_cents}|${service_date ?? 'none'}`;
 }
 
-// ---------- Candidate discovery ----------
+// ---------- Candidate discovery (Phase 20: prefer remittance_lines) ----------
 interface DiscoveredCandidate {
   claim_id: string;
   payer_name: string;
@@ -122,6 +122,8 @@ interface DiscoveredCandidate {
   billed_cents: number;
   allowed_cents: number;
   paid_cents: number;
+  remittance_line_id: string | null;
+  source: 'remittance_line' | 'claim_payload';
 }
 
 function pickLatestResponse(responses: any[] | undefined): any | null {
@@ -137,51 +139,75 @@ async function discoverCandidates(
   org_id: string,
   filters: { remittance_batch_id?: string | null; claim_ids?: string[] | null; payer_name?: string | null },
 ): Promise<DiscoveredCandidate[]> {
-  let q = client.from('claims').select('claim_id, payload, total_billed_cents, service_date_from')
-    .eq('org_id', org_id);
-  if (filters.claim_ids?.length) q = q.in('claim_id', filters.claim_ids);
-  const { data: rows } = await q.limit(2000);
   const out: DiscoveredCandidate[] = [];
+  const coveredClaims = new Set<string>();
 
-  for (const r of (rows ?? []) as Array<{ claim_id: string; payload: any; total_billed_cents: number; service_date_from: string }>) {
-    const intel = r.payload?.intel ?? {};
-    const payer = (intel.payer_name ?? r.payload?.payer_name ?? '') as string;
-    if (!payer) continue;
-    if (filters.payer_name && payer.toLowerCase() !== filters.payer_name.toLowerCase()) continue;
-
-    const resp = pickLatestResponse(intel.payer_responses);
-    if (!resp) continue;
-    const billed = Number(resp.billed_cents ?? r.total_billed_cents ?? 0);
-    const allowed = Number(resp.allowed_cents ?? 0);
-    const paid = Number(resp.paid_cents ?? 0);
+  // 1. Preferred: remittance_lines (durable, batch-scoped)
+  let lq = client.from('remittance_lines').select(
+    'remittance_line_id, claim_id, payer_name, service_date, procedure_code, billed_amount_cents, allowed_amount_cents, paid_amount_cents, remittance_batch_id, import_batch_id'
+  ).eq('org_id', org_id);
+  if (filters.remittance_batch_id) lq = lq.or(`remittance_batch_id.eq.${filters.remittance_batch_id},import_batch_id.eq.${filters.remittance_batch_id}`);
+  if (filters.claim_ids?.length) lq = lq.in('claim_id', filters.claim_ids);
+  if (filters.payer_name) lq = lq.ilike('payer_name', filters.payer_name);
+  const { data: lineRows } = await lq.limit(5000);
+  for (const r of (lineRows ?? []) as Array<any>) {
+    if (!r.claim_id || !r.payer_name) continue;
+    const billed = Number(r.billed_amount_cents ?? 0);
+    const allowed = Number(r.allowed_amount_cents ?? 0);
+    const paid = Number(r.paid_amount_cents ?? 0);
     if (billed <= 0 || (allowed === 0 && paid === 0)) continue;
+    out.push({
+      claim_id: r.claim_id, payer_name: r.payer_name,
+      procedure_code: r.procedure_code ?? null,
+      service_date: r.service_date ?? null,
+      billed_cents: billed, allowed_cents: allowed, paid_cents: paid,
+      remittance_line_id: r.remittance_line_id, source: 'remittance_line',
+    });
+    coveredClaims.add(r.claim_id);
+  }
 
-    const lines: any[] = Array.isArray(r.payload?.lines) ? r.payload.lines : [];
-    if (lines.length === 0) {
-      out.push({ claim_id: r.claim_id, payer_name: payer, procedure_code: null,
-        service_date: r.service_date_from, billed_cents: billed, allowed_cents: allowed, paid_cents: paid });
-      continue;
-    }
-    // Emit one candidate per line for procedure-level matching.
-    const billedTotal = lines.reduce((s, l) => s + Number(l.billed_amount ?? 0), 0) || billed;
-    for (const ln of lines) {
-      const lineBilled = Number(ln.billed_amount ?? 0);
-      const share = billedTotal > 0 ? lineBilled / billedTotal : 1 / lines.length;
-      out.push({
-        claim_id: r.claim_id, payer_name: payer,
-        procedure_code: (ln.procedure_code ?? null) as string | null,
-        service_date: (ln.service_date ?? r.service_date_from) as string | null,
-        billed_cents: lineBilled || billed,
-        allowed_cents: Math.round(allowed * share),
-        paid_cents: Math.round(paid * share),
-      });
+  // 2. Fallback: claim payload (older claims without lineage rows)
+  if (!filters.remittance_batch_id) {
+    let q = client.from('claims').select('claim_id, payload, total_billed_cents, service_date_from')
+      .eq('org_id', org_id);
+    if (filters.claim_ids?.length) q = q.in('claim_id', filters.claim_ids);
+    const { data: rows } = await q.limit(2000);
+    for (const r of (rows ?? []) as Array<{ claim_id: string; payload: any; total_billed_cents: number; service_date_from: string }>) {
+      if (coveredClaims.has(r.claim_id)) continue;
+      const intel = r.payload?.intel ?? {};
+      const payer = (intel.payer_name ?? r.payload?.payer_name ?? '') as string;
+      if (!payer) continue;
+      if (filters.payer_name && payer.toLowerCase() !== filters.payer_name.toLowerCase()) continue;
+      const resp = pickLatestResponse(intel.payer_responses);
+      if (!resp) continue;
+      const billed = Number(resp.billed_cents ?? r.total_billed_cents ?? 0);
+      const allowed = Number(resp.allowed_cents ?? 0);
+      const paid = Number(resp.paid_cents ?? 0);
+      if (billed <= 0 || (allowed === 0 && paid === 0)) continue;
+      const lines: any[] = Array.isArray(r.payload?.lines) ? r.payload.lines : [];
+      if (lines.length === 0) {
+        out.push({ claim_id: r.claim_id, payer_name: payer, procedure_code: null,
+          service_date: r.service_date_from, billed_cents: billed, allowed_cents: allowed, paid_cents: paid,
+          remittance_line_id: null, source: 'claim_payload' });
+        continue;
+      }
+      const billedTotal = lines.reduce((s, l) => s + Number(l.billed_amount ?? 0), 0) || billed;
+      for (const ln of lines) {
+        const lineBilled = Number(ln.billed_amount ?? 0);
+        const share = billedTotal > 0 ? lineBilled / billedTotal : 1 / lines.length;
+        out.push({
+          claim_id: r.claim_id, payer_name: payer,
+          procedure_code: (ln.procedure_code ?? null) as string | null,
+          service_date: (ln.service_date ?? r.service_date_from) as string | null,
+          billed_cents: lineBilled || billed,
+          allowed_cents: Math.round(allowed * share),
+          paid_cents: Math.round(paid * share),
+          remittance_line_id: null, source: 'claim_payload',
+        });
+      }
     }
   }
 
-  if (filters.remittance_batch_id) {
-    // Filter to claims belonging to this batch when the batch maps to claim_ids via payload.
-    // (No persisted line table — leave the candidate set as-is and surface batch metadata in details.)
-  }
   return out;
 }
 
