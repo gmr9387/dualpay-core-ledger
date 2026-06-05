@@ -68,6 +68,11 @@ export default function PlatformHome() {
               {busy === 'enqueue' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
               Enqueue Pipeline
             </button>
+            <button onClick={enqueueContractRecovery} disabled={!canRun || !!busy}
+              className="inline-flex items-center gap-1.5 rounded border bg-card text-[12px] px-3 py-1.5 hover:bg-muted disabled:opacity-40">
+              {busy === 'cra' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+              Contract Recovery
+            </button>
             <button onClick={drain} disabled={!canRun || !!busy}
               className="inline-flex items-center gap-1.5 rounded bg-primary text-primary-foreground text-[12px] px-3 py-1.5 font-medium hover:opacity-90 disabled:opacity-40">
               {busy === 'drain' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
