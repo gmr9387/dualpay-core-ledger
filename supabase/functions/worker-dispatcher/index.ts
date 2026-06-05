@@ -1,7 +1,8 @@
-// Phase 18 — Worker Dispatcher Edge Function.
+// Phase 18 + 19 — Worker Dispatcher Edge Function.
 // Polls job_queue, atomically claims jobs, executes them server-side, records
-// metrics + heartbeat, and reports stalled-job recovery counts.
-// Triggered by pg_cron via scheduler-dispatcher every minute, or manually.
+// metrics + heartbeat. Phase 19 adds `contract_recovery_analysis`:
+// candidate discovery, deterministic contract match, true underpayment
+// detection, and idempotent dispute creation — all server-side.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
@@ -19,49 +20,327 @@ interface QueueJob {
   payload: Record<string, unknown> | null;
 }
 
-const WORKER_VERSION = '18.0.0';
+const WORKER_VERSION = '19.0.0';
 
+// ---------- ops_events helper ----------
+function evId() { return `EV-${Date.now().toString(36)}-${crypto.randomUUID().slice(0,8)}`; }
+async function audit(
+  client: ReturnType<typeof createClient>,
+  kind: string, summary: string, actor: string,
+  claim_id: string | null = null, payload: Record<string, unknown> = {},
+) {
+  await client.from('ops_events').insert([{
+    event_id: evId(), occurred_at: new Date().toISOString(),
+    kind, actor, summary, claim_id, payload,
+  }] as never);
+}
+
+// ---------- Worker lifecycle ----------
 async function registerWorker(client: ReturnType<typeof createClient>, worker_id: string) {
   await client.from('worker_registry').upsert({
     worker_id, status: 'active', version: WORKER_VERSION, last_heartbeat: new Date().toISOString(),
   } as never, { onConflict: 'worker_id' });
-  await client.from('ops_events').insert([{
-    event_id: `EV-${Date.now().toString(36)}-${crypto.randomUUID().slice(0,8)}`,
-    occurred_at: new Date().toISOString(),
-    kind: 'worker_registered',
-    actor: 'system:worker-dispatcher',
-    summary: `Worker ${worker_id} registered`,
-    payload: { worker_id, version: WORKER_VERSION },
-  }] as never);
+  await audit(client, 'worker_registered', `Worker ${worker_id} registered`, 'system:worker-dispatcher', null,
+    { worker_id, version: WORKER_VERSION });
 }
-
 async function heartbeat(client: ReturnType<typeof createClient>, worker_id: string, ok: number, fail: number) {
   const { data } = await client.from('worker_registry').select('jobs_processed, jobs_failed').eq('worker_id', worker_id).maybeSingle();
   const next_ok = ((data?.jobs_processed as number | undefined) ?? 0) + ok;
   const next_fail = ((data?.jobs_failed as number | undefined) ?? 0) + fail;
   await client.from('worker_registry').update({
-    status: 'active',
-    last_heartbeat: new Date().toISOString(),
-    jobs_processed: next_ok,
-    jobs_failed: next_fail,
+    status: 'active', last_heartbeat: new Date().toISOString(),
+    jobs_processed: next_ok, jobs_failed: next_fail,
   } as never).eq('worker_id', worker_id);
-  await client.from('ops_events').insert([{
-    event_id: `EV-${Date.now().toString(36)}-${crypto.randomUUID().slice(0,8)}`,
-    occurred_at: new Date().toISOString(),
-    kind: 'worker_heartbeat',
-    actor: 'system:worker-dispatcher',
-    summary: `Heartbeat ${worker_id} (+${ok} ok, +${fail} fail)`,
-    payload: { worker_id, ok, fail },
-  }] as never);
+  await audit(client, 'worker_heartbeat', `Heartbeat ${worker_id} (+${ok} ok, +${fail} fail)`,
+    'system:worker-dispatcher', null, { worker_id, ok, fail });
 }
 
-// ---------- Job handlers (mirror Phase 16 deterministic logic, server-side) ----------
+// ---------- Contract-matching primitives (mirror src/engine/contract-*.ts) ----------
+type Contract = { contract_id: string; org_id: string; payer_name: string; contract_name: string;
+  version: string; effective_date: string; termination_date: string | null };
+type Fee = { fee_schedule_id: string; contract_id: string; procedure_code: string;
+  modifier: string | null; contracted_amount_cents: number; reimbursement_method: string };
 
-async function runHandler(client: ReturnType<typeof createClient>, job: QueueJob): Promise<{
+function matchContract(contracts: Contract[], payer_name: string, service_date: string): Contract | null {
+  const wanted = (payer_name ?? '').trim().toLowerCase();
+  const cand = contracts.filter(c =>
+    c.payer_name.trim().toLowerCase() === wanted
+    && service_date >= c.effective_date
+    && (!c.termination_date || service_date <= c.termination_date));
+  if (!cand.length) return null;
+  cand.sort((a, b) => b.effective_date.localeCompare(a.effective_date)
+    || String(b.version).localeCompare(String(a.version)));
+  return cand[0];
+}
+
+function findFee(fees: Fee[], contract_id: string, procedure_code: string, modifier: string | null): Fee | undefined {
+  const rows = fees.filter(f => f.contract_id === contract_id
+    && f.procedure_code.toUpperCase() === procedure_code.toUpperCase());
+  return rows.find(f => (f.modifier ?? '') === (modifier ?? ''))
+      ?? rows.find(f => !f.modifier)
+      ?? rows[0];
+}
+
+function computeExpected(fee: Fee, billed_cents: number, medicare_cents = 0): { expected: number; basis: string; conf: number } {
+  switch (fee.reimbursement_method) {
+    case 'fixed_fee':
+    case 'case_rate':
+    case 'per_diem':
+      return { expected: fee.contracted_amount_cents, basis: `${fee.reimbursement_method}`, conf: 95 };
+    case 'percent_of_billed': {
+      const pct = fee.contracted_amount_cents / 10000;
+      return { expected: Math.round(billed_cents * pct), basis: `${(pct*100).toFixed(1)}% of billed`, conf: 85 };
+    }
+    case 'percent_of_medicare': {
+      if (!medicare_cents) return { expected: 0, basis: 'Medicare allowable unavailable', conf: 30 };
+      const pct = fee.contracted_amount_cents / 10000;
+      return { expected: Math.round(medicare_cents * pct), basis: `${(pct*100).toFixed(1)}% of Medicare`, conf: 80 };
+    }
+    default: return { expected: fee.contracted_amount_cents, basis: `Unknown method`, conf: 60 };
+  }
+}
+
+const VAR_MIN_CENTS = 100;   // $1
+const VAR_MIN_PCT = 2;       // 2%
+function severityOf(variance: number, pct: number): string {
+  if (pct >= 25 || variance >= 50_000) return 'critical';
+  if (pct >= 15 || variance >= 20_000) return 'high';
+  if (pct >= 5  || variance >=  5_000) return 'medium';
+  return 'low';
+}
+
+function makeDedupeKey(claim_id: string, contract_id: string | null, variance_cents: number, service_date: string | null) {
+  return `${claim_id}|${contract_id ?? 'none'}|${variance_cents}|${service_date ?? 'none'}`;
+}
+
+// ---------- Candidate discovery ----------
+interface DiscoveredCandidate {
+  claim_id: string;
+  payer_name: string;
+  procedure_code: string | null;
+  service_date: string | null;
+  billed_cents: number;
+  allowed_cents: number;
+  paid_cents: number;
+}
+
+function pickLatestResponse(responses: any[] | undefined): any | null {
+  if (!Array.isArray(responses) || !responses.length) return null;
+  const ranked = [...responses]
+    .filter(r => (r?.allowed_cents ?? 0) > 0 || (r?.paid_cents ?? 0) > 0)
+    .sort((a, b) => String(b.received_at ?? '').localeCompare(String(a.received_at ?? '')));
+  return ranked[0] ?? null;
+}
+
+async function discoverCandidates(
+  client: ReturnType<typeof createClient>,
+  org_id: string,
+  filters: { remittance_batch_id?: string | null; claim_ids?: string[] | null; payer_name?: string | null },
+): Promise<DiscoveredCandidate[]> {
+  let q = client.from('claims').select('claim_id, payer_name:payload, payload, total_billed_cents, service_date_from')
+    .eq('org_id', org_id);
+  if (filters.claim_ids?.length) q = q.in('claim_id', filters.claim_ids);
+  const { data: rows } = await q.limit(2000);
+  const out: DiscoveredCandidate[] = [];
+
+  for (const r of (rows ?? []) as Array<{ claim_id: string; payload: any; total_billed_cents: number; service_date_from: string }>) {
+    const intel = r.payload?.intel ?? {};
+    const payer = (intel.payer_name ?? r.payload?.payer_name ?? '') as string;
+    if (!payer) continue;
+    if (filters.payer_name && payer.toLowerCase() !== filters.payer_name.toLowerCase()) continue;
+
+    const resp = pickLatestResponse(intel.payer_responses);
+    if (!resp) continue;
+    const billed = Number(resp.billed_cents ?? r.total_billed_cents ?? 0);
+    const allowed = Number(resp.allowed_cents ?? 0);
+    const paid = Number(resp.paid_cents ?? 0);
+    if (billed <= 0 || (allowed === 0 && paid === 0)) continue;
+
+    const lines: any[] = Array.isArray(r.payload?.lines) ? r.payload.lines : [];
+    if (lines.length === 0) {
+      out.push({ claim_id: r.claim_id, payer_name: payer, procedure_code: null,
+        service_date: r.service_date_from, billed_cents: billed, allowed_cents: allowed, paid_cents: paid });
+      continue;
+    }
+    // Emit one candidate per line for procedure-level matching.
+    const billedTotal = lines.reduce((s, l) => s + Number(l.billed_amount ?? 0), 0) || billed;
+    for (const ln of lines) {
+      const lineBilled = Number(ln.billed_amount ?? 0);
+      const share = billedTotal > 0 ? lineBilled / billedTotal : 1 / lines.length;
+      out.push({
+        claim_id: r.claim_id, payer_name: payer,
+        procedure_code: (ln.procedure_code ?? null) as string | null,
+        service_date: (ln.service_date ?? r.service_date_from) as string | null,
+        billed_cents: lineBilled || billed,
+        allowed_cents: Math.round(allowed * share),
+        paid_cents: Math.round(paid * share),
+      });
+    }
+  }
+
+  if (filters.remittance_batch_id) {
+    // Filter to claims belonging to this batch when the batch maps to claim_ids via payload.
+    // (No persisted line table — leave the candidate set as-is and surface batch metadata in details.)
+  }
+  return out;
+}
+
+// ---------- Contract recovery handler ----------
+async function runContractRecovery(
+  client: ReturnType<typeof createClient>,
+  job: QueueJob,
+  worker_id: string,
+) {
+  const p = (job.payload ?? {}) as { remittance_batch_id?: string | null; claim_ids?: string[] | null; payer_name?: string | null; contract_id?: string | null };
+  await audit(client, 'contract_recovery_started',
+    `Contract recovery started${p.payer_name ? ` (${p.payer_name})` : ''}`,
+    `system:${worker_id}`, null, { ...p, queue_job_id: job.queue_job_id });
+
+  const [{ data: contractRows }, { data: feeRows }] = await Promise.all([
+    client.from('payer_contracts').select('contract_id, org_id, payer_name, contract_name, version, effective_date, termination_date').eq('org_id', job.org_id),
+    client.from('fee_schedules').select('fee_schedule_id, contract_id, procedure_code, modifier, contracted_amount_cents, reimbursement_method').eq('org_id', job.org_id),
+  ]);
+  const contracts = ((contractRows ?? []) as Contract[])
+    .filter(c => !p.contract_id || c.contract_id === p.contract_id);
+  const fees = (feeRows ?? []) as Fee[];
+
+  const candidates = await discoverCandidates(client, job.org_id, {
+    remittance_batch_id: p.remittance_batch_id ?? null,
+    claim_ids: p.claim_ids ?? null,
+    payer_name: p.payer_name ?? null,
+  });
+
+  let processed = 0, matched = 0, missing = 0, created = 0, skipped = 0, failed = 0;
+  let valueCents = 0;
+
+  for (const c of candidates) {
+    processed += 1;
+    const contract = matchContract(contracts, c.payer_name, c.service_date ?? new Date().toISOString().slice(0,10));
+    if (!contract) {
+      missing += 1;
+      await audit(client, 'contract_match_missing',
+        `No contract for ${c.payer_name} on ${c.service_date ?? '—'}`,
+        `system:${worker_id}`, c.claim_id, { payer_name: c.payer_name, service_date: c.service_date });
+      continue;
+    }
+    matched += 1;
+    await audit(client, 'contract_match_found',
+      `Matched ${contract.payer_name} ${contract.contract_name} v${contract.version}`,
+      `system:${worker_id}`, c.claim_id, { contract_id: contract.contract_id, procedure_code: c.procedure_code });
+
+    const fee = c.procedure_code ? findFee(fees, contract.contract_id, c.procedure_code, null) : undefined;
+    if (!fee) continue;
+    const { expected, basis, conf } = computeExpected(fee, c.billed_cents);
+    if (expected <= 0) continue;
+
+    const comparison = Math.max(c.allowed_cents, c.paid_cents);
+    const variance = expected - comparison;
+    const variancePct = (variance / expected) * 100;
+    if (variance <= VAR_MIN_CENTS || variancePct < VAR_MIN_PCT) continue;
+
+    const sev = severityOf(variance, variancePct);
+    await audit(client, 'underpayment_detected',
+      `Underpayment $${(variance/100).toFixed(2)} (${variancePct.toFixed(1)}%) on ${c.payer_name}`,
+      `system:${worker_id}`, c.claim_id,
+      { contract_id: contract.contract_id, variance_cents: variance, severity: sev, confidence: conf });
+
+    const dedupe = makeDedupeKey(c.claim_id, contract.contract_id, variance, c.service_date);
+    const { data: existing } = await client.from('underpayment_disputes')
+      .select('dispute_id').eq('org_id', job.org_id).eq('dedupe_key', dedupe).maybeSingle();
+    if (existing) {
+      skipped += 1;
+      await audit(client, 'dispute_duplicate_skipped',
+        `Duplicate dispute skipped (${c.payer_name})`,
+        `system:${worker_id}`, c.claim_id, { dedupe_key: dedupe });
+      continue;
+    }
+
+    const explanation = `Expected $${(expected/100).toFixed(2)} (${basis}); paid/allowed $${(comparison/100).toFixed(2)}. Variance $${(variance/100).toFixed(2)} (${variancePct.toFixed(1)}%).`;
+    const { data: ins, error: insErr } = await client.from('underpayment_disputes').insert([{
+      org_id: job.org_id, claim_id: c.claim_id, contract_id: contract.contract_id,
+      payer_name: c.payer_name, procedure_code: c.procedure_code,
+      expected_amount_cents: expected, allowed_amount_cents: c.allowed_cents, paid_amount_cents: c.paid_cents,
+      variance_amount_cents: variance, variance_percent: variancePct,
+      severity: sev, status: 'open', explanation,
+      service_date: c.service_date, dedupe_key: dedupe,
+    }] as never).select('dispute_id').maybeSingle();
+
+    if (insErr) {
+      // Duplicate via race ⇒ count as skipped, otherwise failure.
+      if (String(insErr.message).includes('duplicate key')) {
+        skipped += 1;
+        await audit(client, 'dispute_duplicate_skipped', `Race-duplicate skipped`, `system:${worker_id}`, c.claim_id, { dedupe_key: dedupe });
+      } else {
+        failed += 1;
+      }
+      continue;
+    }
+    if (ins) {
+      created += 1;
+      valueCents += variance;
+      await audit(client, 'dispute_created',
+        `Dispute opened: ${c.payer_name} variance ${variancePct.toFixed(1)}%`,
+        `system:${worker_id}`, c.claim_id,
+        { dispute_id: (ins as any).dispute_id, severity: sev, variance_cents: variance });
+    }
+  }
+
+  await audit(client, 'contract_recovery_completed',
+    `Contract recovery completed: ${created} disputes ($${(valueCents/100).toFixed(2)}), ${skipped} duplicates, ${missing} unmatched`,
+    `system:${worker_id}`, null,
+    { queue_job_id: job.queue_job_id, processed, matched, missing, created, skipped, failed, value_cents: valueCents });
+
+  return {
+    records_processed: processed,
+    records_succeeded: created + skipped,
+    records_failed: failed,
+    recovery_value_cents: valueCents,
+    details: { matched, missing, created, skipped, failed, contracts: contracts.length, fees: fees.length },
+  };
+}
+
+// ---------- Dispute generation handler (server-side discovery) ----------
+async function runDisputeGeneration(client: ReturnType<typeof createClient>, job: QueueJob, worker_id: string) {
+  const payloadCandidates = (job.payload?.candidates as Array<any> | undefined) ?? [];
+  if (payloadCandidates.length === 0) {
+    // Delegate to contract recovery analysis path for auto-discovery.
+    return await runContractRecovery(client, job, worker_id);
+  }
+  let created = 0, skipped = 0, failed = 0, valueCents = 0;
+  for (const c of payloadCandidates) {
+    const dedupe = makeDedupeKey(c.claim_id, c.contract_id ?? null, c.variance_amount_cents, c.service_date ?? null);
+    const { data: ex } = await client.from('underpayment_disputes')
+      .select('dispute_id').eq('org_id', job.org_id).eq('dedupe_key', dedupe).maybeSingle();
+    if (ex) { skipped += 1; continue; }
+    const { data: ins, error } = await client.from('underpayment_disputes').insert([{
+      ...c, org_id: job.org_id, dedupe_key: dedupe,
+    }] as never).select('dispute_id').maybeSingle();
+    if (error) { failed += 1; continue; }
+    if (ins) {
+      created += 1; valueCents += Number(c.variance_amount_cents ?? 0);
+      await audit(client, 'dispute_created',
+        `Dispute opened (manual candidate): ${c.payer_name}`,
+        `system:${worker_id}`, c.claim_id, { dispute_id: (ins as any).dispute_id });
+    }
+  }
+  return {
+    records_processed: payloadCandidates.length,
+    records_succeeded: created + skipped,
+    records_failed: failed,
+    recovery_value_cents: valueCents,
+    details: { created, skipped, failed },
+  };
+}
+
+// ---------- Job dispatch ----------
+async function runHandler(client: ReturnType<typeof createClient>, job: QueueJob, worker_id: string): Promise<{
   records_processed: number; records_succeeded: number; records_failed: number;
   recovery_value_cents: number; details: Record<string, unknown>;
 }> {
   const k = job.job_type;
+  if (k === 'contract_recovery_analysis') return await runContractRecovery(client, job, worker_id);
+  if (k === 'dispute_generation') return await runDisputeGeneration(client, job, worker_id);
+
   if (k === 'remittance_analysis') {
     const { data } = await client.from('remittance_batches').select('status').eq('org_id', job.org_id);
     const rows = (data ?? []) as Array<{ status: string }>;
@@ -70,12 +349,16 @@ async function runHandler(client: ReturnType<typeof createClient>, job: QueueJob
   }
   if (k === 'contract_matching') {
     const [{ data: claims }, { data: contracts }] = await Promise.all([
-      client.from('claims').select('payer_name').eq('org_id', job.org_id),
+      client.from('claims').select('payer_name:payload, payload').eq('org_id', job.org_id),
       client.from('payer_contracts').select('payer_name').eq('org_id', job.org_id),
     ]);
     const set = new Set(((contracts ?? []) as Array<{ payer_name: string }>).map(c => (c.payer_name ?? '').toLowerCase()));
-    const rows = (claims ?? []) as Array<{ payer_name: string | null }>;
-    const matched = rows.filter(c => c.payer_name && set.has(c.payer_name.toLowerCase())).length;
+    const rows = (claims ?? []) as Array<{ payload: any }>;
+    let matched = 0;
+    for (const r of rows) {
+      const p = (r.payload?.intel?.payer_name ?? r.payload?.payer_name ?? '') as string;
+      if (p && set.has(p.toLowerCase())) matched += 1;
+    }
     return { records_processed: rows.length, records_succeeded: matched, records_failed: rows.length - matched, recovery_value_cents: 0, details: { matched } };
   }
   if (k === 'underpayment_detection') {
@@ -83,11 +366,6 @@ async function runHandler(client: ReturnType<typeof createClient>, job: QueueJob
     const rows = (data ?? []) as Array<{ variance_amount_cents: number | null; status: string }>;
     const value = rows.reduce((s, r) => s + (r.variance_amount_cents ?? 0), 0);
     return { records_processed: rows.length, records_succeeded: rows.length, records_failed: 0, recovery_value_cents: value, details: { open: rows.filter(r => r.status === 'open').length } };
-  }
-  if (k === 'dispute_generation') {
-    // Server-side dispute generation requires candidate payload supplied by the user / pipeline.
-    const candidates = (job.payload?.candidates as Array<Record<string, unknown>> | undefined) ?? [];
-    return { records_processed: candidates.length, records_succeeded: 0, records_failed: 0, recovery_value_cents: 0, details: { note: 'dispute generation deferred to UI session', candidates: candidates.length } };
   }
   if (k === 'recovery_case_generation') {
     const { data: disputes } = await client.from('underpayment_disputes')
@@ -141,7 +419,7 @@ async function runHandler(client: ReturnType<typeof createClient>, job: QueueJob
 async function executeOne(client: ReturnType<typeof createClient>, worker_id: string, job: QueueJob): Promise<{ ok: boolean; error?: string }> {
   const start = Date.now();
   try {
-    const r = await runHandler(client, job);
+    const r = await runHandler(client, job, worker_id);
     const duration_ms = Date.now() - start;
     await client.from('job_queue').update({
       status: 'completed', completed_at: new Date().toISOString(), last_error: null,
@@ -151,7 +429,6 @@ async function executeOne(client: ReturnType<typeof createClient>, worker_id: st
       records_processed: r.records_processed, records_succeeded: r.records_succeeded,
       records_failed: r.records_failed, result_summary: r.details, org_id: job.org_id,
     }] as never);
-    // also keep automation_jobs in sync (best-effort) so dashboards stay consistent
     await client.from('automation_jobs').insert([{
       job_type: job.job_type, status: 'completed', org_id: job.org_id,
       started_at: new Date(start).toISOString(), completed_at: new Date().toISOString(),
@@ -159,13 +436,10 @@ async function executeOne(client: ReturnType<typeof createClient>, worker_id: st
       records_failed: r.records_failed, recovery_value_cents: r.recovery_value_cents,
       pipeline_id: job.pipeline_id, result: r.details,
     }] as never);
-    await client.from('ops_events').insert([{
-      event_id: `EV-${Date.now().toString(36)}-${crypto.randomUUID().slice(0,8)}`,
-      occurred_at: new Date().toISOString(), kind: 'job_completed',
-      actor: `system:${worker_id}`,
-      summary: `Job completed: ${job.job_type} (${r.records_succeeded}/${r.records_processed})`,
-      payload: { queue_job_id: job.queue_job_id, worker_id, ...r },
-    }] as never);
+    await audit(client, 'job_completed',
+      `Job completed: ${job.job_type} (${r.records_succeeded}/${r.records_processed})`,
+      `system:${worker_id}`, null,
+      { queue_job_id: job.queue_job_id, worker_id, ...r });
     return { ok: true };
   } catch (e: any) {
     const duration_ms = Date.now() - start;
@@ -176,33 +450,25 @@ async function executeOne(client: ReturnType<typeof createClient>, worker_id: st
       result_summary: { error: message }, org_id: job.org_id,
     }] as never);
     await client.from('job_failures').insert([{
-      queue_job_id: job.queue_job_id, error_message: message, retry_count: job.attempts, org_id: job.org_id,
+      queue_job_id: job.queue_job_id, org_id: job.org_id,
+      error_message: message, stack_trace: e?.stack ?? null, retry_count: job.attempts,
     }] as never);
     const exhausted = job.attempts >= job.max_attempts;
     if (exhausted) {
       await client.from('job_queue').update({
         status: 'dead_letter', completed_at: new Date().toISOString(), last_error: message,
       } as never).eq('queue_job_id', job.queue_job_id);
-      await client.from('ops_events').insert([{
-        event_id: `EV-${Date.now().toString(36)}-${crypto.randomUUID().slice(0,8)}`,
-        occurred_at: new Date().toISOString(), kind: 'job_dead_lettered',
-        actor: `system:${worker_id}`,
-        summary: `Dead-lettered ${job.job_type} after ${job.attempts} attempts`,
-        payload: { queue_job_id: job.queue_job_id, error: message },
-      }] as never);
+      await audit(client, 'job_dead_lettered',
+        `Dead-lettered ${job.job_type} after ${job.attempts} attempts`,
+        `system:${worker_id}`, null, { queue_job_id: job.queue_job_id, error: message });
     } else {
       const backoffMs = Math.min(2 ** job.attempts * 1000, 300_000);
       await client.from('job_queue').update({
         status: 'queued', worker_id: null, locked_at: null, last_error: message,
         next_attempt_at: new Date(Date.now() + backoffMs).toISOString(),
       } as never).eq('queue_job_id', job.queue_job_id);
-      await client.from('ops_events').insert([{
-        event_id: `EV-${Date.now().toString(36)}-${crypto.randomUUID().slice(0,8)}`,
-        occurred_at: new Date().toISOString(), kind: 'job_retried',
-        actor: `system:${worker_id}`,
-        summary: `Retry scheduled for ${job.job_type}`,
-        payload: { queue_job_id: job.queue_job_id, attempt: job.attempts, backoffMs },
-      }] as never);
+      await audit(client, 'job_retried', `Retry scheduled for ${job.job_type}`,
+        `system:${worker_id}`, null, { queue_job_id: job.queue_job_id, attempt: job.attempts, backoffMs });
     }
     return { ok: false, error: message };
   }
@@ -219,16 +485,10 @@ Deno.serve(async (req) => {
 
   await registerWorker(client, worker_id);
 
-  // Recover any stalled jobs from dead workers before claiming.
   const { data: recovered } = await client.rpc('recover_stalled_queue_jobs', { _stale_minutes: 10 } as never);
   if ((recovered as unknown as number) > 0) {
-    await client.from('ops_events').insert([{
-      event_id: `EV-${Date.now().toString(36)}-${crypto.randomUUID().slice(0,8)}`,
-      occurred_at: new Date().toISOString(), kind: 'stalled_job_recovered',
-      actor: `system:${worker_id}`,
-      summary: `Recovered ${recovered} stalled job(s)`,
-      payload: { count: recovered },
-    }] as never);
+    await audit(client, 'stalled_job_recovered',
+      `Recovered ${recovered} stalled job(s)`, `system:${worker_id}`, null, { count: recovered });
   }
 
   let executed = 0, ok = 0, fail = 0;
