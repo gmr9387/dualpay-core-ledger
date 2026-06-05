@@ -81,6 +81,12 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'Lineage',
+    items: [
+      { to: '/lineage', label: 'Recovery Lineage', icon: GitBranch, badge: 'NEW' },
+    ],
+  },
+  {
     title: 'Execute',
     items: [
       { to: '/pipeline',   label: 'Recovery Pipeline',  icon: GitBranch },
