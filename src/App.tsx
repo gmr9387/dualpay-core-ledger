@@ -69,6 +69,8 @@ import PlatformHome from "./pages/PlatformHome";
 import PlatformJobs from "./pages/PlatformJobs";
 import PlatformWorkers from "./pages/PlatformWorkers";
 import PlatformFailures from "./pages/PlatformFailures";
+import LineageHome from "./pages/LineageHome";
+import LineageClaim from "./pages/LineageClaim";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
