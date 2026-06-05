@@ -48,6 +48,13 @@ export default function PlatformHome() {
     setBusy('drain');
     try { await drainQueue(50); reload(); } finally { setBusy(null); }
   };
+  const enqueueContractRecovery = async () => {
+    setBusy('cra');
+    try {
+      await enqueueJob({ job_type: 'contract_recovery_analysis', priority: 50, payload: {} });
+      reload();
+    } finally { setBusy(null); }
+  };
 
   return (
     <div className="flex flex-col h-full">
