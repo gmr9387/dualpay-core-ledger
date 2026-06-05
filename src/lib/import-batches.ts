@@ -7,6 +7,14 @@ import { rowToClaim } from '@/engine/import-to-claim';
 import { saveClaim } from '@/data/repository';
 import { persistExceptions } from '@/lib/import-exceptions';
 import { persistRemittanceBatch } from '@/lib/remittance-batches';
+import { normalizeRemittance } from '@/engine/remittance-normalizer';
+import { classifyRemittance } from '@/engine/remittance-denial-extractor';
+import {
+  insertRemittanceLines,
+  insertClaimSourceLinks,
+  appendLineageEvents,
+  type InsertRemittanceLine,
+} from '@/lib/lineage';
 
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 const J = <T>(v: T) => v as unknown as Json;
