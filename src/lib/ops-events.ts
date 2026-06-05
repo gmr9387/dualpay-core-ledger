@@ -47,7 +47,13 @@ export type OpsEventKind =
   | 'lineage_created'
   | 'lineage_linked'
   | 'lineage_missing'
-  | 'lineage_repaired';
+  | 'lineage_repaired'
+  | 'edi_received'
+  | 'edi_parsed'
+  | 'edi_validated'
+  | 'edi_rejected'
+  | 'edi_normalized'
+  | 'edi_imported';
 
 export interface OpsEvent {
   event_id: string;

@@ -434,6 +434,158 @@ export type Database = {
           },
         ]
       }
+      edi_errors: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          error_id: string
+          message: string
+          org_id: string
+          segment_id: string | null
+          severity: string
+          transaction_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          error_id?: string
+          message: string
+          org_id: string
+          segment_id?: string | null
+          severity?: string
+          transaction_id: string
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          error_id?: string
+          message?: string
+          org_id?: string
+          segment_id?: string | null
+          severity?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edi_errors_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "edi_segments"
+            referencedColumns: ["segment_id"]
+          },
+          {
+            foreignKeyName: "edi_errors_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "edi_transactions"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      edi_segments: {
+        Row: {
+          created_at: string
+          org_id: string
+          parsed_json: Json
+          raw_segment: string
+          segment_id: string
+          segment_type: string
+          sequence_number: number
+          transaction_id: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          parsed_json?: Json
+          raw_segment: string
+          segment_id?: string
+          segment_type: string
+          sequence_number: number
+          transaction_id: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          parsed_json?: Json
+          raw_segment?: string
+          segment_id?: string
+          segment_type?: string
+          sequence_number?: number
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edi_segments_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "edi_transactions"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      edi_transactions: {
+        Row: {
+          created_at: string
+          error_count: number
+          file_name: string
+          functional_group_number: string | null
+          interchange_control_number: string | null
+          metadata: Json
+          org_id: string
+          raw_content: string | null
+          received_at: string
+          receiver_id: string | null
+          segment_count: number
+          sender_id: string | null
+          status: string
+          transaction_id: string
+          transaction_set_number: string | null
+          transaction_type: string
+          updated_at: string
+          validation_status: string
+        }
+        Insert: {
+          created_at?: string
+          error_count?: number
+          file_name: string
+          functional_group_number?: string | null
+          interchange_control_number?: string | null
+          metadata?: Json
+          org_id: string
+          raw_content?: string | null
+          received_at?: string
+          receiver_id?: string | null
+          segment_count?: number
+          sender_id?: string | null
+          status?: string
+          transaction_id?: string
+          transaction_set_number?: string | null
+          transaction_type: string
+          updated_at?: string
+          validation_status?: string
+        }
+        Update: {
+          created_at?: string
+          error_count?: number
+          file_name?: string
+          functional_group_number?: string | null
+          interchange_control_number?: string | null
+          metadata?: Json
+          org_id?: string
+          raw_content?: string | null
+          received_at?: string
+          receiver_id?: string | null
+          segment_count?: number
+          sender_id?: string | null
+          status?: string
+          transaction_id?: string
+          transaction_set_number?: string | null
+          transaction_type?: string
+          updated_at?: string
+          validation_status?: string
+        }
+        Relationships: []
+      }
       evidence_documents: {
         Row: {
           claim_id: string | null

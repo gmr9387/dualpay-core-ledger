@@ -87,6 +87,15 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'EDI Gateway',
+    items: [
+      { to: '/edi',              label: 'EDI Overview',     icon: Database,  badge: 'X12' },
+      { to: '/edi/import',       label: 'EDI Import',       icon: Upload,    badge: 'X12' },
+      { to: '/edi/transactions', label: 'EDI Transactions', icon: FileSearch, badge: 'X12' },
+      { to: '/edi/errors',       label: 'EDI Errors',       icon: AlertTriangle, badge: 'X12' },
+    ],
+  },
+  {
     title: 'Execute',
     items: [
       { to: '/pipeline',   label: 'Recovery Pipeline',  icon: GitBranch },
