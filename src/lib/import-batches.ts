@@ -86,12 +86,15 @@ export async function commitBatch(
 ): Promise<{ committed: number; expected_recovery_cents: number; claim_ids: string[] }> {
   let expected = 0;
   const claim_ids: string[] = [];
+  // Phase 20 lineage: collect (row → claim) pairs to persist after claims write.
+  const rowClaimPairs: Array<{ row: ParsedRow; claim_id: string }> = [];
   for (const r of rows) {
     if (r.status === 'error') continue;
     try {
       const { claim, expectedRecoveryCents } = rowToClaim(r, source, batch.batch_id);
       await saveClaim(claim);
       claim_ids.push(claim.claim_id);
+      rowClaimPairs.push({ row: r, claim_id: claim.claim_id });
       expected += expectedRecoveryCents;
     } catch {
       // skip row on conversion failure
@@ -103,6 +106,86 @@ export async function commitBatch(
     await persistExceptions(batch, rows);
   } catch (e) {
     console.error('[import-batches] persistExceptions failed', e);
+  }
+
+  // Phase 20 — durable lineage: remittance lines + claim source links + lineage events.
+  try {
+    const isRemittance = source === 'remittance_835';
+    const lineInserts: InsertRemittanceLine[] = rowClaimPairs.map(({ row, claim_id }) => {
+      if (isRemittance) {
+        const rem = normalizeRemittance(row);
+        const cls = classifyRemittance(rem);
+        return {
+          import_batch_id: batch.batch_id,
+          source_row_number: row.index + 1,
+          claim_id,
+          payer_name: rem.payer_name,
+          service_date: rem.service_date ?? null,
+          procedure_code: rem.procedure_code ?? null,
+          modifier: null,
+          billed_amount_cents: rem.billed_cents,
+          allowed_amount_cents: rem.allowed_cents,
+          paid_amount_cents: rem.paid_cents,
+          patient_responsibility_cents: rem.patient_resp_cents,
+          adjustment_amount_cents: rem.adjustment_cents,
+          carc_code: rem.carc_code ?? null,
+          rarc_code: rem.rarc_code ?? null,
+          group_code: rem.group_code ?? null,
+          classification: cls.kind,
+        };
+      }
+      // Non-remittance imports still get a lineage row so disputes can trace back.
+      const n = row.normalized;
+      const num = (k: string) => (typeof n[k] === 'number' ? (n[k] as number) : 0);
+      const str = (k: string) => (n[k] == null || n[k] === '' ? null : String(n[k]));
+      return {
+        import_batch_id: batch.batch_id,
+        source_row_number: row.index + 1,
+        claim_id,
+        payer_name: str('payer_name'),
+        service_date: str('service_date'),
+        procedure_code: str('procedure_code'),
+        billed_amount_cents: num('billed_amount'),
+        allowed_amount_cents: num('allowed_amount'),
+        paid_amount_cents: num('paid_amount'),
+        carc_code: str('carc_code'),
+        rarc_code: str('rarc_code'),
+        group_code: str('group_code'),
+        classification: source,
+      };
+    });
+    const insertedLines = await insertRemittanceLines(lineInserts);
+
+    await insertClaimSourceLinks(rowClaimPairs.map(({ row, claim_id }, idx) => ({
+      claim_id,
+      source_type: isRemittance ? 'remittance_line' : 'import_batch',
+      source_id: insertedLines[idx]?.remittance_line_id ?? batch.batch_id,
+      source_row_number: row.index + 1,
+      payload: { import_batch_id: batch.batch_id, source_type: source },
+    })));
+
+    const events = rowClaimPairs.flatMap(({ claim_id }, idx) => {
+      const line = insertedLines[idx];
+      return [
+        {
+          claim_id,
+          remittance_line_id: line?.remittance_line_id ?? null,
+          event_type: 'row_imported' as const,
+          event_summary: `Row ${idx + 1} imported from ${batch.file_name}`,
+          payload: { import_batch_id: batch.batch_id, source_type: source },
+        },
+        {
+          claim_id,
+          remittance_line_id: line?.remittance_line_id ?? null,
+          event_type: 'claim_created' as const,
+          event_summary: `Claim ${claim_id} created from ${source}`,
+          payload: { import_batch_id: batch.batch_id },
+        },
+      ];
+    });
+    await appendLineageEvents(events);
+  } catch (e) {
+    console.error('[import-batches] lineage persist failed', e);
   }
 
   // Phase 10 — for 835 / remittance imports, summarize denials, underpayments, COB.
