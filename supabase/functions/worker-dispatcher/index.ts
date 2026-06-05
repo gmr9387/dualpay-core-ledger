@@ -137,7 +137,7 @@ async function discoverCandidates(
   org_id: string,
   filters: { remittance_batch_id?: string | null; claim_ids?: string[] | null; payer_name?: string | null },
 ): Promise<DiscoveredCandidate[]> {
-  let q = client.from('claims').select('claim_id, payer_name:payload, payload, total_billed_cents, service_date_from')
+  let q = client.from('claims').select('claim_id, payload, total_billed_cents, service_date_from')
     .eq('org_id', org_id);
   if (filters.claim_ids?.length) q = q.in('claim_id', filters.claim_ids);
   const { data: rows } = await q.limit(2000);
