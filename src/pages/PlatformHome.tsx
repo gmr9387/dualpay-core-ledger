@@ -13,6 +13,7 @@ import { useOrg } from '@/hooks/use-org';
 import { roleAtLeast } from '@/lib/role-permissions';
 import { enqueueRecoveryPipeline } from '@/engine/pipeline-orchestrator';
 import { drainQueue, getWorkerId } from '@/engine/worker-executor';
+import { enqueueJob } from '@/engine/queue-manager';
 
 export default function PlatformHome() {
   const { jobs, loading, reload } = useQueueJobs();
