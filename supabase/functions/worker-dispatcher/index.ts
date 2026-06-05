@@ -282,6 +282,10 @@ async function runContractRecovery(
     }
 
     const explanation = `Expected $${(expected/100).toFixed(2)} (${basis}); paid/allowed $${(comparison/100).toFixed(2)}. Variance $${(variance/100).toFixed(2)} (${variancePct.toFixed(1)}%).`;
+    const source_metadata = {
+      source: c.source, remittance_line_id: c.remittance_line_id,
+      queue_job_id: job.queue_job_id, basis, confidence: conf,
+    };
     const { data: ins, error: insErr } = await client.from('underpayment_disputes').insert([{
       org_id: job.org_id, claim_id: c.claim_id, contract_id: contract.contract_id,
       payer_name: c.payer_name, procedure_code: c.procedure_code,
@@ -289,6 +293,7 @@ async function runContractRecovery(
       variance_amount_cents: variance, variance_percent: variancePct,
       severity: sev, status: 'open', explanation,
       service_date: c.service_date, dedupe_key: dedupe,
+      remittance_line_id: c.remittance_line_id, source_metadata,
     }] as never).select('dispute_id').maybeSingle();
 
     if (insErr) {
@@ -304,10 +309,22 @@ async function runContractRecovery(
     if (ins) {
       created += 1;
       valueCents += variance;
+      const dispute_id = (ins as any).dispute_id as string;
       await audit(client, 'dispute_created',
         `Dispute opened: ${c.payer_name} variance ${variancePct.toFixed(1)}%`,
         `system:${worker_id}`, c.claim_id,
-        { dispute_id: (ins as any).dispute_id, severity: sev, variance_cents: variance });
+        { dispute_id, severity: sev, variance_cents: variance, remittance_line_id: c.remittance_line_id });
+      // Phase 20 lineage events: underpayment_detected + dispute_created
+      await client.from('recovery_lineage_events').insert([
+        { org_id: job.org_id, claim_id: c.claim_id, remittance_line_id: c.remittance_line_id,
+          event_type: 'underpayment_detected',
+          event_summary: `Underpayment detected on ${c.payer_name} ($${(variance/100).toFixed(2)})`,
+          payload: { variance_cents: variance, severity: sev, confidence: conf, basis } },
+        { org_id: job.org_id, claim_id: c.claim_id, remittance_line_id: c.remittance_line_id,
+          dispute_id, event_type: 'dispute_created',
+          event_summary: `Dispute ${dispute_id} created for ${c.payer_name}`,
+          payload: { contract_id: contract.contract_id, severity: sev, dedupe_key: dedupe } },
+      ] as never);
     }
   }
 
