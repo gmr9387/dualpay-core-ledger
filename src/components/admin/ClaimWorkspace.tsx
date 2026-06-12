@@ -7,6 +7,9 @@ import { AdjudicationPanel } from './AdjudicationPanel';
 import { TraceViewer } from './TraceViewer';
 import { CasePanel } from './CasePanel';
 import { StateDiagram } from './StateDiagram';
+import { RunSummaryPanel } from './RunSummaryPanel';
+import { AuditReadinessPanel } from './AuditReadinessPanel';
+import { CaseLinkingPanel } from './CaseLinkingPanel';
 import { FileText, Layers, Network, Cpu, GitBranch, Briefcase, Printer, Download, MoreHorizontal, ArrowRight } from 'lucide-react';
 
 interface AdjResult {
@@ -123,7 +126,11 @@ export function ClaimWorkspace(props: ClaimWorkspaceProps) {
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
         {tab === 'summary' && (
-          <SummaryTab claim={claim} result={result} />
+          <div className="space-y-4">
+            <RunSummaryPanel claim={claim} run={result.run} trace={result.trace} />
+            <AuditReadinessPanel claim={claim} run={result.run} trace={result.trace} />
+            <SummaryTab claim={claim} result={result} />
+          </div>
         )}
         {tab === 'lines' && (
           <AdjudicationPanel claim={claim} run={result.run} onShowTrace={() => setTab('trace')} />
@@ -143,17 +150,27 @@ export function ClaimWorkspace(props: ClaimWorkspaceProps) {
           />
         )}
         {tab === 'case' && caseData && (
-          <CasePanel
-            caseData={caseData}
-            events={caseEvents}
-            claims={claims}
-            adjResults={adjResults}
-            accumulators={accumulators}
-            contract={contract}
-            plan={plan}
-            priorOutcomes={priorOutcomes}
-            onSelectClaim={onSelectClaim}
-          />
+          <div className="space-y-4">
+            <CaseLinkingPanel
+              caseData={caseData}
+              events={caseEvents}
+              claims={claims}
+              adjResults={adjResults}
+              currentClaimId={claim.claim_id}
+              onSelectClaim={onSelectClaim}
+            />
+            <CasePanel
+              caseData={caseData}
+              events={caseEvents}
+              claims={claims}
+              adjResults={adjResults}
+              accumulators={accumulators}
+              contract={contract}
+              plan={plan}
+              priorOutcomes={priorOutcomes}
+              onSelectClaim={onSelectClaim}
+            />
+          </div>
         )}
       </div>
     </div>
