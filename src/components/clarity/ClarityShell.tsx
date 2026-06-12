@@ -157,7 +157,8 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight">Claim Clarity</div>
-            <div className="text-[10px] font-mono text-sidebar-foreground/55">Recovery Operations · v6.0</div>
+            <div className="text-[10px] font-mono text-sidebar-foreground/55">Healthcare Adjudication Intelligence</div>
+            <div className="text-[9px] font-mono text-sidebar-primary/70 mt-0.5">Powered by ValtariOS</div>
           </div>
         </div>
 
