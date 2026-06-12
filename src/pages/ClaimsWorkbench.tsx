@@ -14,7 +14,7 @@ import type { Claim, AdjudicationRun, MemberAccumulators } from '@/types/claim';
 import type { TraceObject } from '@/types/trace';
 import type { Case, CaseEvent } from '@/types/case';
 import { ClaimList } from '@/components/admin/ClaimList';
-import { StatsBar } from '@/components/admin/StatsBar';
+import { ClaimOperationsKpis } from '@/components/admin/ClaimOperationsKpis';
 import { ClaimWorkspace } from '@/components/admin/ClaimWorkspace';
 import { PageHeader, EmptyState } from '@/components/clarity/primitives';
 import { Inbox, Loader2 } from 'lucide-react';
@@ -73,9 +73,12 @@ export default function ClaimsWorkbench() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="Claims Workbench" subtitle="Adjudication engine view: trace, state machine, COB, and case management." />
+      <PageHeader
+        title="Claims Workbench"
+        subtitle="Deterministic adjudication · auditable decision path · COB transparency · payment waterfall · replayable trace."
+      />
       {error && <div className="px-5 py-1.5 text-[11.5px] font-mono border-b text-destructive">Error: {error}</div>}
-      <StatsBar adjResults={adjResults} />
+      <ClaimOperationsKpis claims={claims} adjResults={adjResults} cases={cases} />
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading adjudication data…
@@ -95,7 +98,11 @@ export default function ClaimsWorkbench() {
                 onSelectClaim={setSelectedClaimId}
               />
             ) : (
-              <EmptyState title="Select a claim to begin" body="Pick a claim from the queue to view adjudication, COB allocation, trace, and case." icon={<Inbox className="h-5 w-5" />} />
+              <EmptyState
+                title="Select a claim to open its adjudication record"
+                body="Each claim exposes the deterministic rule path, payment waterfall, COB determination, accumulator impact, and replayable audit trace."
+                icon={<Inbox className="h-5 w-5" />}
+              />
             )}
           </div>
         </div>

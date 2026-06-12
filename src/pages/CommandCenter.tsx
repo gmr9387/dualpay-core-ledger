@@ -57,8 +57,8 @@ export default function CommandCenter() {
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="Command Center"
-        subtitle="Real-time operational view of reimbursement performance, denials, and at-risk revenue."
+        title="Claim Clarity · Command Center"
+        subtitle="Healthcare adjudication intelligence — deterministic decisions, auditable trace, replayable across payers."
       />
       <KpiStrip tiles={[
         { label: 'Billed (Period)',  value: formatCentsCompact(kpis.totalBilled) },
