@@ -139,7 +139,7 @@ export function ClaimWorkspace(props: ClaimWorkspaceProps) {
           <AdjudicationPanel claim={claim} run={result.run} onShowTrace={() => setTab('trace')} />
         )}
         {tab === 'trace' && (
-          <TraceViewer trace={result.trace} onClose={() => setTab('summary')} />
+          <TraceViewer trace={result.trace} claim={claim} run={result.run} onClose={() => setTab('summary')} />
         )}
         {tab === 'state' && (
           <StateDiagram
