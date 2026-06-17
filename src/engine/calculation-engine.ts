@@ -1,8 +1,7 @@
 /**
  * DualPay Calculation Engine — Pure Functions
- * 
- * All calculations are deterministic, traceable, and produce
- * structured Trace Objects for every adjudication.
+ *
+ * Deterministic, traceable adjudication kernel.
  */
 
 import type {
@@ -18,26 +17,27 @@ import type {
   COBAllocation,
 } from '@/types/claim';
 import type { TraceObject, MathStep, RuleFiring } from '@/types/trace';
-import { buildTrace, createRuleFiring, createMathStep, createSourceBadge } from './trace-builder';
-import { determineCOBPrimacy, calculateCOBAllocation } from './cob-rules';
+import { buildTrace, createRuleFiring, createMathStep } from './trace-builder';
+import { calculateCOBAllocation } from './cob-rules';
 
 const CALC_POLICY_VERSION = '1.0.0';
 
-// Generate deterministic IDs
 let idCounter = 0;
+
 export function generateId(prefix: string): string {
-  idCounter++;
-  return `${prefix}_${Date.now()}_${idCounter}`;
+  idCounter += 1;
+  return `${prefix}_${String(idCounter).padStart(6, '0')}`;
 }
 
 export function resetIdCounter(): void {
   idCounter = 0;
 }
 
-/**
- * Sort claim lines in deterministic order for processing.
- * Order: service_date ASC, then claim_line_number ASC
- */
+export interface AdjudicationOptions {
+  runId?: string;
+  timestamp?: string;
+}
+
 export function sortLines(lines: ClaimLine[]): ClaimLine[] {
   return [...lines].sort((a, b) => {
     const dateComp = a.service_date.localeCompare(b.service_date);
@@ -46,48 +46,87 @@ export function sortLines(lines: ClaimLine[]): ClaimLine[] {
   });
 }
 
-/**
- * Create initial SessionAccumulator from member accumulators
- */
 export function initSessionAccumulator(accumulators: MemberAccumulators): SessionAccumulator {
   return {
-    deductible_remaining: accumulators.individual_deductible_max - accumulators.individual_deductible_used,
-    oop_remaining: accumulators.individual_oop_max - accumulators.individual_oop_used,
+    deductible_remaining: Math.max(
+      0,
+      accumulators.individual_deductible_max - accumulators.individual_deductible_used,
+    ),
+    oop_remaining: Math.max(
+      0,
+      accumulators.individual_oop_max - accumulators.individual_oop_used,
+    ),
     benefit_limits_remaining: new Map(
-      accumulators.benefit_limits.map(bl => [bl.benefit_category, bl.max - bl.used])
+      accumulators.benefit_limits.map((bl) => [
+        bl.benefit_category,
+        Math.max(0, bl.max - bl.used),
+      ]),
     ),
     lines_processed: [],
   };
 }
 
-/**
- * Determine allowed amount from contract terms
- */
+function getFeeScheduleAmount(
+  feeSchedule: ContractTerms['fee_schedule'],
+  procedureCode: string,
+): number | undefined {
+  if (feeSchedule instanceof Map) {
+    return feeSchedule.get(procedureCode);
+  }
+
+  const value = (feeSchedule as unknown as Record<string, number | undefined>)[procedureCode];
+  return typeof value === 'number' ? value : undefined;
+}
+
 export function calculateAllowed(line: ClaimLine, contract: ContractTerms): number {
   if (contract.reimbursement_method === 'fee_schedule') {
-    const scheduled = contract.fee_schedule.get(line.procedure_code);
+    const scheduled = getFeeScheduleAmount(contract.fee_schedule, line.procedure_code);
+
     if (scheduled !== undefined) {
       return Math.min(line.billed_amount, scheduled * line.units);
     }
-    // No fee schedule entry = non-covered
+
     return 0;
   }
+
   if (contract.reimbursement_method === 'percent_of_billed') {
     return Math.round(line.billed_amount * (contract.percent_of_billed ?? 1));
   }
+
   return line.billed_amount;
 }
 
-/**
- * Round to cents (ISO-4217 precision for USD)
- */
 export function roundCents(amount: number): number {
   return Math.round(amount);
 }
 
-/**
- * Adjudicate a single claim line (pure function)
- */
+function assertLineInvariant(args: {
+  lineId: string;
+  allowed: number;
+  planPaid: number;
+  memberResp: number;
+  contractualAdj: number;
+  cobPriorPaid: number;
+  cobAdjustment: number;
+}): void {
+  const accounted =
+    args.planPaid +
+    args.memberResp +
+    args.cobPriorPaid +
+    args.cobAdjustment;
+
+  if (accounted !== args.allowed) {
+    throw new Error(
+      `Line invariant failed for ${args.lineId}: planPaid + memberResp + cobPriorPaid + cobAdjustment must equal allowed. ` +
+        `Got ${accounted}, expected ${args.allowed}.`,
+    );
+  }
+
+  if (args.planPaid < 0 || args.memberResp < 0) {
+    throw new Error(`Negative adjudication result for ${args.lineId}.`);
+  }
+}
+
 export function adjudicateLine(
   line: ClaimLine,
   sessionAcc: SessionAccumulator,
@@ -95,33 +134,35 @@ export function adjudicateLine(
   plan: PlanBenefits,
   priorOutcomes: PriorPayerOutcome[],
   ruleFirings: RuleFiring[],
-  mathSteps: MathStep[]
+  mathSteps: MathStep[],
 ): { result: AdjudicationLineResult; nextAcc: SessionAccumulator } {
   const adjustments: AdjustmentDetail[] = [];
   const cobAllocations: COBAllocation[] = [];
 
-  // Step 1: Calculate allowed amount
   const allowed = calculateAllowed(line, contract);
 
-  ruleFirings.push(createRuleFiring(
-    ruleFirings.length,
-    'PRICING_001',
-    'pricing',
-    { billed: line.billed_amount, procedure: line.procedure_code },
-    { allowed },
-    ['frag_pricing_fee_schedule']
-  ));
+  ruleFirings.push(
+    createRuleFiring(
+      ruleFirings.length,
+      'PRICING_001',
+      'pricing',
+      { billed: line.billed_amount, procedure: line.procedure_code },
+      { allowed },
+      ['frag_pricing_fee_schedule'],
+    ),
+  );
 
   if (allowed === 0) {
-    // Non-covered service
-    ruleFirings.push(createRuleFiring(
-      ruleFirings.length,
-      'DENIAL_001',
-      'denial',
-      { procedure: line.procedure_code },
-      { denied: true, reason: 'not_in_fee_schedule' },
-      ['frag_denial_non_covered']
-    ));
+    ruleFirings.push(
+      createRuleFiring(
+        ruleFirings.length,
+        'DENIAL_001',
+        'denial',
+        { procedure: line.procedure_code },
+        { denied: true, reason: 'not_in_fee_schedule' },
+        ['frag_denial_non_covered'],
+      ),
+    );
 
     const result: AdjudicationLineResult = {
       line_id: line.line_id,
@@ -131,113 +172,232 @@ export function adjudicateLine(
       coinsurance: 0,
       copay: 0,
       plan_paid: 0,
-      member_responsibility: line.billed_amount,
-      adjustments: [{ reason_code: 'NON_COVERED', amount: line.billed_amount, category: 'non_covered' }],
+      member_responsibility: 0,
+      adjustments: [
+        {
+          reason_code: 'NON_COVERED',
+          amount: line.billed_amount,
+          category: 'non_covered',
+        },
+      ],
       cob_allocations: [],
       status: 'denied',
       denial_reasons: ['Service not covered under contract'],
     };
 
-    mathSteps.push(createMathStep(line.line_id, line.billed_amount, 0, 0, 0, 0, 0, line.billed_amount));
+    mathSteps.push(
+      createMathStep(line.line_id, line.billed_amount, 0, 0, 0, 0, 0, 0),
+    );
 
     return {
       result,
-      nextAcc: { ...sessionAcc, lines_processed: [...sessionAcc.lines_processed, line.line_id] },
+      nextAcc: {
+        ...sessionAcc,
+        lines_processed: [...sessionAcc.lines_processed, line.line_id],
+      },
     };
   }
 
-  // Contractual adjustment
   const contractualAdj = line.billed_amount - allowed;
+
   if (contractualAdj > 0) {
-    adjustments.push({ reason_code: 'CONTRACTUAL', amount: contractualAdj, category: 'contractual' });
+    adjustments.push({
+      reason_code: 'CONTRACTUAL',
+      amount: contractualAdj,
+      category: 'contractual',
+    });
   }
 
-  // Step 2: Check for COB / prior payer outcomes
-  const linePrior = priorOutcomes.filter(po => po.claim_line_id === line.line_id);
+  const linePrior = priorOutcomes.filter((po) => po.claim_line_id === line.line_id);
+
   let cobPriorPaid = 0;
   let cobAdjustment = 0;
 
   if (linePrior.length > 0) {
     const cobResult = calculateCOBAllocation(allowed, linePrior, plan.cob_policy);
+
     cobPriorPaid = cobResult.total_prior_paid;
     cobAdjustment = cobResult.adjustment;
     cobAllocations.push(...cobResult.allocations);
 
-    ruleFirings.push(createRuleFiring(
-      ruleFirings.length,
-      'COB_ALLOC_001',
-      'cob_allocation',
-      { allowed, prior_outcomes: linePrior.map(p => ({ payer: p.payer_id, paid: p.paid })) },
-      { cob_prior_paid: cobPriorPaid, cob_adjustment: cobAdjustment, method: plan.cob_policy },
-      ['frag_cob_secondary_calc']
-    ));
+    ruleFirings.push(
+      createRuleFiring(
+        ruleFirings.length,
+        'COB_ALLOC_001',
+        'cob_allocation',
+        {
+          allowed,
+          prior_outcomes: linePrior.map((p) => ({
+            payer: p.payer_id,
+            paid: p.paid,
+          })),
+        },
+        {
+          cob_prior_paid: cobPriorPaid,
+          cob_adjustment: cobAdjustment,
+          method: plan.cob_policy,
+        },
+        ['frag_cob_secondary_calc'],
+      ),
+    );
 
     if (cobAdjustment > 0) {
-      adjustments.push({ reason_code: 'COB_ADJUSTMENT', amount: cobAdjustment, category: 'cob' });
+      adjustments.push({
+        reason_code: 'COB_ADJUSTMENT',
+        amount: cobAdjustment,
+        category: 'cob',
+      });
     }
   }
 
-  // Amount subject to member cost sharing (after COB)
   const amountForCostSharing = Math.max(0, allowed - cobPriorPaid - cobAdjustment);
 
-  // Step 3: Apply deductible from session accumulator
-  const deductibleApplicable = Math.min(amountForCostSharing, sessionAcc.deductible_remaining);
+  const deductibleApplicable = Math.min(
+    amountForCostSharing,
+    sessionAcc.deductible_remaining,
+  );
+
   const afterDeductible = amountForCostSharing - deductibleApplicable;
 
   if (deductibleApplicable > 0) {
-    adjustments.push({ reason_code: 'DEDUCTIBLE', amount: deductibleApplicable, category: 'deductible' });
-    ruleFirings.push(createRuleFiring(
-      ruleFirings.length,
-      'DEDUCTIBLE_001',
-      'deductible',
-      { amount: amountForCostSharing, deductible_remaining: sessionAcc.deductible_remaining },
-      { deductible_applied: deductibleApplicable },
-      ['frag_deductible_applied']
-    ));
+    adjustments.push({
+      reason_code: 'DEDUCTIBLE',
+      amount: deductibleApplicable,
+      category: 'deductible',
+    });
+
+    ruleFirings.push(
+      createRuleFiring(
+        ruleFirings.length,
+        'DEDUCTIBLE_001',
+        'deductible',
+        {
+          amount: amountForCostSharing,
+          deductible_remaining: sessionAcc.deductible_remaining,
+        },
+        { deductible_applied: deductibleApplicable },
+        ['frag_deductible_applied'],
+      ),
+    );
   }
 
-  // Step 4: Apply coinsurance
-  const coinsurance = roundCents(afterDeductible * plan.coinsurance_rate);
-  const planShareAfterCoins = afterDeductible - coinsurance;
+  const requestedCopay =
+    plan.copay_amount && plan.copay_applies_to?.includes(line.procedure_code)
+      ? plan.copay_amount
+      : 0;
+
+  const copay = Math.min(requestedCopay, afterDeductible);
+
+  if (copay > 0) {
+    adjustments.push({
+      reason_code: 'COPAY',
+      amount: copay,
+      category: 'copay',
+    });
+
+    ruleFirings.push(
+      createRuleFiring(
+        ruleFirings.length,
+        'COPAY_001',
+        'copay',
+        { procedure: line.procedure_code, copay_amount: plan.copay_amount },
+        { copay },
+        ['frag_copay_applied'],
+      ),
+    );
+  }
+
+  const coinsuranceBase = Math.max(0, afterDeductible - copay);
+  const coinsurance = roundCents(coinsuranceBase * plan.coinsurance_rate);
 
   if (coinsurance > 0) {
-    adjustments.push({ reason_code: 'COINSURANCE', amount: coinsurance, category: 'coinsurance' });
-    ruleFirings.push(createRuleFiring(
-      ruleFirings.length,
-      'COINSURANCE_001',
-      'coinsurance',
-      { after_deductible: afterDeductible, rate: plan.coinsurance_rate },
-      { coinsurance },
-      ['frag_coinsurance_applied']
-    ));
+    adjustments.push({
+      reason_code: 'COINSURANCE',
+      amount: coinsurance,
+      category: 'coinsurance',
+    });
+
+    ruleFirings.push(
+      createRuleFiring(
+        ruleFirings.length,
+        'COINSURANCE_001',
+        'coinsurance',
+        { after_deductible: afterDeductible, copay, rate: plan.coinsurance_rate },
+        { coinsurance },
+        ['frag_coinsurance_applied'],
+      ),
+    );
   }
 
-  // Step 5: Apply copay if applicable
-  let copay = 0;
-  if (plan.copay_amount && plan.copay_applies_to?.includes(line.procedure_code)) {
-    copay = Math.min(plan.copay_amount, amountForCostSharing);
-    adjustments.push({ reason_code: 'COPAY', amount: copay, category: 'copay' });
+  const memberRespBeforeOop = roundCents(deductibleApplicable + copay + coinsurance);
+  const oopApplied = Math.min(memberRespBeforeOop, sessionAcc.oop_remaining);
+  const oopExcess = memberRespBeforeOop - oopApplied;
+
+  let memberResp = oopApplied;
+  let planPaid = amountForCostSharing - memberResp;
+
+  if (oopExcess > 0) {
+    adjustments.push({
+      reason_code: 'OOP_MAX_PROTECTION',
+      amount: oopExcess,
+      category: 'oop_max',
+    });
+
+    ruleFirings.push(
+      createRuleFiring(
+        ruleFirings.length,
+        'OOP_MAX_001',
+        'oop_max',
+        {
+          member_resp_before_oop: memberRespBeforeOop,
+          oop_remaining: sessionAcc.oop_remaining,
+        },
+        {
+          member_responsibility_after_oop: memberResp,
+          plan_assumed_oop_excess: oopExcess,
+        },
+        ['frag_oop_max_protection'],
+      ),
+    );
   }
 
-  // Step 6: Calculate final amounts
-  const planPaid = roundCents(Math.max(0, planShareAfterCoins));
-  const memberResp = roundCents(deductibleApplicable + coinsurance + copay);
+  memberResp = roundCents(memberResp);
+  planPaid = roundCents(Math.max(0, planPaid));
 
-  // Step 7: OOP check
-  const oopApplied = Math.min(memberResp, sessionAcc.oop_remaining);
+  assertLineInvariant({
+    lineId: line.line_id,
+    allowed,
+    planPaid,
+    memberResp,
+    contractualAdj,
+    cobPriorPaid,
+    cobAdjustment,
+  });
 
-  // Update session accumulator (immutable)
   const nextAcc: SessionAccumulator = {
-    deductible_remaining: sessionAcc.deductible_remaining - deductibleApplicable,
-    oop_remaining: sessionAcc.oop_remaining - oopApplied,
+    deductible_remaining: Math.max(
+      0,
+      sessionAcc.deductible_remaining - deductibleApplicable,
+    ),
+    oop_remaining: Math.max(0, sessionAcc.oop_remaining - oopApplied),
     benefit_limits_remaining: new Map(sessionAcc.benefit_limits_remaining),
     lines_processed: [...sessionAcc.lines_processed, line.line_id],
   };
 
-  mathSteps.push(createMathStep(
-    line.line_id, line.billed_amount, allowed, deductibleApplicable,
-    coinsurance, copay, planPaid, memberResp, cobPriorPaid, cobAdjustment
-  ));
+  mathSteps.push(
+    createMathStep(
+      line.line_id,
+      line.billed_amount,
+      allowed,
+      deductibleApplicable,
+      coinsurance,
+      copay,
+      planPaid,
+      memberResp,
+      cobPriorPaid,
+      cobAdjustment,
+    ),
+  );
 
   return {
     result: {
@@ -251,58 +411,73 @@ export function adjudicateLine(
       member_responsibility: memberResp,
       adjustments,
       cob_allocations: cobAllocations,
-      status: planPaid > 0 ? 'paid' : memberResp > 0 ? 'adjusted' : 'denied',
+      status:
+        planPaid > 0
+          ? 'paid'
+          : memberResp > 0
+            ? 'deductible_applied'
+            : 'denied',
     },
     nextAcc,
   };
 }
 
-/**
- * Main entry point: Adjudicate an entire claim
- * Pure function — deterministic, traceable
- */
 export function adjudicateClaim(
   lines: ClaimLine[],
   accumulators: MemberAccumulators,
   contract: ContractTerms,
   plan: PlanBenefits,
   priorOutcomes: PriorPayerOutcome[] = [],
-  runId?: string
+  options: AdjudicationOptions = {},
 ): { run: AdjudicationRun; trace: TraceObject } {
-  const rid = runId ?? generateId('run');
+  resetIdCounter();
+
+  const claimId = lines[0]?.claim_id ?? 'unknown';
+  const rid = options.runId ?? `run_${claimId}_${CALC_POLICY_VERSION}`;
+  const timestamp = options.timestamp ?? '1970-01-01T00:00:00.000Z';
+
   const sortedLines = sortLines(lines);
-  const lineOrder = sortedLines.map(l => l.line_id);
+  const lineOrder = sortedLines.map((line) => line.line_id);
 
   let sessionAcc = initSessionAccumulator(accumulators);
   const lineResults: AdjudicationLineResult[] = [];
   const ruleFirings: RuleFiring[] = [];
   const mathSteps: MathStep[] = [];
 
-  // Process lines sequentially with session accumulator carry-forward
   for (const line of sortedLines) {
     const { result, nextAcc } = adjudicateLine(
-      line, sessionAcc, contract, plan, priorOutcomes, ruleFirings, mathSteps
+      line,
+      sessionAcc,
+      contract,
+      plan,
+      priorOutcomes,
+      ruleFirings,
+      mathSteps,
     );
+
     lineResults.push(result);
     sessionAcc = nextAcc;
   }
 
-  const totalPlanPaid = lineResults.reduce((sum, r) => sum + r.plan_paid, 0);
-  const totalMemberResp = lineResults.reduce((sum, r) => sum + r.member_responsibility, 0);
+  const totalPlanPaid = lineResults.reduce((sum, result) => sum + result.plan_paid, 0);
+  const totalMemberResp = lineResults.reduce(
+    (sum, result) => sum + result.member_responsibility,
+    0,
+  );
 
   const trace = buildTrace(
     rid,
-    lines[0]?.claim_id ?? 'unknown',
+    claimId,
     plan,
     contract,
     ruleFirings,
-    mathSteps
+    mathSteps,
   );
 
   const run: AdjudicationRun = {
     run_id: rid,
-    claim_id: lines[0]?.claim_id ?? 'unknown',
-    timestamp: new Date().toISOString(),
+    claim_id: claimId,
+    timestamp,
     line_processing_order: lineOrder,
     line_results: lineResults,
     final_accumulator: sessionAcc,
