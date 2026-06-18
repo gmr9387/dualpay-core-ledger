@@ -50,23 +50,12 @@ export async function executeAdjudicationWithReplay(
 ): Promise<ExecuteAdjudicationResult> {
   const timestamp = args.timestamp ?? DEFAULT_TIMESTAMP;
   const actor = args.actor ?? 'system';
-  const calcPolicyVersion = args.calcPolicyVersion ?? DEFAULT_CALC_POLICY_VERSION;
+  const calcPolicyVersion =
+    args.calcPolicyVersion ?? DEFAULT_CALC_POLICY_VERSION;
   const priorOutcomes = args.priorOutcomes ?? [];
 
   const runId =
     args.runId ?? `run_${args.claim.claim_id}_${calcPolicyVersion}`;
-
-  const { run, trace } = adjudicateClaim(
-    args.claim.lines,
-    args.accumulators,
-    args.contract,
-    args.plan,
-    priorOutcomes,
-    {
-      runId,
-      timestamp,
-    },
-  );
 
   const snapshot = createReplaySnapshot({
     claim: args.claim,
@@ -86,6 +75,24 @@ export async function executeAdjudicationWithReplay(
     priorOutcomes,
     calcPolicyVersion,
   });
+
+  const snapshotRef = `snapshots/${runId}/${fingerprint}`;
+  const traceId = `trace_${args.claim.claim_id}_${fingerprint.slice(0, 16)}`;
+
+  const { run, trace } = adjudicateClaim(
+    args.claim.lines,
+    args.accumulators,
+    args.contract,
+    args.plan,
+    priorOutcomes,
+    {
+      runId,
+      timestamp,
+      traceFingerprint: fingerprint,
+      snapshotRef,
+      traceId,
+    },
+  );
 
   saveReplayRecord({
     snapshot,
@@ -122,6 +129,7 @@ export async function executeAdjudicationWithReplay(
       timestamp,
       details: {
         calc_policy_version: calcPolicyVersion,
+        snapshot_ref: snapshotRef,
       },
     }),
   );
