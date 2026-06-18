@@ -469,13 +469,19 @@ export function adjudicateClaim(
   );
 
   const trace = buildTrace(
-    rid,
-    claimId,
-    plan,
-    contract,
-    ruleFirings,
-    mathSteps,
-  );
+  rid,
+  claimId,
+  plan,
+  contract,
+  ruleFirings,
+  mathSteps,
+  {
+    fingerprint: options.traceFingerprint,
+    timestamp,
+    snapshotRef: options.snapshotRef,
+    traceId: options.traceId,
+   },
+ );
 
   const run: AdjudicationRun = {
     run_id: rid,
