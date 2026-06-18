@@ -1,13 +1,34 @@
 /**
- * Trace Builder — constructs structured Trace Objects for adjudication runs
+ * Trace Builder — constructs structured Trace Objects for adjudication runs.
+ *
+ * Important:
+ * - No Date.now()
+ * - No new Date()
+ * - No FNV / weak hash
+ * - No module-global ID generation
+ *
+ * The trace receives its canonical SHA-256 fingerprint from the caller.
  */
 
-import type { TraceObject, RuleFiring, RuleCategory, MathStep, SourceBadge } from '@/types/trace';
+import type {
+  TraceObject,
+  RuleFiring,
+  RuleCategory,
+  MathStep,
+  SourceBadge,
+} from '@/types/trace';
 import type { PlanBenefits, ContractTerms } from '@/types/claim';
-import { generateId } from './calculation-engine';
 
 const RULE_SET_VERSION = '1.0.0';
 const CALC_POLICY_VERSION = '1.0.0';
+const DEFAULT_TRACE_TIMESTAMP = '1970-01-01T00:00:00.000Z';
+
+export interface BuildTraceOptions {
+  fingerprint?: string;
+  timestamp?: string;
+  snapshotRef?: string;
+  traceId?: string;
+}
 
 export function createRuleFiring(
   order: number,
@@ -15,7 +36,7 @@ export function createRuleFiring(
   category: RuleCategory,
   inputsUsed: Record<string, unknown>,
   outputs: Record<string, unknown>,
-  fragmentIds: string[]
+  fragmentIds: string[],
 ): RuleFiring {
   return {
     order,
@@ -37,7 +58,7 @@ export function createMathStep(
   planPaid: number,
   memberResp: number,
   cobPriorPaid?: number,
-  cobAdj?: number
+  cobAdj?: number,
 ): MathStep {
   return {
     line_id: lineId,
@@ -57,24 +78,18 @@ export function createSourceBadge(
   fieldPath: string,
   sourceType: SourceBadge['source_type'],
   confidence: number,
-  documentRef?: string
+  documentRef?: string,
 ): SourceBadge {
-  return { field_path: fieldPath, source_type: sourceType, confidence, document_ref: documentRef };
+  return {
+    field_path: fieldPath,
+    source_type: sourceType,
+    confidence,
+    document_ref: documentRef,
+  };
 }
 
-export function hashInputs(inputs: unknown): string {
-  // Simple deterministic hash for input snapshot
-  const str = JSON.stringify(inputs, (_key, value) => {
-    if (value instanceof Map) return Object.fromEntries(value);
-    return value;
-  });
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return Math.abs(hash).toString(16).padStart(8, '0');
+function fallbackTraceId(runId: string, claimId: string): string {
+  return `trace_${claimId}_${runId}`;
 }
 
 export function buildTrace(
@@ -83,22 +98,36 @@ export function buildTrace(
   plan: PlanBenefits,
   contract: ContractTerms,
   ruleFirings: RuleFiring[],
-  mathSteps: MathStep[]
+  mathSteps: MathStep[],
+  options: BuildTraceOptions = {},
 ): TraceObject {
-  const traceId = generateId('trace');
-  const inputsHash = hashInputs({ plan, contract });
+  const traceId =
+    options.traceId ??
+    fallbackTraceId(runId, claimId);
+
+  const fingerprint =
+    options.fingerprint ??
+    `unfingerprinted_${claimId}_${runId}`;
+
+  const timestamp =
+    options.timestamp ??
+    DEFAULT_TRACE_TIMESTAMP;
+
+  const snapshotRef =
+    options.snapshotRef ??
+    `snapshots/${runId}/${fingerprint}`;
 
   return {
     trace_id: traceId,
     run_id: runId,
     claim_id: claimId,
-    timestamp: new Date().toISOString(),
+    timestamp,
     rule_set_version: RULE_SET_VERSION,
     plan_version: plan.plan_version,
     contract_version: contract.contract_version,
     calc_policy_version: CALC_POLICY_VERSION,
-    inputs_snapshot_hash: inputsHash,
-    snapshot_ref: `snapshots/${runId}/${inputsHash}`,
+    inputs_snapshot_hash: fingerprint,
+    snapshot_ref: snapshotRef,
     rule_firings: ruleFirings,
     math_steps: mathSteps,
     source_badges: [],
