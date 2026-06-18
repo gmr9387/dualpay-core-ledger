@@ -36,6 +36,9 @@ export function resetIdCounter(): void {
 export interface AdjudicationOptions {
   runId?: string;
   timestamp?: string;
+  traceFingerprint?: string;
+  snapshotRef?: string;
+  traceId?: string;
 }
 
 export function sortLines(lines: ClaimLine[]): ClaimLine[] {
