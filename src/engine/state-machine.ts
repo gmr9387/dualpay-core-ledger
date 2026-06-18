@@ -147,9 +147,9 @@ export function canTransition(context: TransitionContext): TransitionResult {
     toStatus: context.targetStatus,
     failedGuards,
     appliedGuards,
-    idempotencyKey: context.hasIdempotencyKey ? `idem-${context.claimId}-${context.targetStatus}-${Date.now()}` : undefined,
-  };
-}
+    idempotencyKey: context.hasIdempotencyKey
+  ? `idem-${context.claimId}-${context.currentStatus}-${context.targetStatus}`
+  : undefined,
 
 export function getStatusCategory(status: ClaimStatus): 'intake' | 'cob' | 'adjudication' | 'payment' | 'terminal' {
   switch (status) {
