@@ -40,13 +40,15 @@ export interface StatusTransition {
 
 const requirePrimacyConfirmation: TransitionGuard = {
   id: 'REQUIRE_PRIMACY_CONFIRMATION',
-  description: 'COB-routed claims require primacy confirmation or audited exception override before payment',
+  description:
+    'COB-routed claims require primacy confirmation or audited exception override before payment',
   check: (ctx) => !!ctx.hasPrimacyConfirmation || !!ctx.hasExceptionOverride,
 };
 
 const requireIdempotencyKey: TransitionGuard = {
   id: 'REQUIRE_IDEMPOTENCY_KEY',
-  description: 'Payment actions require an idempotency key to prevent duplicate payouts',
+  description:
+    'Payment actions require an idempotency key to prevent duplicate payouts',
   check: (ctx) => !!ctx.hasIdempotencyKey,
 };
 
@@ -60,36 +62,120 @@ const noGuard: TransitionGuard = {
 
 export const CLAIM_TRANSITIONS: StatusTransition[] = [
   // Intake
-  { from: 'RECEIVED', to: 'ELIGIBILITY_CHECK', guards: [noGuard], label: 'Begin eligibility' },
-  
+  {
+    from: 'RECEIVED',
+    to: 'ELIGIBILITY_CHECK',
+    guards: [noGuard],
+    label: 'Begin eligibility',
+  },
+
   // Eligibility → routing
-  { from: 'ELIGIBILITY_CHECK', to: 'COB_ROUTED', guards: [noGuard], label: 'OHI detected → route COB' },
-  { from: 'ELIGIBILITY_CHECK', to: 'IN_ADJUDICATION', guards: [noGuard], label: 'No OHI → adjudicate' },
-  
+  {
+    from: 'ELIGIBILITY_CHECK',
+    to: 'COB_ROUTED',
+    guards: [noGuard],
+    label: 'OHI detected → route COB',
+  },
+  {
+    from: 'ELIGIBILITY_CHECK',
+    to: 'IN_ADJUDICATION',
+    guards: [noGuard],
+    label: 'No OHI → adjudicate',
+  },
+
   // COB flow
-  { from: 'COB_ROUTED', to: 'AWAITING_PRIMARY_EOB', guards: [noGuard], label: 'Request primary EOB' },
-  { from: 'AWAITING_PRIMARY_EOB', to: 'IN_ADJUDICATION', guards: [requirePrimacyConfirmation], label: 'Primary EOB received' },
-  // Critical guard: COB_ROUTED cannot skip to payment without primacy
-  { from: 'COB_ROUTED', to: 'IN_ADJUDICATION', guards: [requirePrimacyConfirmation], label: 'Primacy confirmed → adjudicate' },
-  
+  {
+    from: 'COB_ROUTED',
+    to: 'AWAITING_PRIMARY_EOB',
+    guards: [noGuard],
+    label: 'Request primary EOB',
+  },
+  {
+    from: 'AWAITING_PRIMARY_EOB',
+    to: 'IN_ADJUDICATION',
+    guards: [requirePrimacyConfirmation],
+    label: 'Primary EOB received',
+  },
+  {
+    from: 'COB_ROUTED',
+    to: 'IN_ADJUDICATION',
+    guards: [requirePrimacyConfirmation],
+    label: 'Primacy confirmed → adjudicate',
+  },
+
   // Adjudication
-  { from: 'IN_ADJUDICATION', to: 'ADJUDICATED', guards: [noGuard], label: 'Adjudication complete' },
-  { from: 'IN_ADJUDICATION', to: 'PENDED', guards: [noGuard], label: 'Pend for review' },
-  { from: 'IN_ADJUDICATION', to: 'DENIED', guards: [noGuard], label: 'Deny claim' },
-  
+  {
+    from: 'IN_ADJUDICATION',
+    to: 'ADJUDICATED',
+    guards: [noGuard],
+    label: 'Adjudication complete',
+  },
+  {
+    from: 'IN_ADJUDICATION',
+    to: 'PENDED',
+    guards: [noGuard],
+    label: 'Pend for review',
+  },
+  {
+    from: 'IN_ADJUDICATION',
+    to: 'DENIED',
+    guards: [noGuard],
+    label: 'Deny claim',
+  },
+
   // Pend resolution
-  { from: 'PENDED', to: 'IN_ADJUDICATION', guards: [noGuard], label: 'Resume adjudication' },
-  { from: 'PENDED', to: 'DENIED', guards: [noGuard], label: 'Deny after review' },
-  
+  {
+    from: 'PENDED',
+    to: 'IN_ADJUDICATION',
+    guards: [noGuard],
+    label: 'Resume adjudication',
+  },
+  {
+    from: 'PENDED',
+    to: 'DENIED',
+    guards: [noGuard],
+    label: 'Deny after review',
+  },
+
   // Payment flow
-  { from: 'ADJUDICATED', to: 'PAYMENT_IN_PROGRESS', guards: [requireIdempotencyKey], label: 'Initiate payment' },
-  { from: 'PAYMENT_IN_PROGRESS', to: 'PAID', guards: [requireIdempotencyKey], label: 'Payment confirmed' },
-  
+  {
+    from: 'ADJUDICATED',
+    to: 'PAYMENT_IN_PROGRESS',
+    guards: [requireIdempotencyKey],
+    label: 'Initiate payment',
+  },
+  {
+    from: 'PAYMENT_IN_PROGRESS',
+    to: 'PAID',
+    guards: [requireIdempotencyKey],
+    label: 'Payment confirmed',
+  },
+
   // Post-payment
-  { from: 'PAID', to: 'REVERSED', guards: [noGuard], label: 'Reverse payment' },
-  { from: 'PAID', to: 'ADJUSTED', guards: [noGuard], label: 'Adjust claim' },
-  { from: 'REVERSED', to: 'IN_ADJUDICATION', guards: [noGuard], label: 'Re-adjudicate' },
-  { from: 'ADJUSTED', to: 'IN_ADJUDICATION', guards: [noGuard], label: 'Re-adjudicate' },
+  {
+    from: 'PAID',
+    to: 'REVERSED',
+    guards: [noGuard],
+    label: 'Reverse payment',
+  },
+  {
+    from: 'PAID',
+    to: 'ADJUSTED',
+    guards: [noGuard],
+    label: 'Adjust claim',
+  },
+  {
+    from: 'REVERSED',
+    to: 'IN_ADJUDICATION',
+    guards: [noGuard],
+    label: 'Re-adjudicate',
+  },
+  {
+    from: 'ADJUSTED',
+    to: 'IN_ADJUDICATION',
+    guards: [noGuard],
+    label: 'Re-adjudicate',
+  },
 ];
 
 // ── All valid statuses (ordered for display) ────────────────
@@ -111,13 +197,21 @@ export const ALL_STATUSES: ClaimStatus[] = [
 
 // ── Engine Functions ──────────────────────────────────────────
 
-export function getValidTransitions(currentStatus: ClaimStatus): StatusTransition[] {
-  return CLAIM_TRANSITIONS.filter(t => t.from === currentStatus);
+export function getValidTransitions(
+  currentStatus: ClaimStatus,
+): StatusTransition[] {
+  return CLAIM_TRANSITIONS.filter(
+    (t) => t.from === currentStatus,
+  );
 }
 
-export function canTransition(context: TransitionContext): TransitionResult {
+export function canTransition(
+  context: TransitionContext,
+): TransitionResult {
   const transition = CLAIM_TRANSITIONS.find(
-    t => t.from === context.currentStatus && t.to === context.targetStatus
+    (t) =>
+      t.from === context.currentStatus &&
+      t.to === context.targetStatus,
   );
 
   if (!transition) {
@@ -135,7 +229,9 @@ export function canTransition(context: TransitionContext): TransitionResult {
 
   for (const guard of transition.guards) {
     if (guard.id === 'NO_GUARD') continue;
+
     appliedGuards.push(guard.id);
+
     if (!guard.check(context)) {
       failedGuards.push(guard.id);
     }
@@ -148,24 +244,32 @@ export function canTransition(context: TransitionContext): TransitionResult {
     failedGuards,
     appliedGuards,
     idempotencyKey: context.hasIdempotencyKey
-  ? `idem-${context.claimId}-${context.currentStatus}-${context.targetStatus}`
-  : undefined,
+      ? `idem-${context.claimId}-${context.currentStatus}-${context.targetStatus}`
+      : undefined,
+  };
+}
 
-export function getStatusCategory(status: ClaimStatus): 'intake' | 'cob' | 'adjudication' | 'payment' | 'terminal' {
+export function getStatusCategory(
+  status: ClaimStatus,
+): 'intake' | 'cob' | 'adjudication' | 'payment' | 'terminal' {
   switch (status) {
     case 'RECEIVED':
     case 'ELIGIBILITY_CHECK':
       return 'intake';
+
     case 'COB_ROUTED':
     case 'AWAITING_PRIMARY_EOB':
       return 'cob';
+
     case 'IN_ADJUDICATION':
     case 'PENDED':
     case 'ADJUDICATED':
       return 'adjudication';
+
     case 'PAYMENT_IN_PROGRESS':
     case 'PAID':
       return 'payment';
+
     case 'DENIED':
     case 'REVERSED':
     case 'ADJUSTED':
