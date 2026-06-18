@@ -57,6 +57,12 @@ export default function ReplayWorkbench() {
           selected.snapshot,
           selected.run,
           selected.fingerprint,
+          {
+            actor: 'ReplayWorkbench',
+            verifiedAt:
+              selected.snapshot.created_at,
+            writeLedgerEvent: true,
+          },
         );
 
       setVerification({
