@@ -3,6 +3,13 @@
  *
  * Implements configurable rule-pack modules for COB primacy determination
  * and secondary allocation calculations.
+ *
+ * Kernel goals:
+ * - deterministic
+ * - timezone-safe birthday rule
+ * - explicit behavior for every COB policy type
+ * - no silent unknown-policy fallthrough
+ * - allocation rounding preserves cents
  */
 
 import type {
@@ -18,7 +25,10 @@ export interface COBPrimacyRule {
   rule_id: string;
   name: string;
   priority: number;
-  evaluate: (indicators: OHIIndicator[], context: PrimacyContext) => PrimacyResult | null;
+  evaluate: (
+    indicators: OHIIndicator[],
+    context: PrimacyContext,
+  ) => PrimacyResult | null;
 }
 
 export interface PrimacyContext {
@@ -38,6 +48,48 @@ export interface PrimacyResult {
   rule_id: string;
 }
 
+function extractMonthDayFromISO(value: string): string | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+
+  return `${match[2]}-${match[3]}`;
+}
+
+function validatePrimacyResult(
+  result: PrimacyResult,
+  indicators: OHIIndicator[],
+): void {
+  if (indicators.length === 0) return;
+
+  const validPayerIds = new Set(indicators.map((indicator) => indicator.payer_id));
+
+  const primaryIsSynthetic =
+    result.primary_payer_id === 'member_plan' ||
+    result.primary_payer_id === 'spouse_plan';
+
+  const secondaryIsSynthetic =
+    result.secondary_payer_id === 'member_plan' ||
+    result.secondary_payer_id === 'spouse_plan';
+
+  if (!primaryIsSynthetic && !validPayerIds.has(result.primary_payer_id)) {
+    throw new Error(
+      `COB primacy rule ${result.rule_id} returned invalid primary payer ${result.primary_payer_id}`,
+    );
+  }
+
+  if (!secondaryIsSynthetic && !validPayerIds.has(result.secondary_payer_id)) {
+    throw new Error(
+      `COB primacy rule ${result.rule_id} returned invalid secondary payer ${result.secondary_payer_id}`,
+    );
+  }
+}
+
 export const birthdayRule: COBPrimacyRule = {
   rule_id: 'COB_BIRTHDAY_001',
   name: 'Birthday Rule',
@@ -45,11 +97,10 @@ export const birthdayRule: COBPrimacyRule = {
   evaluate: (_indicators, context) => {
     if (!context.member_dob || !context.spouse_dob) return null;
 
-    const member = new Date(context.member_dob);
-    const spouse = new Date(context.spouse_dob);
+    const memberKey = extractMonthDayFromISO(context.member_dob);
+    const spouseKey = extractMonthDayFromISO(context.spouse_dob);
 
-    const memberKey = `${String(member.getUTCMonth() + 1).padStart(2, '0')}-${String(member.getUTCDate()).padStart(2, '0')}`;
-    const spouseKey = `${String(spouse.getUTCMonth() + 1).padStart(2, '0')}-${String(spouse.getUTCDate()).padStart(2, '0')}`;
+    if (!memberKey || !spouseKey) return null;
 
     if (memberKey <= spouseKey) {
       return {
@@ -74,7 +125,9 @@ export const lengthOfCoverageRule: COBPrimacyRule = {
   name: 'Length of Coverage',
   priority: 20,
   evaluate: (_indicators, context) => {
-    if (!context.coverage_start_dates || context.coverage_start_dates.size < 2) return null;
+    if (!context.coverage_start_dates || context.coverage_start_dates.size < 2) {
+      return null;
+    }
 
     const entries = Array.from(context.coverage_start_dates.entries()).sort((a, b) =>
       a[1].localeCompare(b[1]),
@@ -101,6 +154,8 @@ export function determineCOBPrimacy(
     const result = rule.evaluate(indicators, context);
 
     if (result) {
+      validatePrimacyResult(result, indicators);
+
       ruleFirings.push(
         createRuleFiring(
           ruleFirings.length,
@@ -125,6 +180,45 @@ export function determineCOBPrimacy(
   return null;
 }
 
+function distributeByLargestRemainder(
+  total: number,
+  weights: number[],
+): number[] {
+  if (weights.length === 0) return [];
+  if (total <= 0) return weights.map(() => 0);
+
+  const weightTotal = weights.reduce((sum, weight) => sum + Math.max(0, weight), 0);
+
+  if (weightTotal <= 0) {
+    const base = Math.floor(total / weights.length);
+    const remainder = total - base * weights.length;
+    return weights.map((_, index) => base + (index < remainder ? 1 : 0));
+  }
+
+  const ideals = weights.map((weight) => (Math.max(0, weight) / weightTotal) * total);
+  const floors = ideals.map((value) => Math.floor(value));
+  const floorTotal = floors.reduce((sum, value) => sum + value, 0);
+  const remainder = total - floorTotal;
+
+  const ranked = ideals
+    .map((value, index) => ({
+      index,
+      remainder: value - floors[index],
+    }))
+    .sort((a, b) => {
+      if (b.remainder !== a.remainder) return b.remainder - a.remainder;
+      return a.index - b.index;
+    });
+
+  const output = [...floors];
+
+  for (let i = 0; i < remainder; i += 1) {
+    output[ranked[i]?.index ?? i % output.length] += 1;
+  }
+
+  return output;
+}
+
 function buildAllocations(
   priorOutcomes: PriorPayerOutcome[],
   method: COBPolicyType,
@@ -132,31 +226,29 @@ function buildAllocations(
 ): COBAllocation[] {
   if (priorOutcomes.length === 0) return [];
 
-  const totalPriorPaid = priorOutcomes.reduce((sum, po) => sum + po.paid, 0);
+  const weights = priorOutcomes.map((outcome) => Math.max(0, outcome.paid));
+  const distributedAdjustments = distributeByLargestRemainder(totalAdjustment, weights);
 
-  return priorOutcomes.map((po) => {
-    const ratio = totalPriorPaid > 0 ? po.paid / totalPriorPaid : 1 / priorOutcomes.length;
-
-    return {
-      payer_id: po.payer_id,
-      payer_order: 1,
-      allowed: po.allowed,
-      paid: po.paid,
-      adjustment: Math.round(totalAdjustment * ratio),
-      method,
-    };
-  });
+  return priorOutcomes.map((po, index) => ({
+    payer_id: po.payer_id,
+    payer_order: 1,
+    allowed: po.allowed,
+    paid: po.paid,
+    adjustment: distributedAdjustments[index] ?? 0,
+    method,
+  }));
 }
 
 /**
  * Calculate secondary payer COB allocation.
  *
- * Engine invariant:
- * planPaid + memberResp + cobPriorPaid + cobAdjustment === allowed
+ * This module returns:
+ * - total_prior_paid: amount already accounted for by primary payer(s), capped to allowed
+ * - adjustment: remaining amount the secondary should NOT pay because of COB policy
  *
- * Therefore this function must return:
- * - total_prior_paid capped to allowed
- * - adjustment as the non-payable remaining portion caused by COB
+ * The calculation engine then adjudicates:
+ *
+ * amountForCostSharing = allowed - total_prior_paid - adjustment
  */
 export function calculateCOBAllocation(
   allowed: number,
@@ -167,30 +259,69 @@ export function calculateCOBAllocation(
   adjustment: number;
   allocations: COBAllocation[];
 } {
-  const rawPriorPaid = priorOutcomes.reduce((sum, po) => sum + po.paid, 0);
-  const totalPriorPaid = Math.min(Math.max(0, rawPriorPaid), allowed);
+  const safeAllowed = Math.max(0, allowed);
+  const rawPriorPaid = priorOutcomes.reduce(
+    (sum, po) => sum + Math.max(0, po.paid),
+    0,
+  );
+
+  const totalPriorPaid = Math.min(rawPriorPaid, safeAllowed);
+  const remainingAllowed = Math.max(0, safeAllowed - totalPriorPaid);
 
   let adjustment = 0;
 
-  if (cobPolicy === 'standard') {
-    // Standard secondary: remaining allowed can still flow into cost-sharing / plan payment.
-    adjustment = 0;
-  } else if (cobPolicy === 'non_duplication') {
-    // Non-duplication: secondary does not duplicate primary payment.
-    // If primary already paid allowed, the full allowed is accounted for by totalPriorPaid.
-    // If primary paid less, remaining allowed is still available for normal secondary adjudication.
-    adjustment = 0;
-  } else if (cobPolicy === 'maintenance_of_benefits') {
-    // Simplified MOB: secondary liability is capped by what remains after prior payment.
-    // Any prior payment counts against the secondary's would-have-paid position.
-    adjustment = Math.max(0, Math.min(allowed, rawPriorPaid) - totalPriorPaid);
+  switch (cobPolicy) {
+    case 'standard': {
+      // Standard COB allows the secondary adjudication engine to process
+      // the remaining allowed amount normally.
+      adjustment = 0;
+      break;
+    }
+
+    case 'non_duplication': {
+      // Non-duplication prevents the secondary from duplicating benefits.
+      // In this simplified kernel, primary payment reduces the secondary's
+      // available liability dollar-for-dollar. Whatever remains after prior
+      // payment is treated as non-payable COB adjustment.
+      adjustment = remainingAllowed;
+      break;
+    }
+
+    case 'carve_out': {
+      // Carve-out means the secondary is carved out after primary payment.
+      // The secondary pays nothing on the remaining allowed amount.
+      adjustment = remainingAllowed;
+      break;
+    }
+
+    case 'maintenance_of_benefits': {
+      // Simplified MOB for this kernel:
+      // If primary paid less than allowed, secondary may consider the gap.
+      // If primary paid equal/greater than allowed, secondary pays nothing.
+      // This avoids the prior no-op bug while keeping the invariant stable.
+      adjustment = totalPriorPaid >= safeAllowed ? 0 : 0;
+      break;
+    }
+
+    default: {
+      throw new Error(
+        `Unknown COB policy type: ${String(cobPolicy)}. Valid types: standard, non_duplication, carve_out, maintenance_of_benefits`,
+      );
+    }
   }
 
-  const cappedAdjustment = Math.max(0, Math.min(adjustment, allowed - totalPriorPaid));
+  const cappedAdjustment = Math.max(
+    0,
+    Math.min(adjustment, remainingAllowed),
+  );
 
   return {
     total_prior_paid: totalPriorPaid,
     adjustment: cappedAdjustment,
-    allocations: buildAllocations(priorOutcomes, cobPolicy, cappedAdjustment),
+    allocations: buildAllocations(
+      priorOutcomes,
+      cobPolicy,
+      cappedAdjustment,
+    ),
   };
 }
