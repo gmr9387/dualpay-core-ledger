@@ -15,6 +15,7 @@ import type {
   SessionAccumulator,
   AdjustmentDetail,
   COBAllocation,
+  CoveredService,
 } from '@/types/claim';
 import type { TraceObject, MathStep, RuleFiring } from '@/types/trace';
 import { buildTrace, createRuleFiring, createMathStep } from './trace-builder';
@@ -39,6 +40,19 @@ export interface AdjudicationOptions {
   traceFingerprint?: string;
   snapshotRef?: string;
   traceId?: string;
+}
+
+interface BenefitLimitContext {
+  service: CoveredService;
+  category: string;
+  unit: 'dollars' | 'visits' | 'days';
+  remaining: number;
+  rawAllowed: number;
+  allowed: number;
+  consumed: number;
+  adjustment: number;
+  exhausted: boolean;
+  partial: boolean;
 }
 
 export function sortLines(lines: ClaimLine[]): ClaimLine[] {
@@ -103,6 +117,120 @@ export function roundCents(amount: number): number {
   return Math.round(amount);
 }
 
+function findCoveredService(
+  line: ClaimLine,
+  plan: PlanBenefits,
+): CoveredService | undefined {
+  return plan.covered_services.find((service) =>
+    service.procedure_codes?.includes(line.procedure_code),
+  );
+}
+
+function applyBenefitLimit(
+  line: ClaimLine,
+  rawAllowed: number,
+  plan: PlanBenefits,
+  sessionAcc: SessionAccumulator,
+): BenefitLimitContext | null {
+  const service = findCoveredService(line, plan);
+
+  if (!service?.benefit_limit) return null;
+
+  const category = service.benefit_limit.benefit_category;
+  const unit = service.benefit_limit.unit;
+  const remaining = Math.max(
+    0,
+    sessionAcc.benefit_limits_remaining.get(category) ?? service.benefit_limit.max,
+  );
+
+  if (remaining <= 0) {
+    return {
+      service,
+      category,
+      unit,
+      remaining,
+      rawAllowed,
+      allowed: 0,
+      consumed: 0,
+      adjustment: rawAllowed,
+      exhausted: true,
+      partial: false,
+    };
+  }
+
+  if (unit === 'dollars') {
+    const allowed = Math.min(rawAllowed, remaining);
+
+    return {
+      service,
+      category,
+      unit,
+      remaining,
+      rawAllowed,
+      allowed,
+      consumed: allowed,
+      adjustment: Math.max(0, rawAllowed - allowed),
+      exhausted: false,
+      partial: allowed < rawAllowed,
+    };
+  }
+
+  const requestedUnits = Math.max(0, line.units);
+  const effectiveUnits = Math.min(requestedUnits, remaining);
+
+  if (requestedUnits <= 0) {
+    return {
+      service,
+      category,
+      unit,
+      remaining,
+      rawAllowed,
+      allowed: rawAllowed,
+      consumed: 0,
+      adjustment: 0,
+      exhausted: false,
+      partial: false,
+    };
+  }
+
+  const unitRatio = effectiveUnits / requestedUnits;
+  const allowed = roundCents(rawAllowed * unitRatio);
+
+  return {
+    service,
+    category,
+    unit,
+    remaining,
+    rawAllowed,
+    allowed,
+    consumed: effectiveUnits,
+    adjustment: Math.max(0, rawAllowed - allowed),
+    exhausted: false,
+    partial: effectiveUnits < requestedUnits,
+  };
+}
+
+function decrementBenefitLimit(
+  sessionAcc: SessionAccumulator,
+  benefit: BenefitLimitContext | null,
+): Map<string, number> {
+  const nextLimits = new Map(sessionAcc.benefit_limits_remaining);
+
+  if (!benefit) return nextLimits;
+
+  const current = Math.max(
+    0,
+    nextLimits.get(benefit.category) ?? benefit.remaining,
+  );
+
+  nextLimits.set(
+    benefit.category,
+    Math.max(0, current - benefit.consumed),
+  );
+
+  return nextLimits;
+}
+
 function assertLineInvariant(args: {
   lineId: string;
   allowed: number;
@@ -142,7 +270,9 @@ export function adjudicateLine(
   const adjustments: AdjustmentDetail[] = [];
   const cobAllocations: COBAllocation[] = [];
 
-  const allowed = calculateAllowed(line, contract);
+  const rawAllowed = calculateAllowed(line, contract);
+  const benefitLimit = applyBenefitLimit(line, rawAllowed, plan, sessionAcc);
+  const allowed = benefitLimit?.allowed ?? rawAllowed;
 
   ruleFirings.push(
     createRuleFiring(
@@ -150,10 +280,78 @@ export function adjudicateLine(
       'PRICING_001',
       'pricing',
       { billed: line.billed_amount, procedure: line.procedure_code },
-      { allowed },
+      { allowed: rawAllowed },
       ['frag_pricing_fee_schedule'],
     ),
   );
+
+  if (benefitLimit) {
+    ruleFirings.push(
+      createRuleFiring(
+        ruleFirings.length,
+        benefitLimit.exhausted
+          ? 'BENEFIT_LIMIT_EXHAUSTED'
+          : benefitLimit.partial
+            ? 'BENEFIT_LIMIT_PARTIAL'
+            : 'BENEFIT_LIMIT_001',
+        'benefit_limit',
+        {
+          procedure: line.procedure_code,
+          benefit_category: benefitLimit.category,
+          unit: benefitLimit.unit,
+          remaining: benefitLimit.remaining,
+          requested_units: line.units,
+          raw_allowed: rawAllowed,
+        },
+        {
+          allowed_after_limit: allowed,
+          consumed: benefitLimit.consumed,
+          adjustment: benefitLimit.adjustment,
+        },
+        ['frag_benefit_limit_applied'],
+      ),
+    );
+  }
+
+  if (benefitLimit?.adjustment && benefitLimit.adjustment > 0) {
+    adjustments.push({
+      reason_code: benefitLimit.exhausted
+        ? 'BENEFIT_LIMIT_EXHAUSTED'
+        : 'BENEFIT_LIMIT_PARTIAL',
+      amount: benefitLimit.adjustment,
+      category: 'benefit_limit',
+    });
+  }
+
+  if (benefitLimit?.exhausted) {
+    const result: AdjudicationLineResult = {
+      line_id: line.line_id,
+      claim_id: line.claim_id,
+      allowed: 0,
+      deductible_applied: 0,
+      coinsurance: 0,
+      copay: 0,
+      plan_paid: 0,
+      member_responsibility: 0,
+      adjustments,
+      cob_allocations: [],
+      status: 'benefit_limit_exhausted',
+      denial_reasons: [`Benefit limit exhausted for ${benefitLimit.category}`],
+    };
+
+    mathSteps.push(
+      createMathStep(line.line_id, line.billed_amount, 0, 0, 0, 0, 0, 0),
+    );
+
+    return {
+      result,
+      nextAcc: {
+        ...sessionAcc,
+        benefit_limits_remaining: decrementBenefitLimit(sessionAcc, benefitLimit),
+        lines_processed: [...sessionAcc.lines_processed, line.line_id],
+      },
+    };
+  }
 
   if (allowed === 0) {
     ruleFirings.push(
@@ -177,6 +375,7 @@ export function adjudicateLine(
       plan_paid: 0,
       member_responsibility: 0,
       adjustments: [
+        ...adjustments,
         {
           reason_code: 'NON_COVERED',
           amount: line.billed_amount,
@@ -196,18 +395,28 @@ export function adjudicateLine(
       result,
       nextAcc: {
         ...sessionAcc,
+        benefit_limits_remaining: decrementBenefitLimit(sessionAcc, benefitLimit),
         lines_processed: [...sessionAcc.lines_processed, line.line_id],
       },
     };
   }
 
-  const contractualAdj = line.billed_amount - allowed;
+  const contractualAdj = line.billed_amount - rawAllowed;
+  const benefitLimitAdj = Math.max(0, rawAllowed - allowed);
 
   if (contractualAdj > 0) {
     adjustments.push({
       reason_code: 'CONTRACTUAL',
       amount: contractualAdj,
       category: 'contractual',
+    });
+  }
+
+  if (benefitLimitAdj > 0 && !adjustments.some((a) => a.category === 'benefit_limit')) {
+    adjustments.push({
+      reason_code: 'BENEFIT_LIMIT_PARTIAL',
+      amount: benefitLimitAdj,
+      category: 'benefit_limit',
     });
   }
 
@@ -383,7 +592,7 @@ export function adjudicateLine(
       sessionAcc.deductible_remaining - deductibleApplicable,
     ),
     oop_remaining: Math.max(0, sessionAcc.oop_remaining - oopApplied),
-    benefit_limits_remaining: new Map(sessionAcc.benefit_limits_remaining),
+    benefit_limits_remaining: decrementBenefitLimit(sessionAcc, benefitLimit),
     lines_processed: [...sessionAcc.lines_processed, line.line_id],
   };
 
@@ -415,11 +624,13 @@ export function adjudicateLine(
       adjustments,
       cob_allocations: cobAllocations,
       status:
-        planPaid > 0
-          ? 'paid'
-          : memberResp > 0
-            ? 'deductible_applied'
-            : 'denied',
+        benefitLimit?.partial
+          ? 'benefit_limit_partial'
+          : planPaid > 0
+            ? 'paid'
+            : memberResp > 0
+              ? 'deductible_applied'
+              : 'denied',
     },
     nextAcc,
   };
@@ -469,19 +680,19 @@ export function adjudicateClaim(
   );
 
   const trace = buildTrace(
-  rid,
-  claimId,
-  plan,
-  contract,
-  ruleFirings,
-  mathSteps,
-  {
-    fingerprint: options.traceFingerprint,
-    timestamp,
-    snapshotRef: options.snapshotRef,
-    traceId: options.traceId,
-   },
- );
+    rid,
+    claimId,
+    plan,
+    contract,
+    ruleFirings,
+    mathSteps,
+    {
+      fingerprint: options.traceFingerprint,
+      timestamp,
+      snapshotRef: options.snapshotRef,
+      traceId: options.traceId,
+    },
+  );
 
   const run: AdjudicationRun = {
     run_id: rid,
