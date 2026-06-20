@@ -162,7 +162,16 @@ export interface AdjudicationLineResult {
 export interface AdjustmentDetail {
   reason_code: string;
   amount: number;
-  category: 'contractual' | 'non_covered' | 'deductible' | 'coinsurance' | 'copay' | 'cob' | 'other';
+  category:
+    | 'contractual'
+    | 'non_covered'
+    | 'deductible'
+    | 'coinsurance'
+    | 'copay'
+    | 'cob'
+    | 'benefit_limit'
+    | 'oop_max'
+    | 'other';
 }
 
 export interface COBAllocation {
