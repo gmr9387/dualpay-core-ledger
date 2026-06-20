@@ -149,7 +149,13 @@ export interface AdjudicationLineResult {
   member_responsibility: number;
   adjustments: AdjustmentDetail[];
   cob_allocations: COBAllocation[];
-  status: 'paid' | 'denied' | 'adjusted';
+  status:
+    | 'paid'
+    | 'denied'
+    | 'adjusted'
+    | 'deductible_applied'
+    | 'benefit_limit_exhausted'
+    | 'benefit_limit_partial';
   denial_reasons?: string[];
 }
 
