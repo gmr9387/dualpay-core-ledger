@@ -135,7 +135,9 @@ function applyBenefitLimit(
   const service = findCoveredService(line, plan);
 
   if (!service?.benefit_limit) return null;
-
+  if (rawAllowed <= 0) {
+  return null;
+}
   const category = service.benefit_limit.benefit_category;
   const unit = service.benefit_limit.unit;
   const remaining = Math.max(
