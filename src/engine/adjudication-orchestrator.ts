@@ -69,11 +69,14 @@ export async function executeAdjudicationWithReplay(
 
   const fingerprint = await buildTraceFingerprint({
     claim: args.claim,
+    lines: args.claim.lines,
     accumulators: args.accumulators,
     contract: args.contract,
     plan: args.plan,
     priorOutcomes,
     calcPolicyVersion,
+    ruleSetVersion: '1.0.0',
+    cobRuleVersion: '1.0.0',
   });
 
   const snapshotRef = `snapshots/${runId}/${fingerprint}`;
