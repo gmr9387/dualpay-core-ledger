@@ -137,11 +137,14 @@ export async function generateFingerprintForSnapshot(
 ): Promise<string> {
   return buildTraceFingerprint({
     claim: snapshot.claim,
+    lines: snapshot.claim.lines,
     accumulators: snapshot.accumulators,
     contract: snapshot.contract,
     plan: snapshot.plan,
     priorOutcomes: snapshot.prior_outcomes,
     calcPolicyVersion:
       snapshot.calc_policy_version,
+    ruleSetVersion: '1.0.0',
+    cobRuleVersion: '1.0.0',
   });
 }
