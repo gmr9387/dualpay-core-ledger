@@ -326,6 +326,15 @@ export function adjudicateLine(
   }
 
   if (benefitLimit?.exhausted) {
+    const exhaustedContractualAdj = line.billed_amount - rawAllowed;
+    if (exhaustedContractualAdj > 0) {
+      adjustments.push({
+        reason_code: 'CONTRACTUAL',
+        amount: exhaustedContractualAdj,
+        category: 'contractual',
+      });
+    }
+
     const result: AdjudicationLineResult = {
       line_id: line.line_id,
       claim_id: line.claim_id,
