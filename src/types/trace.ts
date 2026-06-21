@@ -46,7 +46,8 @@ export type RuleCategory =
   | 'benefit_limit'
   | 'cob_allocation'
   | 'denial'
-  | 'adjustment';
+  | 'adjustment'
+  | 'oop_max';
 
 export interface MathStep {
   line_id: string;

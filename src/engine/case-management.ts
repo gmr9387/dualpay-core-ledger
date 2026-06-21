@@ -116,7 +116,7 @@ export function retroRecalculate(
 
     const { run: newRun, trace: newTrace } = adjudicateClaim(
       claim.lines, adjustedAcc, contract, plan, claimPriors,
-      generateId('retro_run')
+      { runId: generateId('retro_run') }
     );
 
     const diff = generateAdjudicationDiff(claim.claim_id, originalRun, newRun);
