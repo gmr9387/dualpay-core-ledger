@@ -53,7 +53,7 @@ export async function verifyReplay(
     snapshot.created_at ??
     DEFAULT_VERIFICATION_TIMESTAMP;
 
-  const replay = replaySnapshot(
+  const replay = await replaySnapshot(
     snapshot,
     originalRun,
   );
@@ -68,8 +68,16 @@ export async function verifyReplay(
       priorOutcomes: snapshot.prior_outcomes,
       calcPolicyVersion:
         snapshot.calc_policy_version,
-      ruleSetVersion: '1.0.0',
-      cobRuleVersion: '1.0.0',
+      ruleSetVersion:
+        snapshot.rule_set_version,
+      cobRuleVersion:
+        snapshot.cob_rule_version,
+      feeScheduleHash:
+        snapshot.fee_schedule_hash,
+      planDocumentHash:
+        snapshot.plan_document_hash,
+      contractDocumentHash:
+        snapshot.contract_document_hash,
     });
 
   const snapshotMatch =
@@ -144,7 +152,15 @@ export async function generateFingerprintForSnapshot(
     priorOutcomes: snapshot.prior_outcomes,
     calcPolicyVersion:
       snapshot.calc_policy_version,
-    ruleSetVersion: '1.0.0',
-    cobRuleVersion: '1.0.0',
+    ruleSetVersion:
+      snapshot.rule_set_version,
+    cobRuleVersion:
+      snapshot.cob_rule_version,
+    feeScheduleHash:
+      snapshot.fee_schedule_hash,
+    planDocumentHash:
+      snapshot.plan_document_hash,
+    contractDocumentHash:
+      snapshot.contract_document_hash,
   });
 }
