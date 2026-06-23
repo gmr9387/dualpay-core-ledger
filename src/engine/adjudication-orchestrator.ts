@@ -22,6 +22,8 @@ import { saveReplayRecord } from './replay-store';
 import { appendLedgerEvent, type ReplayLedgerEvent } from './replay-ledger';
 
 const DEFAULT_CALC_POLICY_VERSION = '1.0.0';
+const DEFAULT_RULE_SET_VERSION = '1.0.0';
+const DEFAULT_COB_RULE_VERSION = '1.0.0';
 const DEFAULT_TIMESTAMP = '1970-01-01T00:00:00.000Z';
 
 export interface ExecuteAdjudicationArgs {
@@ -35,6 +37,12 @@ export interface ExecuteAdjudicationArgs {
   runId?: string;
   timestamp?: string;
   calcPolicyVersion?: string;
+  ruleSetVersion?: string;
+  cobRuleVersion?: string;
+
+  feeScheduleHash?: string;
+  planDocumentHash?: string;
+  contractDocumentHash?: string;
 }
 
 export interface ExecuteAdjudicationResult {
@@ -57,6 +65,11 @@ export async function executeAdjudicationWithReplay(
   const runId =
     args.runId ?? `run_${args.claim.claim_id}_${calcPolicyVersion}`;
 
+  const ruleSetVersion =
+    args.ruleSetVersion ?? DEFAULT_RULE_SET_VERSION;
+  const cobRuleVersion =
+    args.cobRuleVersion ?? DEFAULT_COB_RULE_VERSION;
+
   const snapshot = createReplaySnapshot({
     claim: args.claim,
     accumulators: args.accumulators,
@@ -64,19 +77,27 @@ export async function executeAdjudicationWithReplay(
     plan: args.plan,
     priorOutcomes,
     calcPolicyVersion,
+    ruleSetVersion,
+    cobRuleVersion,
+    feeScheduleHash: args.feeScheduleHash,
+    planDocumentHash: args.planDocumentHash,
+    contractDocumentHash: args.contractDocumentHash,
     createdAt: timestamp,
   });
 
   const fingerprint = await buildTraceFingerprint({
-    claim: args.claim,
-    lines: args.claim.lines,
-    accumulators: args.accumulators,
-    contract: args.contract,
-    plan: args.plan,
-    priorOutcomes,
-    calcPolicyVersion,
-    ruleSetVersion: '1.0.0',
-    cobRuleVersion: '1.0.0',
+    claim: snapshot.claim,
+    lines: snapshot.claim.lines,
+    accumulators: snapshot.accumulators,
+    contract: snapshot.contract,
+    plan: snapshot.plan,
+    priorOutcomes: snapshot.prior_outcomes,
+    calcPolicyVersion: snapshot.calc_policy_version,
+    ruleSetVersion: snapshot.rule_set_version,
+    cobRuleVersion: snapshot.cob_rule_version,
+    feeScheduleHash: snapshot.fee_schedule_hash,
+    planDocumentHash: snapshot.plan_document_hash,
+    contractDocumentHash: snapshot.contract_document_hash,
   });
 
   const snapshotRef = `snapshots/${runId}/${fingerprint}`;
