@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { adjudicateClaim, resetIdCounter } from '@/engine/calculation-engine';
+import { executeAdjudicationWithReplay } from '@/engine/adjudication-orchestrator';
 import { demoContract, demoPlan, demoPriorOutcomes } from '@/data/demo-scenarios';
 import {
-  loadClaims, loadCases, loadCaseEvents, loadAccumulators, loadLatestRuns,
-  saveAdjudication, seedIfEmpty,
+  loadClaims,
+  loadCases,
+  loadCaseEvents,
+  loadAccumulators,
+  loadLatestRuns,
+  saveAdjudication,
+  seedIfEmpty,
 } from '@/data/repository';
 import type { Claim, AdjudicationRun, MemberAccumulators } from '@/types/claim';
 import type { TraceObject } from '@/types/trace';
@@ -35,34 +40,63 @@ const Index = () => {
 
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
       try {
         const { seeded } = await seedIfEmpty();
+
         if (cancelled) return;
         if (seeded) setSeedNotice('Seeded demo data into Lovable Cloud.');
 
         const [c, k, e, a, runs] = await Promise.all([
-          loadClaims(), loadCases(), loadCaseEvents(),
-          loadAccumulators(), loadLatestRuns(),
+          loadClaims(),
+          loadCases(),
+          loadCaseEvents(),
+          loadAccumulators(),
+          loadLatestRuns(),
         ]);
+
         if (cancelled) return;
 
-        setClaims(c); setCases(k); setCaseEvents(e); setAccumulators(a);
+        setClaims(c);
+        setCases(k);
+        setCaseEvents(e);
+        setAccumulators(a);
 
-        resetIdCounter();
-        const haveRun = new Set(runs.map(r => r.claimId));
+        const haveRun = new Set(runs.map((r) => r.claimId));
         const fresh: AdjResult[] = [];
+
         for (const claim of c) {
           if (haveRun.has(claim.claim_id)) continue;
+
           const acc = a[claim.member_id] ?? Object.values(a)[0];
           if (!acc) continue;
-          const priors = claim.ohi_indicators.length > 0
-            ? demoPriorOutcomes.filter(po => claim.lines.some(l => l.line_id === po.claim_line_id))
-            : [];
-          const { run, trace } = adjudicateClaim(claim.lines, acc, demoContract, demoPlan, priors);
-          fresh.push({ claimId: claim.claim_id, run, trace });
+
+          const priors =
+            claim.ohi_indicators.length > 0
+              ? demoPriorOutcomes.filter((po) =>
+                  claim.lines.some((line) => line.line_id === po.claim_line_id),
+                )
+              : [];
+
+          const { run, trace } = await executeAdjudicationWithReplay({
+            claim,
+            accumulators: acc,
+            contract: demoContract,
+            plan: demoPlan,
+            priorOutcomes: priors,
+            actor: 'ClaimsWorkbench',
+          });
+
+          fresh.push({
+            claimId: claim.claim_id,
+            run,
+            trace,
+          });
+
           await saveAdjudication(claim.claim_id, run, trace, false);
         }
+
         setAdjResults([...runs, ...fresh]);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -71,18 +105,27 @@ const Index = () => {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const selectedResult = adjResults.find(r => r.claimId === selectedClaimId);
-  const selectedClaim = claims.find(c => c.claim_id === selectedClaimId);
+  const selectedResult = adjResults.find((r) => r.claimId === selectedClaimId);
+  const selectedClaim = claims.find((c) => c.claim_id === selectedClaimId);
+
   const selectedCase = useMemo(() => {
     if (!selectedClaim) return null;
-    if (selectedClaim.case_id) return cases.find(c => c.case_id === selectedClaim.case_id) ?? null;
-    return cases.find(c => c.claim_ids.includes(selectedClaim.claim_id)) ?? null;
+
+    if (selectedClaim.case_id) {
+      return cases.find((c) => c.case_id === selectedClaim.case_id) ?? null;
+    }
+
+    return cases.find((c) => c.claim_ids.includes(selectedClaim.claim_id)) ?? null;
   }, [selectedClaim, cases]);
+
   const selectedCaseEvents = selectedCase
-    ? caseEvents.filter(e => e.case_id === selectedCase.case_id)
+    ? caseEvents.filter((event) => event.case_id === selectedCase.case_id)
     : [];
 
   const breadcrumb = [
