@@ -47,11 +47,10 @@ export default function ReplayWorkbench() {
 
     try {
       const replay =
-        replaySnapshot(
+        await replaySnapshot(
           selected.snapshot,
           selected.run,
         );
-
       const verify =
         await verifyReplay(
           selected.snapshot,
