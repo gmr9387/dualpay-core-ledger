@@ -18,6 +18,8 @@ import type {
 } from '@/types/claim';
 import type { TraceObject } from '@/types/trace';
 import type { Case, CaseEvent } from '@/types/case';
+import type { ReplayRecord } from '@/engine/replay-store';
+import type { ReplayLedgerEvent } from '@/engine/replay-ledger';
 import {
   demoCases,
   demoCaseEvents,
@@ -241,6 +243,202 @@ export async function saveCaseEvent(evt: CaseEvent): Promise<void> {
     occurred_at: evt.timestamp,
   }] as never);
   if (error) throw error;
+}
+
+// ── Replay Store Persistence ──────────────────────────────────
+
+/**
+ * Save a replay record to persistent storage.
+ * Enforces uniqueness on snapshot_id, fingerprint, and run_id.
+ */
+export async function saveReplayRecordPersistent(record: ReplayRecord): Promise<void> {
+  const { error } = await supabase.from('replay_records').insert([{
+    snapshot_id: record.snapshot.snapshot_id,
+    run_id: record.run.run_id,
+    fingerprint: record.fingerprint,
+    claim_id: record.snapshot.claim_id,
+    created_at: record.created_at,
+    payload: asJson(record),
+  }] as never);
+  if (error) throw error;
+}
+
+/**
+ * Load a replay record from persistent storage by snapshot_id.
+ */
+export async function getReplayRecordPersistent(
+  snapshotId: string,
+): Promise<ReplayRecord | null> {
+  const { data, error } = await supabase
+    .from('replay_records')
+    .select('payload')
+    .eq('snapshot_id', snapshotId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? (data.payload as unknown as ReplayRecord) : null;
+}
+
+/**
+ * Load a replay record by fingerprint.
+ */
+export async function getReplayRecordByFingerprintPersistent(
+  fingerprint: string,
+): Promise<ReplayRecord | null> {
+  const { data, error } = await supabase
+    .from('replay_records')
+    .select('payload')
+    .eq('fingerprint', fingerprint)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? (data.payload as unknown as ReplayRecord) : null;
+}
+
+/**
+ * Load a replay record by run_id.
+ */
+export async function getReplayRecordByRunIdPersistent(
+  runId: string,
+): Promise<ReplayRecord | null> {
+  const { data, error } = await supabase
+    .from('replay_records')
+    .select('payload')
+    .eq('run_id', runId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? (data.payload as unknown as ReplayRecord) : null;
+}
+
+/**
+ * List all replay records, ordered by creation time (newest first).
+ */
+export async function listReplayRecordsPersistent(): Promise<ReplayRecord[]> {
+  const { data, error } = await supabase
+    .from('replay_records')
+    .select('payload')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => r.payload as unknown as ReplayRecord);
+}
+
+// ── Replay Ledger Persistence ────────────────────────────────
+
+/**
+ * Append a ledger event to persistent storage.
+ */
+export async function appendLedgerEventPersistent(
+  event: ReplayLedgerEvent,
+): Promise<void> {
+  const { error } = await supabase.from('replay_ledger_events').insert([{
+    event_id: event.event_id,
+    type: event.type,
+    claim_id: event.claim_id,
+    run_id: event.run_id ?? undefined,
+    snapshot_id: event.snapshot_id ?? undefined,
+    actor: event.actor,
+    timestamp: event.timestamp,
+    prev_event_hash: event.prev_event_hash,
+    event_hash: event.event_hash,
+    details: asJson(event.details),
+  }] as never);
+  if (error) throw error;
+}
+
+/**
+ * List all ledger events in append order (oldest first).
+ */
+export async function listLedgerEventsPersistent(): Promise<ReplayLedgerEvent[]> {
+  const { data, error } = await supabase
+    .from('replay_ledger_events')
+    .select('*')
+    .order('timestamp', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    event_id: row.event_id,
+    type: row.type as ReplayLedgerEvent['type'],
+    claim_id: row.claim_id,
+    run_id: row.run_id ?? undefined,
+    snapshot_id: row.snapshot_id ?? undefined,
+    actor: row.actor,
+    timestamp: row.timestamp,
+    prev_event_hash: row.prev_event_hash,
+    event_hash: row.event_hash,
+    details: (row.details ?? {}) as Record<string, unknown>,
+  }));
+}
+
+/**
+ * List ledger events for a specific claim.
+ */
+export async function listLedgerEventsForClaimPersistent(
+  claimId: string,
+): Promise<ReplayLedgerEvent[]> {
+  const { data, error } = await supabase
+    .from('replay_ledger_events')
+    .select('*')
+    .eq('claim_id', claimId)
+    .order('timestamp', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    event_id: row.event_id,
+    type: row.type as ReplayLedgerEvent['type'],
+    claim_id: row.claim_id,
+    run_id: row.run_id ?? undefined,
+    snapshot_id: row.snapshot_id ?? undefined,
+    actor: row.actor,
+    timestamp: row.timestamp,
+    prev_event_hash: row.prev_event_hash,
+    event_hash: row.event_hash,
+    details: (row.details ?? {}) as Record<string, unknown>,
+  }));
+}
+
+// ── Idempotency Key Persistence ──────────────────────────────
+
+/**
+ * Record an idempotency key consumption in persistent storage.
+ */
+export async function recordIdempotencyKeyConsumption(
+  key: string,
+  claimId: string,
+  actor: string,
+): Promise<void> {
+  const { error } = await supabase.from('idempotency_keys').insert([{
+    key,
+    claim_id: claimId,
+    actor,
+    consumed_at: new Date().toISOString(),
+  }] as never);
+  if (error) throw error;
+}
+
+/**
+ * Check if an idempotency key has already been consumed.
+ */
+export async function isIdempotencyKeyConsumedPersistent(
+  key: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('idempotency_keys')
+    .select('key')
+    .eq('key', key)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+/**
+ * List all consumed idempotency keys for a claim.
+ */
+export async function listIdempotencyKeysForClaimPersistent(
+  claimId: string,
+): Promise<{ key: string; actor: string; consumed_at: string }[]> {
+  const { data, error } = await supabase
+    .from('idempotency_keys')
+    .select('key, actor, consumed_at')
+    .eq('claim_id', claimId)
+    .order('consumed_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
 }
 
 // ── Seed ──────────────────────────────────────────────────────
