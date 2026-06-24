@@ -29,6 +29,8 @@ export interface ReplayStoreIntegrityResult {
 }
 
 const replayStore = new Map<string, ReplayRecord>();
+const fingerprintIndex = new Map<string, string>(); // fingerprint -> snapshot_id
+const runIdIndex = new Map<string, string>(); // run_id -> snapshot_id
 
 function cloneReplayRecord(record: ReplayRecord): ReplayRecord {
   return {
@@ -39,29 +41,78 @@ function cloneReplayRecord(record: ReplayRecord): ReplayRecord {
   };
 }
 
+function indexRecord(record: ReplayRecord): void {
+  fingerprintIndex.set(record.fingerprint, record.snapshot.snapshot_id);
+  runIdIndex.set(record.run.run_id, record.snapshot.snapshot_id);
+}
+
+function unindexRecord(record: ReplayRecord): void {
+  if (fingerprintIndex.get(record.fingerprint) === record.snapshot.snapshot_id) {
+    fingerprintIndex.delete(record.fingerprint);
+  }
+  if (runIdIndex.get(record.run.run_id) === record.snapshot.snapshot_id) {
+    runIdIndex.delete(record.run.run_id);
+  }
+}
+
 export function saveReplayRecord(record: ReplayRecord): void {
   if (replayStore.has(record.snapshot.snapshot_id)) {
     throw new Error(
       `Replay record already exists for snapshot ${record.snapshot.snapshot_id}`,
     );
   }
+  if (fingerprintIndex.has(record.fingerprint)) {
+    throw new Error(
+      `Replay record already exists for fingerprint ${record.fingerprint}`,
+    );
+  }
+  if (runIdIndex.has(record.run.run_id)) {
+    throw new Error(
+      `Replay record already exists for run_id ${record.run.run_id}`,
+    );
+  }
 
-  replayStore.set(
-    record.snapshot.snapshot_id,
-    Object.freeze(cloneReplayRecord(record)),
-  );
+  const frozen = Object.freeze(cloneReplayRecord(record));
+  replayStore.set(record.snapshot.snapshot_id, frozen);
+  indexRecord(frozen);
 }
 
 export function upsertReplayRecordForDev(record: ReplayRecord): void {
-  replayStore.set(
-    record.snapshot.snapshot_id,
-    Object.freeze(cloneReplayRecord(record)),
-  );
+  const existing = replayStore.get(record.snapshot.snapshot_id);
+  if (existing) unindexRecord(existing);
+
+  const frozen = Object.freeze(cloneReplayRecord(record));
+  replayStore.set(record.snapshot.snapshot_id, frozen);
+  indexRecord(frozen);
 }
 
 export function getReplayRecord(snapshotId: string): ReplayRecord | undefined {
   const record = replayStore.get(snapshotId);
   return record ? cloneReplayRecord(record) : undefined;
+}
+
+export function getReplayRecordByFingerprint(
+  fingerprint: string,
+): ReplayRecord | undefined {
+  const snapshotId = fingerprintIndex.get(fingerprint);
+  if (!snapshotId) return undefined;
+  const record = replayStore.get(snapshotId);
+  return record ? cloneReplayRecord(record) : undefined;
+}
+
+export function getReplayRecordByRunId(runId: string): ReplayRecord | undefined {
+  const snapshotId = runIdIndex.get(runId);
+  if (!snapshotId) return undefined;
+  const record = replayStore.get(snapshotId);
+  return record ? cloneReplayRecord(record) : undefined;
+}
+
+export function hasFingerprint(fingerprint: string): boolean {
+  return fingerprintIndex.has(fingerprint);
+}
+
+export function hasRunId(runId: string): boolean {
+  return runIdIndex.has(runId);
 }
 
 export function listReplayRecords(): ReplayRecord[] {
