@@ -4,7 +4,8 @@
  * for individual claims as a secondary surface to Claim Clarity.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { adjudicateClaim, resetIdCounter } from '@/engine/calculation-engine';
+import { resetIdCounter } from '@/engine/calculation-engine';
+import { executeAdjudicationWithReplay } from '@/engine/adjudication-orchestrator';
 import { demoContract, demoPlan, demoPriorOutcomes } from '@/data/demo-scenarios';
 import {
   loadClaims, loadCases, loadCaseEvents, loadAccumulators, loadLatestRuns,
@@ -48,7 +49,14 @@ export default function ClaimsWorkbench() {
           if (haveRun.has(claim.claim_id)) continue;
           const acc = a[claim.member_id] ?? Object.values(a)[0];
           if (!acc) continue;
-          const { run, trace } = adjudicateClaim(claim.lines, acc, demoContract, demoPlan, demoPriorOutcomes);
+          const { run, trace } = await executeAdjudicationWithReplay({
+            claim,
+            accumulators: acc,
+            contract: demoContract,
+            plan: demoPlan,
+            priorOutcomes: demoPriorOutcomes,
+            actor: 'ClaimsWorkbench',
+          });
           fresh.push({ claimId: claim.claim_id, run, trace });
           await saveAdjudication(claim.claim_id, run, trace, false);
         }
