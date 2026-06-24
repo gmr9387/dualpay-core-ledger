@@ -18,7 +18,7 @@ import type { TraceObject } from '@/types/trace';
 import { adjudicateClaim } from './calculation-engine';
 import { createReplaySnapshot, type ReplaySnapshot } from './replay-snapshot';
 import { buildTraceFingerprint } from './hash';
-import { saveReplayRecord } from './replay-store';
+import { saveReplayRecord, getReplayRecordByFingerprint, hasRunId, getReplayRecordByRunId } from './replay-store';
 import { appendLedgerEvent, type ReplayLedgerEvent } from './replay-ledger';
 
 const DEFAULT_CALC_POLICY_VERSION = '1.0.0';
@@ -99,6 +99,53 @@ export async function executeAdjudicationWithReplay(
     planDocumentHash: snapshot.plan_document_hash,
     contractDocumentHash: snapshot.contract_document_hash,
   });
+
+  // Idempotency: return existing record if this exact canonical input was adjudicated before.
+  const existing = getReplayRecordByFingerprint(fingerprint);
+  if (existing) {
+    const dupLedger = await appendLedgerEvent({
+      type: 'REPLAY_EXECUTED',
+      claim_id: args.claim.claim_id,
+      run_id: existing.run.run_id,
+      snapshot_id: existing.snapshot.snapshot_id,
+      actor,
+      timestamp,
+      details: {
+        reason: 'duplicate_fingerprint_idempotent_return',
+        fingerprint,
+      },
+    });
+    // Reconstruct trace deterministically (adjudicateClaim is pure).
+    const replay = adjudicateClaim(
+      args.claim.lines,
+      args.accumulators,
+      args.contract,
+      args.plan,
+      priorOutcomes,
+      {
+        runId: existing.run.run_id,
+        timestamp: existing.created_at,
+        traceFingerprint: fingerprint,
+        snapshotRef: `snapshots/${existing.run.run_id}/${fingerprint}`,
+        traceId: `trace_${args.claim.claim_id}_${fingerprint.slice(0, 16)}`,
+      },
+    );
+    return {
+      run: existing.run,
+      trace: replay.trace,
+      snapshot: existing.snapshot,
+      fingerprint,
+      ledger_events: [dupLedger],
+    };
+  }
+
+  // Reject run_id collisions across distinct fingerprints.
+  if (hasRunId(runId)) {
+    const conflicting = getReplayRecordByRunId(runId);
+    throw new Error(
+      `run_id ${runId} already used for fingerprint ${conflicting?.fingerprint}; refusing to reuse for ${fingerprint}`,
+    );
+  }
 
   const snapshotRef = `snapshots/${runId}/${fingerprint}`;
   const traceId = `trace_${args.claim.claim_id}_${fingerprint.slice(0, 16)}`;
