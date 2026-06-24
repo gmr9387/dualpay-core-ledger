@@ -176,6 +176,8 @@ export function verifyReplayStoreIntegrity(): ReplayStoreIntegrityResult {
  * Do not use in production workflows.
  */
 export function deleteReplayRecord(snapshotId: string): boolean {
+  const existing = replayStore.get(snapshotId);
+  if (existing) unindexRecord(existing);
   return replayStore.delete(snapshotId);
 }
 
@@ -186,4 +188,6 @@ export function deleteReplayRecord(snapshotId: string): boolean {
  */
 export function clearReplayStore(): void {
   replayStore.clear();
+  fingerprintIndex.clear();
+  runIdIndex.clear();
 }
