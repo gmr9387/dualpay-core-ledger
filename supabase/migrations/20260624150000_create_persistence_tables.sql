@@ -43,10 +43,9 @@ CREATE TABLE IF NOT EXISTS public.replay_records (
   -- Timestamps
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   
-  -- Constraints
+  -- Named constraints for clarity
   CONSTRAINT replay_records_fingerprint_unique UNIQUE (fingerprint),
-  CONSTRAINT replay_records_run_id_unique UNIQUE (run_id),
-  CONSTRAINT replay_records_snapshot_id_primary PRIMARY KEY (snapshot_id)
+  CONSTRAINT replay_records_run_id_unique UNIQUE (run_id)
 );
 
 -- Indexes for common queries
@@ -123,10 +122,7 @@ CREATE TABLE IF NOT EXISTS public.replay_ledger_events (
   event_hash          TEXT NOT NULL,
   
   -- Event payload
-  details             JSONB NOT NULL DEFAULT '{}'::jsonb,
-  
-  -- Constraints
-  CONSTRAINT replay_ledger_events_id_primary PRIMARY KEY (event_id)
+  details             JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 -- Indexes for common queries
@@ -195,10 +191,7 @@ CREATE TABLE IF NOT EXISTS public.idempotency_keys (
   
   -- Audit trail
   actor               TEXT NOT NULL,
-  consumed_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  
-  -- Constraints
-  CONSTRAINT idempotency_keys_key_primary PRIMARY KEY (key)
+  consumed_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Indexes for common queries
