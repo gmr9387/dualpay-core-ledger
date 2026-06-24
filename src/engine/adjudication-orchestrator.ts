@@ -18,7 +18,7 @@ import type { TraceObject } from '@/types/trace';
 import { adjudicateClaim } from './calculation-engine';
 import { createReplaySnapshot, type ReplaySnapshot } from './replay-snapshot';
 import { buildTraceFingerprint } from './hash';
-import { saveReplayRecord } from './replay-store';
+import { saveReplayRecord, getReplayRecordByFingerprint, hasRunId, getReplayRecordByRunId } from './replay-store';
 import { appendLedgerEvent, type ReplayLedgerEvent } from './replay-ledger';
 
 const DEFAULT_CALC_POLICY_VERSION = '1.0.0';
