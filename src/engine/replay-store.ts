@@ -1,13 +1,23 @@
 /**
  * Replay Store
  *
- * In-memory replay record store for snapshots, runs, and fingerprints.
+ * Cache + persistence pattern:
+ * - In-memory map for performance (read-through cache)
+ * - Supabase for durability (source of truth)
  *
- * Still demo-grade until backed by Supabase/Postgres, but hardened to:
- * - prevent silent overwrite
- * - preserve insertion order
- * - expose integrity checks
- * - avoid direct mutation of stored records
+ * On startup:
+ * - Load from Supabase into memory
+ * - Serve from memory
+ *
+ * On save:
+ * - Validate uniqueness
+ * - Write to Supabase
+ * - Write to memory
+ *
+ * Enforces:
+ * - fingerprint uniqueness
+ * - run_id uniqueness
+ * - snapshot_id uniqueness
  */
 
 import type { AdjudicationRun } from '@/types/claim';
@@ -32,6 +42,8 @@ const replayStore = new Map<string, ReplayRecord>();
 const fingerprintIndex = new Map<string, string>(); // fingerprint -> snapshot_id
 const runIdIndex = new Map<string, string>(); // run_id -> snapshot_id
 
+let storeInitialized = false;
+
 function cloneReplayRecord(record: ReplayRecord): ReplayRecord {
   return {
     snapshot: record.snapshot,
@@ -55,7 +67,40 @@ function unindexRecord(record: ReplayRecord): void {
   }
 }
 
-export function saveReplayRecord(record: ReplayRecord): void {
+/**
+ * Initialize the replay store from persistent storage.
+ * Call once on app startup.
+ */
+export async function initializeReplayStore(): Promise<void> {
+  if (storeInitialized) return;
+
+  try {
+    const { listReplayRecordsPersistent } = await import('@/data/repository');
+    const records = await listReplayRecordsPersistent();
+    
+    replayStore.clear();
+    fingerprintIndex.clear();
+    runIdIndex.clear();
+
+    for (const record of records) {
+      const frozen = Object.freeze(cloneReplayRecord(record));
+      replayStore.set(record.snapshot.snapshot_id, frozen);
+      indexRecord(frozen);
+    }
+
+    storeInitialized = true;
+  } catch (error) {
+    console.error('Failed to initialize replay store from persistence:', error);
+    storeInitialized = true; // Mark as initialized even on error to avoid retry loops
+  }
+}
+
+/**
+ * Save a replay record to both cache and persistent storage.
+ * Enforces uniqueness on snapshot_id, fingerprint, and run_id.
+ */
+export async function saveReplayRecord(record: ReplayRecord): Promise<void> {
+  // Check memory cache first
   if (replayStore.has(record.snapshot.snapshot_id)) {
     throw new Error(
       `Replay record already exists for snapshot ${record.snapshot.snapshot_id}`,
@@ -72,11 +117,23 @@ export function saveReplayRecord(record: ReplayRecord): void {
     );
   }
 
+  // Persist to DB
+  try {
+    const { saveReplayRecordPersistent } = await import('@/data/repository');
+    await saveReplayRecordPersistent(record);
+  } catch (error) {
+    throw new Error(`Failed to persist replay record: ${error}`);
+  }
+
+  // Update cache
   const frozen = Object.freeze(cloneReplayRecord(record));
   replayStore.set(record.snapshot.snapshot_id, frozen);
   indexRecord(frozen);
 }
 
+/**
+ * Upsert a replay record (dev/testing only).
+ */
 export function upsertReplayRecordForDev(record: ReplayRecord): void {
   const existing = replayStore.get(record.snapshot.snapshot_id);
   if (existing) unindexRecord(existing);
@@ -86,11 +143,18 @@ export function upsertReplayRecordForDev(record: ReplayRecord): void {
   indexRecord(frozen);
 }
 
+/**
+ * Get a replay record by snapshot_id from cache.
+ */
 export function getReplayRecord(snapshotId: string): ReplayRecord | undefined {
   const record = replayStore.get(snapshotId);
   return record ? cloneReplayRecord(record) : undefined;
 }
 
+/**
+ * Get a replay record by fingerprint from cache.
+ * Used for detecting duplicate adjudications.
+ */
 export function getReplayRecordByFingerprint(
   fingerprint: string,
 ): ReplayRecord | undefined {
@@ -100,6 +164,10 @@ export function getReplayRecordByFingerprint(
   return record ? cloneReplayRecord(record) : undefined;
 }
 
+/**
+ * Get a replay record by run_id from cache.
+ * Used for detecting duplicate run IDs.
+ */
 export function getReplayRecordByRunId(runId: string): ReplayRecord | undefined {
   const snapshotId = runIdIndex.get(runId);
   if (!snapshotId) return undefined;
@@ -107,14 +175,23 @@ export function getReplayRecordByRunId(runId: string): ReplayRecord | undefined 
   return record ? cloneReplayRecord(record) : undefined;
 }
 
+/**
+ * Check if a fingerprint exists in cache.
+ */
 export function hasFingerprint(fingerprint: string): boolean {
   return fingerprintIndex.has(fingerprint);
 }
 
+/**
+ * Check if a run_id exists in cache.
+ */
 export function hasRunId(runId: string): boolean {
   return runIdIndex.has(runId);
 }
 
+/**
+ * List all replay records from cache (newest first).
+ */
 export function listReplayRecords(): ReplayRecord[] {
   return [...replayStore.values()]
     .map(cloneReplayRecord)
@@ -123,10 +200,16 @@ export function listReplayRecords(): ReplayRecord[] {
     );
 }
 
+/**
+ * List all replay records from cache in insertion order.
+ */
 export function listReplayRecordsInInsertOrder(): ReplayRecord[] {
   return [...replayStore.values()].map(cloneReplayRecord);
 }
 
+/**
+ * Verify the integrity of the replay store cache.
+ */
 export function verifyReplayStoreIntegrity(): ReplayStoreIntegrityResult {
   const records = [...replayStore.values()];
 
@@ -172,7 +255,6 @@ export function verifyReplayStoreIntegrity(): ReplayStoreIntegrityResult {
 
 /**
  * Dev/testing only.
- *
  * Do not use in production workflows.
  */
 export function deleteReplayRecord(snapshotId: string): boolean {
@@ -183,11 +265,11 @@ export function deleteReplayRecord(snapshotId: string): boolean {
 
 /**
  * Dev/testing only.
- *
  * Do not use in production workflows.
  */
 export function clearReplayStore(): void {
   replayStore.clear();
   fingerprintIndex.clear();
   runIdIndex.clear();
+  storeInitialized = false;
 }
