@@ -53,12 +53,36 @@ const requireIdempotencyKey: TransitionGuard = {
   check: (ctx) => typeof ctx.idempotencyKey === 'string' && ctx.idempotencyKey.length > 0,
 };
 
-// ── Idempotency Registry ──────────────────────────────────────
+// ── Idempotency Registry (In-Memory Cache) ──────────────────
 
 const consumedIdempotencyKeys = new Set<string>();
 
+let idempotencyInitialized = false;
+
+/**
+ * Initialize idempotency key tracking from persistent storage.
+ * Call once on app startup.
+ */
+export async function initializeIdempotencyKeyTracking(): Promise<void> {
+  if (idempotencyInitialized) return;
+
+  try {
+    // Note: In a full implementation, we would load all consumed keys from the DB.
+    // For now, we start fresh and rely on DB as the source of truth.
+    // Each call to isIdempotencyKeyConsumedPersistent checks the DB directly.
+    consumedIdempotencyKeys.clear();
+    idempotencyInitialized = true;
+  } catch (error) {
+    console.error('Failed to initialize idempotency key tracking:', error);
+    idempotencyInitialized = true;
+  }
+}
+
 /**
  * Consume an idempotency key. Returns true on first use, false if already consumed.
+ * 
+ * This is the in-memory check. For production, always verify against the DB as well.
+ * 
  * Callers that perform side-effectful payment work should invoke this before
  * acting and abort if it returns false.
  */
@@ -69,13 +93,51 @@ export function consumeIdempotencyKey(key: string): boolean {
   return true;
 }
 
+/**
+ * Check if an idempotency key has been consumed (in-memory check only).
+ */
 export function isIdempotencyKeyConsumed(key: string): boolean {
   return consumedIdempotencyKeys.has(key);
+}
+
+/**
+ * Check if an idempotency key has been consumed (persistent check).
+ * For payment transitions, always use this to survive restarts.
+ */
+export async function isIdempotencyKeyConsumedPersistent(key: string): Promise<boolean> {
+  try {
+    const { isIdempotencyKeyConsumedPersistent: checkDB } = await import('@/data/repository');
+    return await checkDB(key);
+  } catch (error) {
+    console.error('Failed to check idempotency key in DB:', error);
+    // Fail safe: assume consumed if we can't check the DB
+    return true;
+  }
+}
+
+/**
+ * Record an idempotency key consumption in persistent storage.
+ * Call after a successful payment transition.
+ */
+export async function recordIdempotencyKeyConsumptionPersistent(
+  key: string,
+  claimId: string,
+  actor: string,
+): Promise<void> {
+  try {
+    const { recordIdempotencyKeyConsumption } = await import('@/data/repository');
+    await recordIdempotencyKeyConsumption(key, claimId, actor);
+    // Also update in-memory cache
+    consumedIdempotencyKeys.add(key);
+  } catch (error) {
+    throw new Error(`Failed to record idempotency key consumption: ${error}`);
+  }
 }
 
 /** Test/dev only — clears the in-memory consumed-key registry. */
 export function clearIdempotencyKeysForDev(): void {
   consumedIdempotencyKeys.clear();
+  idempotencyInitialized = false;
 }
 
 function isPaymentTransition(from: ClaimStatus, to: ClaimStatus): boolean {
