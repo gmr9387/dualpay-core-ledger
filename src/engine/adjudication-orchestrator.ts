@@ -100,6 +100,46 @@ export async function executeAdjudicationWithReplay(
     contractDocumentHash: snapshot.contract_document_hash,
   });
 
+  // Idempotency: return existing record if this exact canonical input was adjudicated before.
+  const existing = getReplayRecordByFingerprint(fingerprint);
+  if (existing) {
+    const dupLedger = await appendLedgerEvent({
+      type: 'REPLAY_EXECUTED',
+      claim_id: args.claim.claim_id,
+      run_id: existing.run.run_id,
+      snapshot_id: existing.snapshot.snapshot_id,
+      actor,
+      timestamp,
+      details: {
+        reason: 'duplicate_fingerprint_idempotent_return',
+        fingerprint,
+      },
+    });
+    return {
+      run: existing.run,
+      trace: {
+        trace_id: `trace_${args.claim.claim_id}_${fingerprint.slice(0, 16)}`,
+        run_id: existing.run.run_id,
+        claim_id: args.claim.claim_id,
+        inputs_snapshot_hash: fingerprint,
+        snapshot_ref: `snapshots/${existing.run.run_id}/${fingerprint}`,
+        timestamp,
+        events: [],
+      } as unknown as TraceObject,
+      snapshot: existing.snapshot,
+      fingerprint,
+      ledger_events: [dupLedger],
+    };
+  }
+
+  // Reject run_id collisions across distinct fingerprints.
+  if (hasRunId(runId)) {
+    const conflicting = getReplayRecordByRunId(runId);
+    throw new Error(
+      `run_id ${runId} already used for fingerprint ${conflicting?.fingerprint}; refusing to reuse for ${fingerprint}`,
+    );
+  }
+
   const snapshotRef = `snapshots/${runId}/${fingerprint}`;
   const traceId = `trace_${args.claim.claim_id}_${fingerprint.slice(0, 16)}`;
 
