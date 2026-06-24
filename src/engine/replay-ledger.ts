@@ -1,6 +1,10 @@
 /**
  * Replay Ledger
  *
+ * Cache + persistence pattern:
+ * - In-memory array for performance (read-through cache)
+ * - Supabase for durability (source of truth)
+ *
  * Immutable audit history of:
  * - Original adjudications
  * - Replays
@@ -68,6 +72,8 @@ type NewLedgerEvent = Omit<
 
 const ledger: ReplayLedgerEvent[] = [];
 
+let ledgerInitialized = false;
+
 function latestEventHash(): string {
   return ledger.length > 0
     ? ledger[ledger.length - 1].event_hash
@@ -96,6 +102,33 @@ async function createLedgerId(
   return `ledger_${eventHash.slice(0, 16)}`;
 }
 
+/**
+ * Initialize the replay ledger from persistent storage.
+ * Call once on app startup.
+ */
+export async function initializeReplayLedger(): Promise<void> {
+  if (ledgerInitialized) return;
+
+  try {
+    const { listLedgerEventsPersistent } = await import('@/data/repository');
+    const events = await listLedgerEventsPersistent();
+    
+    ledger.length = 0;
+    for (const event of events) {
+      ledger.push(event);
+    }
+
+    ledgerInitialized = true;
+  } catch (error) {
+    console.error('Failed to initialize replay ledger from persistence:', error);
+    ledgerInitialized = true; // Mark as initialized even on error to avoid retry loops
+  }
+}
+
+/**
+ * Append a ledger event to both cache and persistent storage.
+ * Preserves hash chain for tampering detection.
+ */
 export async function appendLedgerEvent(
   event: NewLedgerEvent,
 ): Promise<ReplayLedgerEvent> {
@@ -109,21 +142,39 @@ export async function appendLedgerEvent(
     event_hash: eventHash,
   });
 
+  // Persist to DB
+  try {
+    const { appendLedgerEventPersistent } = await import('@/data/repository');
+    await appendLedgerEventPersistent(record);
+  } catch (error) {
+    throw new Error(`Failed to persist ledger event: ${error}`);
+  }
+
+  // Update cache
   ledger.push(record);
 
   return record;
 }
 
+/**
+ * List all ledger events from cache (newest first).
+ */
 export function listLedgerEvents(): ReplayLedgerEvent[] {
   return [...ledger].sort((a, b) =>
     b.timestamp.localeCompare(a.timestamp),
   );
 }
 
+/**
+ * List all ledger events from cache in append order (oldest first).
+ */
 export function listLedgerEventsInAppendOrder(): ReplayLedgerEvent[] {
   return [...ledger];
 }
 
+/**
+ * List ledger events for a specific claim from cache.
+ */
 export function listLedgerEventsForClaim(
   claimId: string,
 ): ReplayLedgerEvent[] {
@@ -134,6 +185,9 @@ export function listLedgerEventsForClaim(
     );
 }
 
+/**
+ * List ledger events for a specific run from cache.
+ */
 export function listLedgerEventsForRun(
   runId: string,
 ): ReplayLedgerEvent[] {
@@ -144,6 +198,9 @@ export function listLedgerEventsForRun(
     );
 }
 
+/**
+ * List ledger events for a specific snapshot from cache.
+ */
 export function listLedgerEventsForSnapshot(
   snapshotId: string,
 ): ReplayLedgerEvent[] {
@@ -154,6 +211,9 @@ export function listLedgerEventsForSnapshot(
     );
 }
 
+/**
+ * Get a single ledger event by ID from cache.
+ */
 export function getLedgerEvent(
   eventId: string,
 ): ReplayLedgerEvent | undefined {
@@ -162,6 +222,10 @@ export function getLedgerEvent(
   );
 }
 
+/**
+ * Verify the integrity of the ledger cache.
+ * Checks hash chain continuity and event hash validity.
+ */
 export async function verifyLedgerIntegrity(): Promise<ReplayLedgerIntegrityResult> {
   let expectedPrevHash = GENESIS_HASH;
 
@@ -207,9 +271,9 @@ export async function verifyLedgerIntegrity(): Promise<ReplayLedgerIntegrityResu
 
 /**
  * Test/dev only.
- *
  * Do not call this in production workflows.
  */
 export function clearLedger(): void {
   ledger.length = 0;
+  ledgerInitialized = false;
 }
