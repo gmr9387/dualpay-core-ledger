@@ -270,15 +270,27 @@ export function canTransition(
     }
   }
 
+  // Reject already-consumed idempotency keys on payment transitions.
+  const paymentTransition = isPaymentTransition(
+    context.currentStatus,
+    context.targetStatus,
+  );
+  if (
+    paymentTransition &&
+    !failedGuards.includes('REQUIRE_IDEMPOTENCY_KEY') &&
+    context.idempotencyKey &&
+    consumedIdempotencyKeys.has(context.idempotencyKey)
+  ) {
+    failedGuards.push('IDEMPOTENCY_KEY_ALREADY_USED');
+  }
+
   return {
     allowed: failedGuards.length === 0,
     fromStatus: context.currentStatus,
     toStatus: context.targetStatus,
     failedGuards,
     appliedGuards,
-    idempotencyKey: context.hasIdempotencyKey
-      ? `idem-${context.claimId}-${context.currentStatus}-${context.targetStatus}`
-      : undefined,
+    idempotencyKey: context.idempotencyKey,
   };
 }
 
