@@ -4,7 +4,8 @@
  * for individual claims as a secondary surface to Claim Clarity.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { adjudicateClaim, resetIdCounter } from '@/engine/calculation-engine';
+import { resetIdCounter } from '@/engine/calculation-engine';
+import { executeAdjudicationWithReplay } from '@/engine/adjudication-orchestrator';
 import { demoContract, demoPlan, demoPriorOutcomes } from '@/data/demo-scenarios';
 import {
   loadClaims, loadCases, loadCaseEvents, loadAccumulators, loadLatestRuns,
