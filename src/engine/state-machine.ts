@@ -16,6 +16,7 @@ export interface TransitionContext {
   hasPrimacyConfirmation?: boolean;
   hasExceptionOverride?: boolean;
   hasIdempotencyKey?: boolean;
+  idempotencyKey?: string;
   userId?: string;
   timestamp?: string;
 }
