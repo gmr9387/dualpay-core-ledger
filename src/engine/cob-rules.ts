@@ -295,11 +295,11 @@ export function calculateCOBAllocation(
     }
 
     case 'maintenance_of_benefits': {
-      // Simplified MOB for this kernel:
-      // If primary paid less than allowed, secondary may consider the gap.
-      // If primary paid equal/greater than allowed, secondary pays nothing.
-      // This avoids the prior no-op bug while keeping the invariant stable.
-      adjustment = totalPriorPaid >= safeAllowed ? 0 : 0;
+      // Maintenance of Benefits (MOB): Secondary may "bridge the gap" when primary
+      // paid less than their allowed amount.
+      // - If primary paid >= allowed: secondary pays nothing (gap = 0)
+      // - If primary paid < allowed: secondary may pay the gap (no adjustment)
+      adjustment = totalPriorPaid >= safeAllowed ? remainingAllowed : 0;
       break;
     }
 
