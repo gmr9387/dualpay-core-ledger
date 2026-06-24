@@ -73,12 +73,12 @@ export function CasePanel({
     [caseData, claims, runsMap]
   );
 
-  const handleRetroRecalc = (reversedClaimId: string) => {
+  const handleRetroRecalc = async (reversedClaimId: string) => {
     const caseClaims = claims.filter(c => caseData.claim_ids.includes(c.claim_id));
     const baseAcc = accumulators[caseData.member_id];
     if (!baseAcc) return;
 
-    const results = retroRecalculate(
+    const results = await retroRecalculate(
       reversedClaimId, caseClaims, runsMap, baseAcc, contract, plan, priorOutcomes
     );
     setRetroResults(results);
