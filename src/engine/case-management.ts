@@ -16,6 +16,7 @@ import type {
 } from '@/types/case';
 import type { TraceObject } from '@/types/trace';
 import { adjudicateClaim, generateId } from './calculation-engine';
+import { executeAdjudicationWithReplay } from './adjudication-orchestrator';
 
 // ── Diff Generation ───────────────────────────────────────────
 
