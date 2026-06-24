@@ -256,6 +256,157 @@ describe('CalculationEngine', () => {
       // The COB adjustment should equal allowed since primary overpays
       expect(r.cob_allocations[0].method).toBe('non_duplication');
     });
+
+    it('maintenance_of_benefits: allows secondary to bridge gap when primary paid less than allowed', () => {
+      const lines = [makeClaimLine({ line_id: 'L1', procedure_code: '99213', billed_amount: 15000 })];
+      const acc = makeAccumulators({ individual_deductible_used: 100000 });
+      const contract = makeContract(); // 99213 -> $120 allowed
+      const plan = makePlan({ cob_policy: 'maintenance_of_benefits' });
+
+      const priorOutcomes: PriorPayerOutcome[] = [{
+        payer_id: 'primary_plan',
+        payer_name: 'Primary Insurance',
+        claim_line_id: 'L1',
+        billed: 15000,
+        allowed: 12000,
+        paid: 6000,  // Primary paid only $60 (half of their $120 allowed)
+        patient_responsibility: 6000,
+        adjustments: [],
+        source: 'edi_835',
+        confidence: 1.0,
+      }];
+
+      const { run } = adjudicateClaim(lines, acc, contract, plan, priorOutcomes);
+      const r = run.line_results[0];
+
+      // Secondary allowed = $120
+      expect(r.allowed).toBe(12000);
+      // Primary paid $60; gap = $120 - $60 = $60
+      // MOB: no adjustment (gap = 0), so secondary can pay the gap
+      const mobAlloc = r.cob_allocations[0];
+      expect(mobAlloc.method).toBe('maintenance_of_benefits');
+      // The COB adjustment should be 0 (no constraint), allowing secondary to pay
+      expect(r.cob_allocations[0].adjustment).toBe(0);
+      // Secondary should pay something (bridging the gap)
+      expect(r.plan_paid).toBeGreaterThan(0);
+    });
+
+    it('maintenance_of_benefits: allows no secondary payment when primary paid equal to allowed', () => {
+      const lines = [makeClaimLine({ line_id: 'L1', procedure_code: '99213', billed_amount: 15000 })];
+      const acc = makeAccumulators({ individual_deductible_used: 100000 });
+      const contract = makeContract(); // 99213 -> $120 allowed
+      const plan = makePlan({ cob_policy: 'maintenance_of_benefits' });
+
+      const priorOutcomes: PriorPayerOutcome[] = [{
+        payer_id: 'primary_plan',
+        payer_name: 'Primary Insurance',
+        claim_line_id: 'L1',
+        billed: 15000,
+        allowed: 12000,
+        paid: 12000,  // Primary paid full $120 allowed
+        patient_responsibility: 0,
+        adjustments: [],
+        source: 'edi_835',
+        confidence: 1.0,
+      }];
+
+      const { run } = adjudicateClaim(lines, acc, contract, plan, priorOutcomes);
+      const r = run.line_results[0];
+
+      // Secondary allowed = $120
+      expect(r.allowed).toBe(12000);
+      // Primary paid $120 = allowed; gap = $0
+      // MOB: adjustment = remaining_allowed = 0, so secondary cannot pay
+      const mobAlloc = r.cob_allocations[0];
+      expect(mobAlloc.method).toBe('maintenance_of_benefits');
+      // Adjustment should be 0 (primary fully paid), capping secondary payment
+      expect(r.cob_allocations[0].adjustment).toBe(0);
+      // Secondary should not pay (no gap to bridge)
+      expect(r.plan_paid).toBe(0);
+    });
+
+    it('maintenance_of_benefits: denies secondary payment when primary overpaid', () => {
+      const lines = [makeClaimLine({ line_id: 'L1', procedure_code: '99213', billed_amount: 15000 })];
+      const acc = makeAccumulators({ individual_deductible_used: 100000 });
+      const contract = makeContract(); // 99213 -> $120 allowed
+      const plan = makePlan({ cob_policy: 'maintenance_of_benefits' });
+
+      const priorOutcomes: PriorPayerOutcome[] = [{
+        payer_id: 'primary_plan',
+        payer_name: 'Primary Insurance',
+        claim_line_id: 'L1',
+        billed: 15000,
+        allowed: 12000,
+        paid: 15000,  // Primary paid $150 (more than their allowed $120)
+        patient_responsibility: 0,
+        adjustments: [],
+        source: 'edi_835',
+        confidence: 1.0,
+      }];
+
+      const { run } = adjudicateClaim(lines, acc, contract, plan, priorOutcomes);
+      const r = run.line_results[0];
+
+      // Secondary allowed = $120
+      expect(r.allowed).toBe(12000);
+      // Primary overpaid ($150 > $120 allowed), capped to allowed
+      // Total prior paid capped to allowed = $120
+      // Remaining allowed = $0
+      // MOB: adjustment = remaining_allowed = 0 (since primary fully paid, capped)
+      const mobAlloc = r.cob_allocations[0];
+      expect(mobAlloc.method).toBe('maintenance_of_benefits');
+      // Secondary should not pay
+      expect(r.plan_paid).toBe(0);
+    });
+
+    it('carve_out COB: secondary pays nothing after primary', () => {
+      const lines = [makeClaimLine({ line_id: 'L1', procedure_code: '99213', billed_amount: 15000 })];
+      const acc = makeAccumulators({ individual_deductible_used: 100000 });
+      const contract = makeContract(); // 99213 -> $120 allowed
+      const plan = makePlan({ cob_policy: 'carve_out' });
+
+      const priorOutcomes: PriorPayerOutcome[] = [{
+        payer_id: 'primary_plan',
+        payer_name: 'Primary Insurance',
+        claim_line_id: 'L1',
+        billed: 15000,
+        allowed: 12000,
+        paid: 6000,  // Primary paid only $60
+        patient_responsibility: 6000,
+        adjustments: [],
+        source: 'edi_835',
+        confidence: 1.0,
+      }];
+
+      const { run } = adjudicateClaim(lines, acc, contract, plan, priorOutcomes);
+      const r = run.line_results[0];
+
+      // Secondary allowed = $120
+      expect(r.allowed).toBe(12000);
+      // Carve-out: secondary is carved out, pays nothing
+      const carveAlloc = r.cob_allocations[0];
+      expect(carveAlloc.method).toBe('carve_out');
+      // Adjustment should equal remaining allowed (full carve-out)
+      expect(r.cob_allocations[0].adjustment).toBe(6000); // $120 - $60 prior paid
+      // Secondary should not pay
+      expect(r.plan_paid).toBe(0);
+    });
+
+    it('COB with no prior outcomes', () => {
+      const lines = [makeClaimLine({ line_id: 'L1', procedure_code: '99213', billed_amount: 15000 })];
+      const acc = makeAccumulators({ individual_deductible_used: 100000 });
+      const contract = makeContract();
+      const plan = makePlan({ cob_policy: 'standard' });
+
+      const { run } = adjudicateClaim(lines, acc, contract, plan, []);
+
+      const r = run.line_results[0];
+      // No COB priors, should adjudicate normally
+      expect(r.allowed).toBe(12000);
+      expect(r.cob_allocations).toHaveLength(0);
+      // Should pay normally (no cost-sharing, deductible met)
+      expect(r.plan_paid).toBeGreaterThan(0);
+    });
   });
 
   describe('COB Primacy Rules', () => {
