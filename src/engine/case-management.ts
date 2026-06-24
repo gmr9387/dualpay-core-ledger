@@ -76,7 +76,7 @@ export interface RetroResult {
  * When a claim is reversed, its accumulator impact is removed, and all subsequent
  * claims (by service date) are re-adjudicated with the corrected accumulators.
  */
-export function retroRecalculate(
+export async function retroRecalculate(
   reversedClaimId: string,
   caseClaims: Claim[],
   originalRuns: Map<string, AdjudicationRun>,
@@ -84,7 +84,7 @@ export function retroRecalculate(
   contract: ContractTerms,
   plan: PlanBenefits,
   priorOutcomes: PriorPayerOutcome[]
-): RetroResult[] {
+): Promise<RetroResult[]> {
   // Sort claims by service date
   const sorted = [...caseClaims].sort((a, b) =>
     a.service_date_from.localeCompare(b.service_date_from)
@@ -106,7 +106,9 @@ export function retroRecalculate(
     }
   }
 
-  // Re-adjudicate each subsequent claim with corrected accumulators
+  // Re-adjudicate each subsequent claim with corrected accumulators via the
+  // replay-aware orchestrator. Each retro gets a unique runId so it does not
+  // collide with the original run in the in-memory replay store.
   for (const claim of claimsToRecalc) {
     const originalRun = originalRuns.get(claim.claim_id);
     if (!originalRun) continue;
@@ -115,10 +117,15 @@ export function retroRecalculate(
       claim.lines.some(l => l.line_id === po.claim_line_id)
     );
 
-    const { run: newRun, trace: newTrace } = adjudicateClaim(
-      claim.lines, adjustedAcc, contract, plan, claimPriors,
-      { runId: generateId('retro_run') }
-    );
+    const { run: newRun, trace: newTrace } = await executeAdjudicationWithReplay({
+      claim,
+      accumulators: adjustedAcc,
+      contract,
+      plan,
+      priorOutcomes: claimPriors,
+      actor: 'case-management:retro',
+      runId: generateId('retro_run'),
+    });
 
     const diff = generateAdjudicationDiff(claim.claim_id, originalRun, newRun);
     results.push({ claimId: claim.claim_id, originalRun, newRun, newTrace, diff });
