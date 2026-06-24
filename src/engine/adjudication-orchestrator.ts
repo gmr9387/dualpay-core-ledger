@@ -115,17 +115,24 @@ export async function executeAdjudicationWithReplay(
         fingerprint,
       },
     });
+    // Reconstruct trace deterministically (adjudicateClaim is pure).
+    const replay = adjudicateClaim(
+      args.claim.lines,
+      args.accumulators,
+      args.contract,
+      args.plan,
+      priorOutcomes,
+      {
+        runId: existing.run.run_id,
+        timestamp: existing.created_at,
+        traceFingerprint: fingerprint,
+        snapshotRef: `snapshots/${existing.run.run_id}/${fingerprint}`,
+        traceId: `trace_${args.claim.claim_id}_${fingerprint.slice(0, 16)}`,
+      },
+    );
     return {
       run: existing.run,
-      trace: {
-        trace_id: `trace_${args.claim.claim_id}_${fingerprint.slice(0, 16)}`,
-        run_id: existing.run.run_id,
-        claim_id: args.claim.claim_id,
-        inputs_snapshot_hash: fingerprint,
-        snapshot_ref: `snapshots/${existing.run.run_id}/${fingerprint}`,
-        timestamp,
-        events: [],
-      } as unknown as TraceObject,
+      trace: replay.trace,
       snapshot: existing.snapshot,
       fingerprint,
       ledger_events: [dupLedger],
