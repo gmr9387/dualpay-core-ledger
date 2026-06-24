@@ -79,7 +79,7 @@ export function StateDiagram({ currentStatus, claimId, hasPrimacyConfirmation, o
         currentStatus,
         targetStatus: t.to,
         hasPrimacyConfirmation,
-        hasIdempotencyKey: true, // assume available for display
+        idempotencyKey: `idem-demo-${claimId}-${currentStatus}-${t.to}`,
       }),
     }));
   }, [validTransitions, claimId, currentStatus, hasPrimacyConfirmation]);
