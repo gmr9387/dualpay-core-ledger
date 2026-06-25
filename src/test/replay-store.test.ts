@@ -13,23 +13,37 @@ import {
 import type { ReplayRecord } from '@/engine/replay-store';
 
 // Test fixtures
+let __seq = 0;
 function makeReplayRecord(overrides: Partial<ReplayRecord> = {}): ReplayRecord {
+  const id = `${Date.now()}_${++__seq}`;
+  const snapshot = {
+    snapshot_id: `snap_${id}`,
+    claim_id: 'CLM-001',
+    created_at: new Date().toISOString(),
+    calc_policy_version: '1.0.0',
+    rule_set_version: '1.0.0',
+    cob_rule_version: '1.0.0',
+    claim: {} as never,
+    accumulators: {} as never,
+    contract: {} as never,
+    plan: {} as never,
+    prior_outcomes: [],
+  } as unknown as ReplayRecord['snapshot'];
+  const run = {
+    run_id: `run_${id}`,
+    claim_id: 'CLM-001',
+    timestamp: new Date().toISOString(),
+    line_processing_order: [],
+    line_results: [],
+    final_accumulator: {} as never,
+    total_plan_paid: 10000,
+    total_member_responsibility: 5000,
+    trace_id: `trace_${id}`,
+    calc_policy_version: '1.0.0',
+  } as unknown as ReplayRecord['run'];
   return {
-    snapshot: {
-      snapshot_id: `snap_${Date.now()}`,
-      claim_id: 'CLM-001',
-      run_id: `run_${Date.now()}`,
-      inputs_hash: 'hash_abc123',
-      created_at: new Date().toISOString(),
-    },
-    run: {
-      run_id: `run_${Date.now()}`,
-      claim_id: 'CLM-001',
-      line_results: [],
-      total_plan_paid: 10000,
-      total_member_responsibility: 5000,
-      line_processing_order: [],
-    },
+    snapshot,
+    run,
     fingerprint: `fp_${Math.random().toString(36).slice(2)}`,
     created_at: new Date().toISOString(),
     ...overrides,
