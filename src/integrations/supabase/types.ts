@@ -746,6 +746,38 @@ export type Database = {
           },
         ]
       }
+      idempotency_keys: {
+        Row: {
+          actor: string
+          claim_id: string
+          consumed_at: string
+          key: string
+          org_id: string | null
+        }
+        Insert: {
+          actor: string
+          claim_id: string
+          consumed_at?: string
+          key: string
+          org_id?: string | null
+        }
+        Update: {
+          actor?: string
+          claim_id?: string
+          consumed_at?: string
+          key?: string
+          org_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idempotency_keys_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
       import_batches: {
         Row: {
           batch_id: string
@@ -1483,6 +1515,94 @@ export type Database = {
           source_row_number?: number | null
         }
         Relationships: []
+      }
+      replay_ledger_events: {
+        Row: {
+          actor: string
+          claim_id: string
+          details: Json
+          event_hash: string
+          event_id: string
+          org_id: string | null
+          prev_event_hash: string
+          run_id: string | null
+          snapshot_id: string | null
+          timestamp: string
+          type: string
+        }
+        Insert: {
+          actor: string
+          claim_id: string
+          details?: Json
+          event_hash: string
+          event_id: string
+          org_id?: string | null
+          prev_event_hash: string
+          run_id?: string | null
+          snapshot_id?: string | null
+          timestamp: string
+          type: string
+        }
+        Update: {
+          actor?: string
+          claim_id?: string
+          details?: Json
+          event_hash?: string
+          event_id?: string
+          org_id?: string | null
+          prev_event_hash?: string
+          run_id?: string | null
+          snapshot_id?: string | null
+          timestamp?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replay_ledger_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
+      replay_records: {
+        Row: {
+          claim_id: string
+          created_at: string
+          fingerprint: string
+          org_id: string | null
+          payload: Json
+          run_id: string
+          snapshot_id: string
+        }
+        Insert: {
+          claim_id: string
+          created_at?: string
+          fingerprint: string
+          org_id?: string | null
+          payload: Json
+          run_id: string
+          snapshot_id: string
+        }
+        Update: {
+          claim_id?: string
+          created_at?: string
+          fingerprint?: string
+          org_id?: string | null
+          payload?: Json
+          run_id?: string
+          snapshot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replay_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
       }
       scheduler_runs: {
         Row: {
