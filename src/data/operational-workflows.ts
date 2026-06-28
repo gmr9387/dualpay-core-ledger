@@ -306,9 +306,9 @@ export async function logRecoveryEvent(
   }
 
   // B-5 (Phase 3E): Guard — unknown billed amount must not silently bypass cap.
-  // A zero totalBilledCents after the DB fallback means either the row is
-  // missing, NULL, or was stored as 0 — all cases where enforcing no cap would
-  // risk unbounded over-recovery.
+  // A zero or negative totalBilledCents after the DB fallback means the row is
+  // missing, NULL, stored as 0, or otherwise invalid — all cases where
+  // enforcing no cap would risk unbounded over-recovery.
   if (totalBilledCents <= 0) {
     if (!params.allowUncappedRecovery) {
       throw new Error('Cannot log recovery: claim billed amount is unknown.');

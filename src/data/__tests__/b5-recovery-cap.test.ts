@@ -39,6 +39,11 @@ import { supabase } from '@/integrations/supabase/client';
  *
  * This matches the Supabase PostgREST builder pattern where any number of
  * filter methods can be chained before awaiting the result.
+ *
+ * Standard `vi.fn().mockReturnValue(x)` only handles a single level of
+ * chaining.  Supabase queries chain an arbitrary number of filter methods
+ * (e.g. .select().eq().eq().in()) before being awaited, so we need a Proxy
+ * that continues returning itself at every step while still being thenable.
  */
 function chain(val: unknown): ReturnType<typeof vi.fn> {
   const p = Promise.resolve(val);
