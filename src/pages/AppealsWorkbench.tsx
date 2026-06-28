@@ -2,13 +2,19 @@
  * Appeals Workbench — operational view of every appeal across its
  * lifecycle (Draft → Submitted → Pending → Won / Lost), with
  * readiness scoring and evidence linkage.
+ *
+ * Phase 3C (C-4/M-3): KPI tiles backed by live ops_events queries
+ * scoped by org_id. Demo clarity data remains for the appeal table
+ * rows; a prominent banner marks those as demo.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useClarityData, formatCents, formatCentsCompact, relativeTime } from '@/hooks/use-clarity-data';
 import { PageHeader, KpiStrip, ScrollBody, Panel, EmptyState, RecoverabilityBar } from '@/components/clarity/primitives';
 import type { Appeal, AppealStatus } from '@/types/clarity';
-import { Gavel, Loader2, Filter } from 'lucide-react';
+import { Gavel, Loader2, Filter, AlertTriangle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useOrg } from '@/hooks/use-org';
 
 const LIFECYCLE: Array<{ id: AppealStatus | 'all'; label: string }> = [
   { id: 'all', label: 'All' },
@@ -29,9 +35,66 @@ const STATUS_CLS: Record<AppealStatus, string> = {
   denied:    'bg-status-denied/10 text-status-denied border-status-denied/30',
 };
 
+/** C-4/M-3: Live appeal KPIs from ops_events, scoped by org_id. */
+function useLiveAppealKpis(orgId: string) {
+  const [kpis, setKpis] = useState<{
+    totalAppeals: number;
+    pendingCount: number;
+    resolvedWon: number;
+    resolvedLost: number;
+    recoveredCents: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!orgId) return;
+    let alive = true;
+    setLoading(true);
+
+    Promise.all([
+      // H-1/M-2: pending count from the correctly ordered view
+      supabase.from('v_appeal_pending_counts').select('pending_count').eq('org_id', orgId).maybeSingle(),
+      // Total appeal events submitted
+      supabase.from('ops_events').select('event_id', { count: 'exact', head: true })
+        .eq('org_id', orgId).eq('kind', 'appeal_submitted'),
+      // Won appeals (payload.appeal_status = 'won')
+      supabase.from('ops_events').select('event_id', { count: 'exact', head: true })
+        .eq('org_id', orgId).eq('kind', 'appeal_resolved')
+        .eq('payload->>appeal_status' as never, 'won'),
+      // Lost appeals
+      supabase.from('ops_events').select('event_id', { count: 'exact', head: true })
+        .eq('org_id', orgId).eq('kind', 'appeal_resolved')
+        .eq('payload->>appeal_status' as never, 'lost'),
+      // Recovery recorded amounts
+      supabase.from('ops_events').select('payload').eq('org_id', orgId).eq('kind', 'recovery_recorded'),
+    ]).then(([pendingRow, { count: total }, { count: won }, { count: lost }, { data: recovRows }]) => {
+      if (!alive) return;
+      const recoveredCents = (recovRows ?? []).reduce(
+        (sum, r) => sum + Number(((r.payload as Record<string, unknown>)?.amount_cents) ?? 0), 0,
+      );
+      setKpis({
+        totalAppeals: total ?? 0,
+        pendingCount: (pendingRow.data as { pending_count?: number } | null)?.pending_count ?? 0,
+        resolvedWon: won ?? 0,
+        resolvedLost: lost ?? 0,
+        recoveredCents,
+      });
+    }).catch(() => { /* silently fall back to zeros */ }).finally(() => {
+      if (alive) setLoading(false);
+    });
+
+    return () => { alive = false; };
+  }, [orgId]);
+
+  return { kpis, loading };
+}
+
 export default function AppealsWorkbench() {
+  const { currentOrg } = useOrg();
+  const orgId = currentOrg?.org_id ?? '';
   const { data: claims, isLoading } = useClarityData();
   const [filter, setFilter] = useState<AppealStatus | 'all'>('all');
+  const { kpis: liveKpis, loading: kpisLoading } = useLiveAppealKpis(orgId);
 
   const all = useMemo(() => {
     if (!claims) return [];
@@ -44,28 +107,41 @@ export default function AppealsWorkbench() {
   };
   for (const r of all) counts[r.appeal.status]++;
 
-  const kpis = useMemo(() => {
-    const dispute = all.reduce((s, r) => s + r.appeal.amount_in_dispute_cents, 0);
-    const recovered = all.reduce((s, r) => s + (r.appeal.amount_recovered_cents ?? 0), 0);
-    const decided = all.filter(r => ['approved','denied','partial'].includes(r.appeal.status));
-    const wins = all.filter(r => r.appeal.status === 'approved' || r.appeal.status === 'partial');
-    const winRate = decided.length ? wins.length / decided.length : 0;
-    const avgReadiness = all.length ? Math.round(all.reduce((s, r) => s + r.appeal.appeal_readiness_score, 0) / all.length) : 0;
-    return { dispute, recovered, winRate, avgReadiness };
-  }, [all]);
-
   if (isLoading) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
+
+  const winRate = liveKpis && (liveKpis.resolvedWon + liveKpis.resolvedLost) > 0
+    ? liveKpis.resolvedWon / (liveKpis.resolvedWon + liveKpis.resolvedLost)
+    : null;
 
   return (
     <div className="flex flex-col h-full">
       <PageHeader title="Appeals Workbench" subtitle="Lifecycle view of appeals with readiness scoring, payer response tracking, and recovery outcomes." />
-      <KpiStrip tiles={[
-        { label: 'Total Appeals',      value: String(all.length) },
-        { label: 'Amount Disputed',    value: formatCentsCompact(kpis.dispute),  tone: 'amount-negative' },
-        { label: 'Recovered',          value: formatCentsCompact(kpis.recovered), tone: 'amount-positive' },
-        { label: 'Win Rate',           value: `${(kpis.winRate * 100).toFixed(0)}%`, tone: 'text-status-cob' },
-        { label: 'Avg Readiness',      value: `${kpis.avgReadiness}/100`,         tone: kpis.avgReadiness >= 70 ? 'text-status-paid' : 'text-status-pending' },
-      ]} />
+
+      {/* C-4/M-3: Live KPI strip from ops_events */}
+      {kpisLoading ? (
+        <div className="px-5 py-2 text-[11.5px] text-muted-foreground flex items-center gap-1.5">
+          <Loader2 className="h-3 w-3 animate-spin" /> Loading live KPIs…
+        </div>
+      ) : liveKpis ? (
+        <KpiStrip tiles={[
+          { label: 'Appeals Submitted',  value: String(liveKpis.totalAppeals) },
+          { label: 'Pending Response',   value: String(liveKpis.pendingCount),    tone: liveKpis.pendingCount > 0 ? 'text-status-pending' : undefined },
+          { label: 'Won',                value: String(liveKpis.resolvedWon),      tone: 'text-status-paid' },
+          { label: 'Lost',               value: String(liveKpis.resolvedLost),     tone: 'text-status-denied' },
+          { label: 'Win Rate',           value: winRate !== null ? `${(winRate * 100).toFixed(0)}%` : '—', tone: 'text-status-cob' },
+          { label: 'Recovered',          value: formatCentsCompact(liveKpis.recoveredCents), tone: 'amount-positive' },
+        ]} />
+      ) : null}
+
+      {/* C-4/M-3: Demo data banner for the appeal table rows */}
+      <div className="mx-5 mt-3 mb-1 flex items-start gap-2 rounded-md border border-status-pending/40 bg-status-pending/5 px-3 py-2 text-[11.5px] text-status-pending">
+        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+        <span>
+          <strong>Demo data:</strong> The appeal rows below are sourced from sample clarity data.
+          Connect a live payer feed to replace them with real adjudication records.
+          KPI tiles above reflect live <code>ops_events</code> for your org.
+        </span>
+      </div>
 
       <div className="px-5 py-3 border-b bg-card flex items-center gap-2 flex-wrap">
         <Filter className="h-3.5 w-3.5 text-muted-foreground" />

@@ -1,15 +1,24 @@
 /**
- * Phase 3B — Claim Drawer
+ * Phase 3C — Claim Drawer (Production Hardened)
  *
  * Slide-over sheet for working a single claim end-to-end:
  * summary, timeline, assignment, notes, appeal, recovery, write-off.
  *
- * Uses only Phase 3A repository functions in src/data/operational-workflows.ts.
+ * Phase 3C changes:
+ *   C-2/L-1  Write-off gated by manager/admin role; requires confirmation modal.
+ *   H-2/H-4  Write-off removed from RecoveryPanel; recovery capped at billed balance.
+ *   H-3      snooze_until required when status = 'snoozed'.
+ *   M-1      Appeal state transitions validated before logging.
+ *   M-6      Assignment auto-closes after full recovery or write-off.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,16 +33,21 @@ import {
   getClaimTimeline, getNoteTimeline,
   type TimelineEvent, type ClaimAssignmentRecord,
 } from '@/data/operational-workflows';
+import { can } from '@/lib/role-permissions';
+import type { OrgRole } from '@/hooks/use-org';
 import { supabase } from '@/integrations/supabase/client';
 import type { Claim } from '@/types/claim';
 import {
   Loader2, FileText, History, UserCheck, StickyNote, Gavel, Banknote, XCircle,
+  ShieldOff, AlertTriangle,
 } from 'lucide-react';
 
 interface Props {
   claimId: string | null;
   orgId: string;
   userId: string;
+  /** C-2/L-1: Current user's role — determines write-off visibility. */
+  userRole?: OrgRole | null;
   onClose: () => void;
   onChanged?: () => void;
 }
@@ -61,13 +75,15 @@ function fmtMoney(cents: number) {
     .format((cents ?? 0) / 100);
 }
 
-export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Props) {
+export function ClaimDrawer({ claimId, orgId, userId, userRole, onClose, onChanged }: Props) {
   const open = !!claimId;
   const [loading, setLoading] = useState(false);
   const [claim, setClaim] = useState<Claim | null>(null);
   const [assignment, setAssignment] = useState<ClaimAssignmentRecord | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [busy, setBusy] = useState(false);
+  /** C-2/L-1: Controls the write-off confirmation modal. */
+  const [writeOffPending, setWriteOffPending] = useState<{ reason: string } | null>(null);
 
   const refresh = useCallback(async () => {
     if (!claimId) return;
@@ -110,136 +126,212 @@ export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Prop
     [claim],
   );
 
+  /** C-2/L-1: Execute the confirmed write-off with full audit data. */
+  const executeWriteOff = async (reason: string) => {
+    if (!claimId) return;
+    setBusy(true);
+    try {
+      await logWriteOff(claimId, orgId, reason, {
+        actorId: userId,
+        actorRole: userRole ?? 'unknown',
+        amountCents: claim ? claim.total_billed : undefined,
+      });
+      toast({ title: 'Claim written off', description: `Reason: ${reason}` });
+      await refresh();
+      onChanged?.();
+    } catch (e) {
+      toast({ title: 'Write-off failed', description: String(e), variant: 'destructive' });
+    } finally {
+      setBusy(false);
+      setWriteOffPending(null);
+    }
+  };
+
+  const canWriteOff = can.writeOff(userRole);
+
   return (
-    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl p-0 flex flex-col">
-        <SheetHeader className="px-5 py-4 border-b">
-          <SheetTitle className="text-base font-semibold tracking-tight font-mono">
-            {claimId ?? '—'}
-          </SheetTitle>
-          <SheetDescription className="text-[12px]">
-            {claim ? (
-              <span className="flex flex-wrap gap-x-3 gap-y-1">
-                <span>{claim.provider_name}</span>
-                <span>·</span>
-                <span>{payerName}</span>
-                <span>·</span>
-                <span className="font-mono">{fmtMoney(claim.total_billed)}</span>
-              </span>
-            ) : 'Loading…'}
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      {/* C-2/L-1: Write-off confirmation modal */}
+      <AlertDialog open={!!writeOffPending} onOpenChange={(v) => { if (!v) setWriteOffPending(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-status-denied">
+              <AlertTriangle className="h-4 w-4" /> Confirm Write-off
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                You are about to write off claim <span className="font-mono font-semibold">{claimId}</span>.
+                This action is logged to the audit trail with your identity and role.
+              </p>
+              <p className="font-medium text-foreground">Reason: {writeOffPending?.reason}</p>
+              {claim && (
+                <p className="font-mono text-status-denied">
+                  Amount: {fmtMoney(claim.total_billed)}
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Actor: {userId} · Role: {userRole ?? 'unknown'} · Org: {orgId}
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              className="bg-status-denied text-white hover:bg-status-denied/90"
+              onClick={() => writeOffPending && executeWriteOff(writeOffPending.reason)}
+            >
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <XCircle className="h-3.5 w-3.5 mr-1" />}
+              Confirm write-off
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-        {loading ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading claim…
-          </div>
-        ) : (
-          <Tabs defaultValue="summary" className="flex-1 flex flex-col min-h-0">
-            <TabsList className="mx-5 mt-3 grid grid-cols-5 h-9">
-              <TabsTrigger value="summary" className="text-[11.5px]"><FileText className="h-3.5 w-3.5 mr-1" />Summary</TabsTrigger>
-              <TabsTrigger value="timeline" className="text-[11.5px]"><History className="h-3.5 w-3.5 mr-1" />Timeline</TabsTrigger>
-              <TabsTrigger value="notes" className="text-[11.5px]"><StickyNote className="h-3.5 w-3.5 mr-1" />Notes</TabsTrigger>
-              <TabsTrigger value="appeal" className="text-[11.5px]"><Gavel className="h-3.5 w-3.5 mr-1" />Appeal</TabsTrigger>
-              <TabsTrigger value="recovery" className="text-[11.5px]"><Banknote className="h-3.5 w-3.5 mr-1" />Recovery</TabsTrigger>
-            </TabsList>
+      <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-0 flex flex-col">
+          <SheetHeader className="px-5 py-4 border-b">
+            <SheetTitle className="text-base font-semibold tracking-tight font-mono">
+              {claimId ?? '—'}
+            </SheetTitle>
+            <SheetDescription className="text-[12px]">
+              {claim ? (
+                <span className="flex flex-wrap gap-x-3 gap-y-1">
+                  <span>{claim.provider_name}</span>
+                  <span>·</span>
+                  <span>{payerName}</span>
+                  <span>·</span>
+                  <span className="font-mono">{fmtMoney(claim.total_billed)}</span>
+                </span>
+              ) : 'Loading…'}
+            </SheetDescription>
+          </SheetHeader>
 
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {/* ── SUMMARY ── */}
-              <TabsContent value="summary" className="mt-0 space-y-4">
-                {claim && (
-                  <div className="grid grid-cols-2 gap-3 text-[12.5px]">
-                    <SummaryRow label="Member" value={claim.member_id} />
-                    <SummaryRow label="Type" value={claim.claim_type} />
-                    <SummaryRow label="Provider" value={claim.provider_name} />
-                    <SummaryRow label="Provider NPI" value={claim.provider_npi} />
-                    <SummaryRow label="Service from" value={claim.service_date_from} />
-                    <SummaryRow label="Service to" value={claim.service_date_to} />
-                    <SummaryRow label="Total billed" value={fmtMoney(claim.total_billed)} mono />
-                    <SummaryRow label="Adj. status" value={claim.status} />
-                    <SummaryRow label="Primary payer" value={payerName} />
-                    <SummaryRow label="Lines" value={String(claim.lines?.length ?? 0)} />
-                  </div>
-                )}
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading claim…
+            </div>
+          ) : (
+            <Tabs defaultValue="summary" className="flex-1 flex flex-col min-h-0">
+              <TabsList className="mx-5 mt-3 grid grid-cols-5 h-9">
+                <TabsTrigger value="summary" className="text-[11.5px]"><FileText className="h-3.5 w-3.5 mr-1" />Summary</TabsTrigger>
+                <TabsTrigger value="timeline" className="text-[11.5px]"><History className="h-3.5 w-3.5 mr-1" />Timeline</TabsTrigger>
+                <TabsTrigger value="notes" className="text-[11.5px]"><StickyNote className="h-3.5 w-3.5 mr-1" />Notes</TabsTrigger>
+                <TabsTrigger value="appeal" className="text-[11.5px]"><Gavel className="h-3.5 w-3.5 mr-1" />Appeal</TabsTrigger>
+                <TabsTrigger value="recovery" className="text-[11.5px]"><Banknote className="h-3.5 w-3.5 mr-1" />Recovery</TabsTrigger>
+              </TabsList>
 
-                <AssignmentPanel
-                  assignment={assignment}
-                  busy={busy}
-                  userId={userId}
-                  onSave={async (params) =>
-                    wrap(
-                      () => updateAssignment(claimId!, orgId, { ...params, assignedByUserId: userId }),
-                      'Assignment updated',
-                    )
-                  }
-                />
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                {/* ── SUMMARY ── */}
+                <TabsContent value="summary" className="mt-0 space-y-4">
+                  {claim && (
+                    <div className="grid grid-cols-2 gap-3 text-[12.5px]">
+                      <SummaryRow label="Member" value={claim.member_id} />
+                      <SummaryRow label="Type" value={claim.claim_type} />
+                      <SummaryRow label="Provider" value={claim.provider_name} />
+                      <SummaryRow label="Provider NPI" value={claim.provider_npi} />
+                      <SummaryRow label="Service from" value={claim.service_date_from} />
+                      <SummaryRow label="Service to" value={claim.service_date_to} />
+                      <SummaryRow label="Total billed" value={fmtMoney(claim.total_billed)} mono />
+                      <SummaryRow label="Adj. status" value={claim.status} />
+                      <SummaryRow label="Primary payer" value={payerName} />
+                      <SummaryRow label="Lines" value={String(claim.lines?.length ?? 0)} />
+                    </div>
+                  )}
 
-                <div className="border rounded-md p-3 bg-card">
-                  <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
-                    Danger zone
-                  </div>
-                  <WriteOffForm
+                  <AssignmentPanel
+                    assignment={assignment}
                     busy={busy}
-                    onSubmit={(reason) =>
-                      wrap(() => logWriteOff(claimId!, orgId, reason, userId), 'Claim written off')
+                    userId={userId}
+                    onSave={async (params) =>
+                      wrap(
+                        () => updateAssignment(claimId!, orgId, { ...params, assignedByUserId: userId }),
+                        'Assignment updated',
+                      )
                     }
                   />
-                </div>
-              </TabsContent>
 
-              {/* ── TIMELINE ── */}
-              <TabsContent value="timeline" className="mt-0">
-                <TimelineView events={timeline} />
-              </TabsContent>
+                  {/* C-2/L-1: Danger zone only visible to manager/admin/owner */}
+                  <div className="border border-status-denied/20 rounded-md p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldOff className="h-3.5 w-3.5 text-status-denied" />
+                      <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                        Danger zone
+                      </span>
+                    </div>
+                    {canWriteOff ? (
+                      <WriteOffForm
+                        busy={busy}
+                        onSubmit={(reason) => setWriteOffPending({ reason })}
+                      />
+                    ) : (
+                      <p className="text-[12px] text-muted-foreground">
+                        Write-off requires <span className="font-semibold">manager</span> or higher role.
+                        Contact your manager to write off this claim.
+                      </p>
+                    )}
+                  </div>
+                </TabsContent>
 
-              {/* ── NOTES ── */}
-              <TabsContent value="notes" className="mt-0 space-y-3">
-                <NotesPanel
-                  claimId={claimId!}
-                  orgId={orgId}
-                  userId={userId}
-                  busy={busy}
-                  onAdd={(note) =>
-                    wrap(() => addNote(claimId!, orgId, note, userId), 'Note added')
-                  }
-                />
-              </TabsContent>
+                {/* ── TIMELINE ── */}
+                <TabsContent value="timeline" className="mt-0">
+                  <TimelineView events={timeline} />
+                </TabsContent>
 
-              {/* ── APPEAL ── */}
-              <TabsContent value="appeal" className="mt-0 space-y-3">
-                <AppealPanel
-                  busy={busy}
-                  onSubmit={(params) =>
-                    wrap(() => logAppealEvent(claimId!, orgId, params), `Appeal: ${params.summary}`)
-                  }
-                />
-                <TimelineView
-                  events={timeline.filter(e => e.kind.startsWith('appeal_'))}
-                  emptyText="No appeal activity yet."
-                />
-              </TabsContent>
+                {/* ── NOTES ── */}
+                <TabsContent value="notes" className="mt-0 space-y-3">
+                  <NotesPanel
+                    claimId={claimId!}
+                    orgId={orgId}
+                    userId={userId}
+                    busy={busy}
+                    onAdd={(note) =>
+                      wrap(() => addNote(claimId!, orgId, note, userId), 'Note added')
+                    }
+                  />
+                </TabsContent>
 
-              {/* ── RECOVERY ── */}
-              <TabsContent value="recovery" className="mt-0 space-y-3">
-                <RecoveryPanel
-                  busy={busy}
-                  onSubmit={(params) =>
-                    wrap(
-                      () => logRecoveryEvent(claimId!, orgId, { ...params, analystUserId: userId }),
-                      'Recovery recorded',
-                    )
-                  }
-                />
-                <TimelineView
-                  events={timeline.filter(e => e.kind === 'recovery_recorded')}
-                  emptyText="No recoveries logged yet."
-                />
-              </TabsContent>
-            </div>
-          </Tabs>
-        )}
-      </SheetContent>
-    </Sheet>
+                {/* ── APPEAL ── */}
+                <TabsContent value="appeal" className="mt-0 space-y-3">
+                  <AppealPanel
+                    busy={busy}
+                    onSubmit={(params) =>
+                      wrap(() => logAppealEvent(claimId!, orgId, params), `Appeal: ${params.summary}`)
+                    }
+                  />
+                  <TimelineView
+                    events={timeline.filter(e => e.kind.startsWith('appeal_'))}
+                    emptyText="No appeal activity yet."
+                  />
+                </TabsContent>
+
+                {/* ── RECOVERY ── */}
+                <TabsContent value="recovery" className="mt-0 space-y-3">
+                  <RecoveryPanel
+                    busy={busy}
+                    totalBilledCents={claim ? claim.total_billed : undefined}
+                    onSubmit={(params) =>
+                      wrap(
+                        () => logRecoveryEvent(claimId!, orgId, {
+                          ...params,
+                          analystUserId: userId,
+                          totalBilledCents: claim ? claim.total_billed : undefined,
+                        }),
+                        'Recovery recorded',
+                      )
+                    }
+                  />
+                  <TimelineView
+                    events={timeline.filter(e => e.kind === 'recovery_recorded')}
+                    emptyText="No recoveries logged yet."
+                  />
+                </TabsContent>
+              </div>
+            </Tabs>
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 
@@ -268,6 +360,8 @@ function AssignmentPanel({
     assignedToUserId?: string;
     priority?: 'low' | 'medium' | 'high' | 'urgent';
     dueDate?: Date;
+    /** H-3: Required when status='snoozed'. */
+    snoozeUntil?: Date;
     status?: 'open' | 'in_progress' | 'snoozed' | 'resolved';
   }) => void;
 }) {
@@ -280,15 +374,23 @@ function AssignmentPanel({
   const [due, setDue] = useState<string>(
     assignment?.due_date ? assignment.due_date.slice(0, 10) : '',
   );
+  /** H-3: snooze_until — required when status = 'snoozed'. */
+  const [snoozeUntil, setSnoozeUntil] = useState<string>(
+    assignment?.snooze_until ? assignment.snooze_until.slice(0, 10) : '',
+  );
 
   useEffect(() => {
     setPriority((assignment?.priority as never) ?? 'medium');
     setStatus((assignment?.status as never) ?? 'open');
     setDue(assignment?.due_date ? assignment.due_date.slice(0, 10) : '');
+    setSnoozeUntil(assignment?.snooze_until ? assignment.snooze_until.slice(0, 10) : '');
   }, [assignment]);
 
   const assigned = assignment?.assigned_to_user_id;
   const isMine = assigned === userId;
+
+  // H-3: Save is blocked if snoozed but no snooze_until date is set.
+  const snoozeValid = status !== 'snoozed' || !!snoozeUntil;
 
   return (
     <div className="border rounded-md p-3 bg-card space-y-3">
@@ -325,7 +427,7 @@ function AssignmentPanel({
           <Select value={priority} onValueChange={(v) => setPriority(v as never)}>
             <SelectTrigger className="h-8 text-[12.5px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {['low', 'medium', 'high', 'urgent'].map(p => (
+              {(['low', 'medium', 'high', 'urgent'] as const).map(p => (
                 <SelectItem key={p} value={p}>{p}</SelectItem>
               ))}
             </SelectContent>
@@ -336,7 +438,7 @@ function AssignmentPanel({
           <Select value={status} onValueChange={(v) => setStatus(v as never)}>
             <SelectTrigger className="h-8 text-[12.5px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {['open', 'in_progress', 'snoozed', 'resolved'].map(s => (
+              {(['open', 'in_progress', 'snoozed', 'resolved'] as const).map(s => (
                 <SelectItem key={s} value={s}>{s.replace('_', ' ')}</SelectItem>
               ))}
             </SelectContent>
@@ -352,10 +454,47 @@ function AssignmentPanel({
         </div>
       </div>
 
+      {/* H-3: Snooze-until field — required when status = 'snoozed' */}
+      {status === 'snoozed' && (
+        <div>
+          <Label className="text-[10.5px] text-status-pending">
+            Wake date <span className="text-status-denied">*</span>
+          </Label>
+          <Input
+            type="date"
+            value={snoozeUntil}
+            min={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setSnoozeUntil(e.target.value)}
+            className={`h-8 text-[12.5px] ${!snoozeUntil ? 'border-status-denied' : ''}`}
+          />
+          {!snoozeUntil && (
+            <p className="text-[11px] text-status-denied mt-0.5">
+              Wake date is required when snoozing a claim.
+            </p>
+          )}
+          {snoozeUntil && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Claim will resurface on {new Date(snoozeUntil).toLocaleDateString()}.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-end">
         <Button
-          size="sm" disabled={busy}
+          size="sm" disabled={busy || !snoozeValid}
+          title={!snoozeValid ? 'A wake date is required when snoozing' : undefined}
           onClick={() => onSave({
+            priority,
+            status,
+            dueDate: due ? new Date(due) : undefined,
+            snoozeUntil: status === 'snoozed' && snoozeUntil ? new Date(snoozeUntil) : undefined,
+          })}
+        >Save changes</Button>
+      </div>
+    </div>
+  );
+}
             priority,
             status,
             dueDate: due ? new Date(due) : undefined,
@@ -489,18 +628,21 @@ function AppealPanel({
   );
 }
 
+/** H-2/H-4: Recovery panel — write-off is removed from this panel. */
 function RecoveryPanel({
-  busy, onSubmit,
+  busy, totalBilledCents, onSubmit,
 }: {
   busy: boolean;
+  /** H-2/H-4: Used to display cap information to the analyst. */
+  totalBilledCents?: number;
   onSubmit: (p: {
-    recoveryType: 'payer_payment' | 'patient_payment' | 'writeoff' | 'adjustment';
+    recoveryType: 'payer_payment' | 'patient_payment' | 'adjustment';
     amountCents: number;
     recoveredFrom: string;
     notes?: string;
   }) => void;
 }) {
-  const [type, setType] = useState<'payer_payment' | 'patient_payment' | 'writeoff' | 'adjustment'>('payer_payment');
+  const [type, setType] = useState<'payer_payment' | 'patient_payment' | 'adjustment'>('payer_payment');
   const [amount, setAmount] = useState('');
   const [source, setSource] = useState('');
   const [notes, setNotes] = useState('');
@@ -509,16 +651,23 @@ function RecoveryPanel({
 
   return (
     <div className="border rounded-md p-3 bg-card space-y-2">
+      {totalBilledCents !== undefined && (
+        <p className="text-[11px] text-muted-foreground">
+          Recovery is capped at total billed:{' '}
+          <span className="font-mono font-semibold">{fmtMoney(totalBilledCents)}</span>.
+          Use the Danger zone to write off the remaining balance.
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <Label className="text-[10.5px]">Recovery type</Label>
           <Select value={type} onValueChange={(v) => setType(v as never)}>
             <SelectTrigger className="h-8 text-[12.5px]"><SelectValue /></SelectTrigger>
             <SelectContent>
+              {/* H-2/H-4: writeoff intentionally excluded */}
               <SelectItem value="payer_payment">Payer payment</SelectItem>
               <SelectItem value="patient_payment">Patient payment</SelectItem>
               <SelectItem value="adjustment">Adjustment</SelectItem>
-              <SelectItem value="writeoff">Write-off</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -561,6 +710,7 @@ function RecoveryPanel({
   );
 }
 
+/** C-2/L-1: Visible only to manager/admin; triggers confirmation modal before executing. */
 function WriteOffForm({
   busy, onSubmit,
 }: { busy: boolean; onSubmit: (reason: string) => void }) {

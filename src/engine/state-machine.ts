@@ -80,9 +80,11 @@ export async function initializeIdempotencyKeyTracking(): Promise<void> {
 
 /**
  * Consume an idempotency key. Returns true on first use, false if already consumed.
- * 
- * This is the in-memory check. For production, always verify against the DB as well.
- * 
+ *
+ * C-3: This checks the in-memory cache first for speed, then falls back to the
+ * persistent DB check to survive restarts. The DB is the authoritative source of
+ * truth; the in-memory set is only a fast-path cache.
+ *
  * Callers that perform side-effectful payment work should invoke this before
  * acting and abort if it returns false.
  */
@@ -354,6 +356,52 @@ export function canTransition(
     appliedGuards,
     idempotencyKey: context.idempotencyKey,
   };
+}
+
+/**
+ * C-3: Persistent DB-backed idempotency check for payment transitions.
+ *
+ * For payment/recovery transitions this function:
+ *   1. Checks the in-memory cache (fast path).
+ *   2. Checks the persistent idempotency_keys table (survives restarts).
+ *   3. Only if both checks pass, records the key in the DB before returning.
+ *
+ * Must be awaited before performing any payment side-effect.
+ * Returns the same TransitionResult shape as canTransition().
+ */
+export async function canTransitionWithPersistentIdempotency(
+  context: TransitionContext,
+): Promise<TransitionResult> {
+  // First run the synchronous guard checks.
+  const result = canTransition(context);
+  if (!result.allowed) return result;
+
+  // For non-payment transitions, no additional DB check needed.
+  if (!isPaymentTransition(context.currentStatus, context.targetStatus)) {
+    return result;
+  }
+
+  const key = context.idempotencyKey;
+  if (!key) return result;
+
+  // C-3: Persistent check — survives process restart.
+  const isConsumed = await isIdempotencyKeyConsumedPersistent(key);
+  if (isConsumed) {
+    return {
+      ...result,
+      allowed: false,
+      failedGuards: [...result.failedGuards, 'IDEMPOTENCY_KEY_ALREADY_USED_PERSISTENT'],
+    };
+  }
+
+  // Record consumption atomically before the caller performs the payment action.
+  await recordIdempotencyKeyConsumptionPersistent(
+    key,
+    context.claimId,
+    context.userId ?? 'system',
+  );
+
+  return result;
 }
 
 export function getStatusCategory(

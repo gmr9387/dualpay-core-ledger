@@ -63,7 +63,9 @@ export async function setAssignment(claimId: string, patch: Partial<Assignment>)
   };
   const { data, error } = await supabase
     .from('claim_assignments')
-    .upsert(row as never, { onConflict: 'claim_id' })
+    // H-6: Use (claim_id, org_id) composite conflict key for multi-tenant safety.
+    // org_id is set by the DB trigger (set_default_org_id) when not provided.
+    .upsert(row as never, { onConflict: 'claim_id,org_id' })
     .select('*')
     .single();
   if (error) {

@@ -15,6 +15,8 @@ export const can = {
   assign:         (r: OrgRole | null | undefined) => roleAtLeast(r, 'analyst'),
   escalate:       (r: OrgRole | null | undefined) => roleAtLeast(r, 'manager'),
   delete:         (r: OrgRole | null | undefined) => roleAtLeast(r, 'manager'),
+  /** Write-off is a destructive, irreversible action — manager/admin/owner only. */
+  writeOff:       (r: OrgRole | null | undefined) => roleAtLeast(r, 'manager'),
   exportAudit:    (r: OrgRole | null | undefined) => roleAtLeast(r, 'manager'),
   exportFull:     (r: OrgRole | null | undefined) => roleAtLeast(r, 'admin'),
   manageOrg:      (r: OrgRole | null | undefined) => roleAtLeast(r, 'admin'),

@@ -33,6 +33,8 @@ export interface ClaimAssignmentRecord {
   assigned_at: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   due_date?: string;
+  /** ISO timestamp; required when status = 'snoozed'. */
+  snooze_until?: string;
   status: 'open' | 'in_progress' | 'snoozed' | 'resolved';
   created_at: string;
   updated_at: string;
@@ -66,6 +68,9 @@ export interface WorklistItem {
 
 /**
  * Create or update a claim assignment.
+ *
+ * H-6: Uses (claim_id, org_id) composite conflict key for multi-tenant safety.
+ * H-3: snooze_until is required when status = 'snoozed'.
  */
 export async function updateAssignment(
   claimId: string,
@@ -75,6 +80,8 @@ export async function updateAssignment(
     assignedByUserId?: string;
     priority?: 'low' | 'medium' | 'high' | 'urgent';
     dueDate?: Date;
+    /** H-3: Required when status='snoozed'. */
+    snoozeUntil?: Date;
     status?: 'open' | 'in_progress' | 'snoozed' | 'resolved';
   },
 ): Promise<ClaimAssignmentRecord> {
@@ -83,14 +90,21 @@ export async function updateAssignment(
     assignedByUserId,
     priority,
     dueDate,
+    snoozeUntil,
     status,
   } = params;
 
-  // Get current assignment (if exists)
+  // H-3: Enforce snooze_until when snoozed.
+  if (status === 'snoozed' && !snoozeUntil) {
+    throw new Error('snooze_until is required when setting status to snoozed');
+  }
+
+  // Get current assignment (if exists) — scoped to org for multi-tenancy.
   const { data: current } = await supabase
     .from('claim_assignments')
     .select('*')
     .eq('claim_id', claimId)
+    .eq('org_id', orgId)
     .maybeSingle();
 
   // Prepare update payload
@@ -100,6 +114,9 @@ export async function updateAssignment(
 
   if (priority !== undefined) updateData.priority = priority;
   if (dueDate !== undefined) updateData.due_date = dueDate.toISOString();
+  if (snoozeUntil !== undefined) updateData.snooze_until = snoozeUntil.toISOString();
+  // Clear snooze_until when un-snoozing.
+  if (status !== undefined && status !== 'snoozed') updateData.snooze_until = null;
   if (status !== undefined) updateData.status = status;
   if (assignedToUserId !== undefined) {
     updateData.assigned_to_user_id = assignedToUserId;
@@ -108,13 +125,13 @@ export async function updateAssignment(
     updateData.assigned_by_user_id = assignedByUserId;
   }
 
-  // Upsert assignment
+  // H-6: Upsert on composite (claim_id, org_id) — multi-tenant safe.
   const { data, error } = await supabase
     .from('claim_assignments')
     .upsert([{
       claim_id: claimId,
       ...updateData,
-    }] as never, { onConflict: 'claim_id' })
+    }] as never, { onConflict: 'claim_id,org_id' })
     .select()
     .single();
 
@@ -123,7 +140,7 @@ export async function updateAssignment(
   // Log assignment event
   const eventKind = current ? 'assignment_updated' : 'assignment_created';
   const summary = current
-    ? `Assignment updated: ${priority ? `priority=${priority}` : ''} ${dueDate ? `due=${dueDate.toLocaleDateString()}` : ''}`
+    ? `Assignment updated: ${priority ? `priority=${priority}` : ''} ${dueDate ? `due=${dueDate.toLocaleDateString()}` : ''} ${status ? `status=${status}` : ''}`
     : `Assigned to ${assignedToUserId || 'unassigned'}`;
 
   await appendOpsEvent({
@@ -138,6 +155,9 @@ export async function updateAssignment(
       new_priority: priority,
       previous_due_date: current?.due_date,
       new_due_date: dueDate?.toISOString(),
+      previous_status: current?.status,
+      new_status: status,
+      snooze_until: snoozeUntil?.toISOString(),
       assigned_by: assignedByUserId,
     },
   });
@@ -182,6 +202,35 @@ export async function logAppealEvent(
     notes?: string;
   },
 ): Promise<string> {
+  // M-1: Appeal state transition guard.
+  // Fetch the latest appeal event for this claim to validate the transition.
+  const { data: latestEvents } = await supabase
+    .from('ops_events')
+    .select('kind')
+    .eq('claim_id', claimId)
+    .eq('org_id', orgId)
+    .in('kind', ['appeal_submitted', 'appeal_responded', 'appeal_resolved'])
+    .order('occurred_at', { ascending: false })
+    .limit(1);
+
+  const latestKind = latestEvents?.[0]?.kind as string | undefined;
+
+  const VALID_TRANSITIONS: Record<string, string[]> = {
+    // No prior appeal: can submit
+    undefined: ['appeal_submitted'],
+    appeal_submitted: ['appeal_responded', 'appeal_resolved'],
+    appeal_responded: ['appeal_resolved', 'appeal_submitted'], // re-submit on new level
+    appeal_resolved: ['appeal_submitted'], // new appeal level allowed
+  };
+
+  const allowed = VALID_TRANSITIONS[latestKind ?? 'undefined'] ?? ['appeal_submitted'];
+  if (!allowed.includes(params.kind)) {
+    throw new Error(
+      `Invalid appeal transition: cannot ${params.kind} when latest event is ${latestKind ?? 'none'}. ` +
+      `Allowed: ${allowed.join(', ')}`,
+    );
+  }
+
   return appendOpsEvent({
     kind: params.kind,
     claimId,
@@ -197,18 +246,57 @@ export async function logAppealEvent(
 
 /**
  * Log a recovery transaction.
+ *
+ * H-2/H-4: Does NOT accept 'writeoff' as a recovery type — write-offs are
+ * logged separately via logWriteOff() which requires elevated role checks.
+ * M-6: Automatically closes the assignment when claim is fully recovered.
  */
 export async function logRecoveryEvent(
   claimId: string,
   orgId: string,
   params: {
-    recoveryType: 'payer_payment' | 'patient_payment' | 'writeoff' | 'adjustment';
+    recoveryType: 'payer_payment' | 'patient_payment' | 'adjustment';
     amountCents: number;
     recoveredFrom: string;
     analystUserId?: string;
     notes?: string;
+    /** Total billed/denied amount for this claim (cents). Used to cap recovery. */
+    totalBilledCents?: number;
   },
 ): Promise<string> {
+  // H-2/H-4: Cap recovery at remaining balance to prevent over-recovery.
+  if (params.totalBilledCents !== undefined && params.totalBilledCents > 0) {
+    const { data: priorEvents } = await supabase
+      .from('ops_events')
+      .select('payload')
+      .eq('claim_id', claimId)
+      .eq('org_id', orgId)
+      .eq('kind', 'recovery_recorded');
+
+    const alreadyRecoveredCents = (priorEvents ?? []).reduce((sum, e) => {
+      const p = e.payload as Record<string, unknown> | null;
+      return sum + (typeof p?.amount_cents === 'number' ? p.amount_cents : 0);
+    }, 0);
+
+    const remainingCents = params.totalBilledCents - alreadyRecoveredCents;
+    if (params.amountCents > remainingCents) {
+      throw new Error(
+        `Recovery amount $${(params.amountCents / 100).toFixed(2)} exceeds remaining balance ` +
+        `$${(remainingCents / 100).toFixed(2)}. Already recovered: $${(alreadyRecoveredCents / 100).toFixed(2)}.`,
+      );
+    }
+
+    // M-6: Auto-close assignment when fully recovered.
+    const newTotal = alreadyRecoveredCents + params.amountCents;
+    if (newTotal >= params.totalBilledCents) {
+      await supabase
+        .from('claim_assignments')
+        .update({ status: 'resolved' } as never)
+        .eq('claim_id', claimId)
+        .eq('org_id', orgId);
+    }
+  }
+
   const summary = `Recovery recorded: ${params.recoveryType} of $${(params.amountCents / 100).toFixed(2)} from ${params.recoveredFrom}`;
 
   return appendOpsEvent({
@@ -228,20 +316,41 @@ export async function logRecoveryEvent(
 
 /**
  * Log a write-off.
+ *
+ * C-2/L-1: Records full audit trail — actor_id, actor_role, reason, amount, org_id.
+ * M-6: Automatically closes the assignment after write-off.
  */
 export async function logWriteOff(
   claimId: string,
   orgId: string,
   reason: string,
-  actor?: string,
+  options: {
+    actorId: string;
+    actorRole: string;
+    amountCents?: number;
+    actor?: string;
+  },
 ): Promise<string> {
+  // M-6: Close the assignment when writing off.
+  await supabase
+    .from('claim_assignments')
+    .update({ status: 'resolved' } as never)
+    .eq('claim_id', claimId)
+    .eq('org_id', orgId);
+
   return appendOpsEvent({
     kind: 'claim_written_off',
     claimId,
     orgId,
-    summary: `Claim written off: ${reason}`,
-    payload: { reason },
-    actor,
+    summary: `Claim written off by ${options.actor ?? options.actorId}: ${reason}`,
+    payload: {
+      reason,
+      actor_id: options.actorId,
+      actor_role: options.actorRole,
+      amount_cents: options.amountCents,
+      org_id: orgId,
+    },
+    actor: options.actor,
   });
 }
 

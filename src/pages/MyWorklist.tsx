@@ -92,26 +92,20 @@ export default function MyWorklist() {
       }
 
       // Dashboard: org-wide counts via direct queries.
+      // H-1/M-2: Appeals pending uses v_appeal_pending_counts view (occurred_at ordered).
       const [
         { count: openAssn },
-        { data: appealEvents },
+        { data: pendingCountRow },
         { count: openClaims },
         { data: recoveryEvents },
       ] = await Promise.all([
         supabase.from('claim_assignments').select('claim_id', { count: 'exact', head: true })
           .eq('org_id', orgId).neq('status', 'resolved'),
-        supabase.from('ops_events').select('claim_id, kind').eq('org_id', orgId)
-          .in('kind', ['appeal_submitted', 'appeal_responded']),
+        supabase.from('v_appeal_pending_counts').select('pending_count').eq('org_id', orgId).maybeSingle(),
         supabase.from('claims').select('claim_id', { count: 'exact', head: true }).eq('org_id', orgId),
         supabase.from('ops_events').select('payload').eq('org_id', orgId).eq('kind', 'recovery_recorded'),
       ]);
-      const appealsBySClaim = new Map<string, string>();
-      for (const e of appealEvents ?? []) {
-        // Latest event per claim wins (insertion order from select is by occurred_at default).
-        appealsBySClaim.set(e.claim_id as string, e.kind as string);
-      }
-      const pendingAppeals = Array.from(appealsBySClaim.values())
-        .filter(k => k === 'appeal_submitted').length;
+      const pendingAppeals = (pendingCountRow as { pending_count?: number } | null)?.pending_count ?? 0;
       const recovered = (recoveryEvents ?? []).reduce(
         (sum, r) => sum + Number(((r.payload as any)?.amount_cents) ?? 0), 0,
       );
@@ -191,6 +185,7 @@ export default function MyWorklist() {
         claimId={selected}
         orgId={orgId}
         userId={userId}
+        userRole={currentOrg?.role ?? null}
         onClose={() => setSelected(null)}
         onChanged={refresh}
       />
