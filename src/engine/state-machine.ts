@@ -302,6 +302,18 @@ export function getValidTransitions(
   );
 }
 
+/**
+ * Run the synchronous guard checks for a status transition.
+ *
+ * ⚠️  DO NOT call this function for production payment mutations
+ * (transitions to PAYMENT_IN_PROGRESS or PAID).  Use
+ * `canTransitionWithPersistentIdempotency()` instead — it adds the
+ * DB-backed idempotency check that survives process restarts.
+ *
+ * Safe uses: rendering UI transition validity (e.g. StateDiagram),
+ * non-payment status transitions, and as the internal fast-path
+ * called from canTransitionWithPersistentIdempotency itself.
+ */
 export function canTransition(
   context: TransitionContext,
 ): TransitionResult {
@@ -359,6 +371,9 @@ export function canTransition(
 }
 
 /**
+ * ⚠️  PRODUCTION PAYMENT GUARD — use this for ANY mutation that writes a claim
+ * to PAYMENT_IN_PROGRESS or PAID (or any financial recovery/write-off action).
+ *
  * C-3: Persistent DB-backed idempotency check for payment transitions.
  *
  * For payment/recovery transitions this function:
@@ -368,6 +383,9 @@ export function canTransition(
  *
  * Must be awaited before performing any payment side-effect.
  * Returns the same TransitionResult shape as canTransition().
+ *
+ * Callers in data/repository.ts (updateClaimStatus) are the ONLY authorised
+ * entry points for claim status mutations that involve payment transitions.
  */
 export async function canTransitionWithPersistentIdempotency(
   context: TransitionContext,

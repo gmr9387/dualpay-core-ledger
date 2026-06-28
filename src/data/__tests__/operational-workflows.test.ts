@@ -158,18 +158,21 @@ describe('Operational Workflows (Phase 3A)', () => {
     });
 
     it('should log a writeoff', async () => {
-      const eventId = await logWriteOff(TEST_CLAIM_ID, TEST_ORG_ID, 'Unrecoverable - payer bankruptcy');
+      const eventId = await logWriteOff(TEST_CLAIM_ID, TEST_ORG_ID, 'Unrecoverable - payer bankruptcy', {
+        actorId: TEST_USER_ID,
+        actorRole: 'manager',
+      });
 
       expect(eventId).toBeDefined();
     });
 
     it('should support all recovery types', async () => {
-      const recoveryTypes = ['payer_payment', 'patient_payment', 'writeoff', 'adjustment'] as const;
+      const recoveryTypes = ['payer_payment', 'patient_payment', 'adjustment'] as const;
 
       for (const type of recoveryTypes) {
         const eventId = await logRecoveryEvent(TEST_CLAIM_ID, TEST_ORG_ID, {
           recoveryType: type,
-          amountCents: type === 'writeoff' ? 0 : 100000,
+          amountCents: 100000,
           recoveredFrom: type === 'patient_payment' ? 'Patient' : 'Payer',
         });
 

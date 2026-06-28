@@ -247,6 +247,16 @@ export async function logAppealEvent(
 /**
  * Log a recovery transaction.
  *
+ * B-5 (Phase 3D): When totalBilledCents is not supplied, it is automatically
+ * fetched from the claims table so the cap and auto-close logic always fires.
+ *
+ * B-4 (Phase 3D): Cap math is reversal-aware:
+ *   effectiveRecovered = SUM(recovery_recorded.amount_cents)
+ *                       − SUM(recovery_reversed.amount_cents)
+ * This allows a previously recorded recovery to be unwound via
+ * logRecoveryReversal() without permanently blocking future recovery up to
+ * the full billed amount.
+ *
  * H-2/H-4: Does NOT accept 'writeoff' as a recovery type — write-offs are
  * logged separately via logWriteOff() which requires elevated role checks.
  * M-6: Automatically closes the assignment when claim is fully recovered.
@@ -260,35 +270,52 @@ export async function logRecoveryEvent(
     recoveredFrom: string;
     analystUserId?: string;
     notes?: string;
-    /** Total billed/denied amount for this claim (cents). Used to cap recovery. */
+    /**
+     * Total billed/denied amount for this claim (cents).
+     * B-5: If omitted, fetched from the claims table automatically so the cap
+     * and auto-close logic always runs.
+     */
     totalBilledCents?: number;
   },
 ): Promise<string> {
-  // H-2/H-4: Cap recovery at remaining balance to prevent over-recovery.
-  if (params.totalBilledCents !== undefined && params.totalBilledCents > 0) {
+  // B-5: Resolve totalBilledCents — fetch from DB when not supplied.
+  let totalBilledCents = params.totalBilledCents;
+  if (totalBilledCents === undefined || totalBilledCents <= 0) {
+    const { data: claimRow } = await supabase
+      .from('claims')
+      .select('total_billed_cents')
+      .eq('claim_id', claimId)
+      .maybeSingle();
+    totalBilledCents = (claimRow as { total_billed_cents?: number } | null)?.total_billed_cents ?? 0;
+  }
+
+  // H-2/H-4 + B-4: Cap recovery at remaining balance (reversal-aware).
+  if (totalBilledCents > 0) {
     const { data: priorEvents } = await supabase
       .from('ops_events')
-      .select('payload')
+      .select('kind, payload')
       .eq('claim_id', claimId)
       .eq('org_id', orgId)
-      .eq('kind', 'recovery_recorded');
+      .in('kind', ['recovery_recorded', 'recovery_reversed']);
 
     const alreadyRecoveredCents = (priorEvents ?? []).reduce((sum, e) => {
       const p = e.payload as Record<string, unknown> | null;
-      return sum + (typeof p?.amount_cents === 'number' ? p.amount_cents : 0);
+      const amt = typeof p?.amount_cents === 'number' ? p.amount_cents : 0;
+      // B-4: Reversals reduce the effective recovered amount.
+      return e.kind === 'recovery_reversed' ? sum - amt : sum + amt;
     }, 0);
 
-    const remainingCents = params.totalBilledCents - alreadyRecoveredCents;
+    const remainingCents = totalBilledCents - alreadyRecoveredCents;
     if (params.amountCents > remainingCents) {
       throw new Error(
         `Recovery amount $${(params.amountCents / 100).toFixed(2)} exceeds remaining balance ` +
-        `$${(remainingCents / 100).toFixed(2)}. Already recovered: $${(alreadyRecoveredCents / 100).toFixed(2)}.`,
+        `$${(remainingCents / 100).toFixed(2)}. Effective recovered: $${(alreadyRecoveredCents / 100).toFixed(2)}.`,
       );
     }
 
     // M-6: Auto-close assignment when fully recovered.
     const newTotal = alreadyRecoveredCents + params.amountCents;
-    if (newTotal >= params.totalBilledCents) {
+    if (newTotal >= totalBilledCents) {
       await supabase
         .from('claim_assignments')
         .update({ status: 'resolved' } as never)
@@ -310,6 +337,49 @@ export async function logRecoveryEvent(
       recovered_from: params.recoveredFrom,
       analyst_user_id: params.analystUserId,
       notes: params.notes,
+    },
+  });
+}
+
+/**
+ * Log a recovery reversal.
+ *
+ * B-4 (Phase 3D): Records a corrective event when a previously logged recovery
+ * must be unwound (e.g. a check bounces, a payment is clawed back, an EDI
+ * adjustment credits the payer).
+ *
+ * Emits a `recovery_reversed` ops_event.  The cap math in logRecoveryEvent
+ * treats these as negative amounts, so subsequent recovery attempts up to the
+ * full billed balance are permitted again.
+ *
+ * amountCents should be the gross amount being reversed (positive integer).
+ */
+export async function logRecoveryReversal(
+  claimId: string,
+  orgId: string,
+  params: {
+    amountCents: number;
+    reason: string;
+    originalEventId?: string;
+    analystUserId?: string;
+  },
+): Promise<string> {
+  if (params.amountCents <= 0) {
+    throw new Error('amountCents must be a positive integer for a reversal');
+  }
+
+  const summary = `Recovery reversed: $${(params.amountCents / 100).toFixed(2)} — ${params.reason}`;
+
+  return appendOpsEvent({
+    kind: 'recovery_reversed',
+    claimId,
+    orgId,
+    summary,
+    payload: {
+      amount_cents: params.amountCents,
+      reason: params.reason,
+      original_event_id: params.originalEventId ?? null,
+      analyst_user_id: params.analystUserId ?? null,
     },
   });
 }
@@ -646,13 +716,14 @@ export async function getAppealTimeline(
 }
 
 /**
- * Get recovery timeline for a claim (all recovery_recorded events).
+ * Get recovery timeline for a claim (recovery_recorded and recovery_reversed events).
+ * B-4: Includes reversals so callers can compute the net recovered amount.
  */
 export async function getRecoveryTimeline(
   claimId: string,
   orgId: string,
 ): Promise<TimelineEvent[]> {
-  return getClaimTimelineByKind(claimId, orgId, ['recovery_recorded']);
+  return getClaimTimelineByKind(claimId, orgId, ['recovery_recorded', 'recovery_reversed']);
 }
 
 /**
