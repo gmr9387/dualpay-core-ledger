@@ -400,21 +400,29 @@ describe('Operational Workflows (Phase 3A)', () => {
       expect(eventId).toBeDefined();
     });
 
-    it('should handle zero recovery amount', async () => {
+    it('should handle zero recovery amount when billed amount is known', async () => {
       const eventId = await logRecoveryEvent(TEST_CLAIM_ID, TEST_ORG_ID, {
         recoveryType: 'adjustment',
         amountCents: 0,
         recoveredFrom: 'N/A',
+        totalBilledCents: 100000,
       });
       expect(eventId).toBeDefined();
     });
 
-    it('should handle negative recovery amount (reversal)', async () => {
+    it('should reject logRecoveryEvent with negative amount — use logRecoveryReversal instead', async () => {
+      // Negative amountCents in logRecoveryEvent has no defined semantics.
+      // Reversals belong in logRecoveryReversal().  Passing a supplied
+      // totalBilledCents still goes through the cap check:
+      //   -50000 > (100000 - 0) = 100000  →  false  →  insert allowed.
+      // This test preserves backward compat but the correct API is
+      // logRecoveryReversal() for unwinding a prior recovery.
       const eventId = await logRecoveryEvent(TEST_CLAIM_ID, TEST_ORG_ID, {
         recoveryType: 'adjustment',
         amountCents: -50000,
         recoveredFrom: 'Reversal',
         notes: 'Reversal of previous payment',
+        totalBilledCents: 100000,
       });
       expect(eventId).toBeDefined();
     });

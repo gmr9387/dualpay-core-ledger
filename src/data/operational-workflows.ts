@@ -247,8 +247,12 @@ export async function logAppealEvent(
 /**
  * Log a recovery transaction.
  *
- * B-5 (Phase 3D): When totalBilledCents is not supplied, it is automatically
+ * B-5 (Phase 3D/3E): When totalBilledCents is not supplied, it is automatically
  * fetched from the claims table so the cap and auto-close logic always fires.
+ * If the lookup returns null, missing row, or 0, the call throws
+ * "Cannot log recovery: claim billed amount is unknown." — unless the caller
+ * sets allowUncappedRecovery = true with actorRole = 'admin' (admin-only
+ * correction path that stamps uncapped_override = true in the payload).
  *
  * B-4 (Phase 3D): Cap math is reversal-aware:
  *   effectiveRecovered = SUM(recovery_recorded.amount_cents)
@@ -273,9 +277,21 @@ export async function logRecoveryEvent(
     /**
      * Total billed/denied amount for this claim (cents).
      * B-5: If omitted, fetched from the claims table automatically so the cap
-     * and auto-close logic always runs.
+     * and auto-close logic always runs.  When the lookup returns null or 0,
+     * the function throws unless allowUncappedRecovery is set.
      */
     totalBilledCents?: number;
+    /**
+     * B-5 (Phase 3E): Set true ONLY for admin/import-correction paths where
+     * the billed amount is intentionally absent.  Requires actorRole = 'admin'.
+     * Records uncapped_override = true in the event payload for audit trail.
+     */
+    allowUncappedRecovery?: boolean;
+    /**
+     * Role of the calling actor.  Required (must equal 'admin') when
+     * allowUncappedRecovery = true.
+     */
+    actorRole?: string;
   },
 ): Promise<string> {
   // B-5: Resolve totalBilledCents — fetch from DB when not supplied.
@@ -289,7 +305,23 @@ export async function logRecoveryEvent(
     totalBilledCents = (claimRow as { total_billed_cents?: number } | null)?.total_billed_cents ?? 0;
   }
 
+  // B-5 (Phase 3E): Guard — unknown billed amount must not silently bypass cap.
+  // A zero totalBilledCents after the DB fallback means either the row is
+  // missing, NULL, or was stored as 0 — all cases where enforcing no cap would
+  // risk unbounded over-recovery.
+  if (totalBilledCents <= 0) {
+    if (!params.allowUncappedRecovery) {
+      throw new Error('Cannot log recovery: claim billed amount is unknown.');
+    }
+    if (params.actorRole !== 'admin') {
+      throw new Error('allowUncappedRecovery requires actorRole to be "admin".');
+    }
+    // Admin-gated override: cap block below is intentionally skipped.
+    // uncapped_override = true is stamped on the payload for audit purposes.
+  }
+
   // H-2/H-4 + B-4: Cap recovery at remaining balance (reversal-aware).
+  // Skipped only when allowUncappedRecovery = true (admin override, totalBilledCents unknown).
   if (totalBilledCents > 0) {
     const { data: priorEvents } = await supabase
       .from('ops_events')
@@ -337,6 +369,7 @@ export async function logRecoveryEvent(
       recovered_from: params.recoveredFrom,
       analyst_user_id: params.analystUserId,
       notes: params.notes,
+      ...(params.allowUncappedRecovery === true ? { uncapped_override: true } : {}),
     },
   });
 }
