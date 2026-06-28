@@ -76,6 +76,7 @@ import EdiImport from "./pages/EdiImport";
 import EdiTransactions from "./pages/EdiTransactions";
 import EdiErrors from "./pages/EdiErrors";
 import NotFound from "./pages/NotFound";
+import MyWorklist from "./pages/MyWorklist";
 
 const queryClient = new QueryClient();
 
@@ -154,6 +155,7 @@ const ProtectedShell = () => (
           <Route path="/edi/import" element={<EdiImport />} />
           <Route path="/edi/transactions" element={<EdiTransactions />} />
           <Route path="/edi/errors" element={<EdiErrors />} />
+          <Route path="/worklist" element={<MyWorklist />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>

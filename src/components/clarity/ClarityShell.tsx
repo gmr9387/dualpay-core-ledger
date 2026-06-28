@@ -98,6 +98,7 @@ const SECTIONS: NavSection[] = [
   {
     title: 'Execute',
     items: [
+      { to: '/worklist',   label: 'My Worklist',         icon: Target, badge: 'NEW' },
       { to: '/pipeline',   label: 'Recovery Pipeline',  icon: GitBranch },
       { to: '/queues',     label: 'Work Queues',         icon: ListChecks },
       { to: '/appeals',    label: 'Appeals Workbench',   icon: Gavel },
@@ -283,6 +284,7 @@ function breadcrumbsFor(pathname: string): string[] {
     '/playbooks':           ['Execute',    'Recovery Playbooks'],
     '/denials':             ['Intelligence','Denial Command'],
     '/queues':              ['Execute',    'Work Queues'],
+    '/worklist':            ['Execute',    'My Worklist'],
     '/claims':              ['Admin',      'Claims Workbench'],
     '/appeals':             ['Execute',    'Appeals Workbench'],
     '/packet':              ['Execute',    'Appeal Packet'],

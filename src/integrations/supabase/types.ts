@@ -311,26 +311,41 @@ export type Database = {
       }
       claim_assignments: {
         Row: {
+          assigned_at: string
+          assigned_by_user_id: string | null
+          assigned_to_user_id: string | null
           assignee: string | null
           claim_id: string
           created_at: string
+          due_date: string | null
           org_id: string
+          priority: string
           status: string
           updated_at: string
         }
         Insert: {
+          assigned_at?: string
+          assigned_by_user_id?: string | null
+          assigned_to_user_id?: string | null
           assignee?: string | null
           claim_id: string
           created_at?: string
+          due_date?: string | null
           org_id: string
+          priority?: string
           status?: string
           updated_at?: string
         }
         Update: {
+          assigned_at?: string
+          assigned_by_user_id?: string | null
+          assigned_to_user_id?: string | null
           assignee?: string | null
           claim_id?: string
           created_at?: string
+          due_date?: string | null
           org_id?: string
+          priority?: string
           status?: string
           updated_at?: string
         }
