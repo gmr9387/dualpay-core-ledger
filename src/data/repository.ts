@@ -160,7 +160,7 @@ type Json =
   | Json[];
 const asJson = <T>(v: T): Json => v as unknown as Json;
 
-export async function saveClaim(claim: Claim): Promise<void> {
+export async function saveClaim(claim: Claim, orgId?: string): Promise<void> {
   const { error } = await supabase.from('claims').upsert([{
     claim_id: claim.claim_id,
     member_id: claim.member_id,
@@ -169,6 +169,7 @@ export async function saveClaim(claim: Claim): Promise<void> {
     service_date_to: claim.service_date_to ?? claim.service_date_from,
     status: claim.status,
     total_billed_cents: claim.total_billed,
+    org_id: orgId,
     payload: asJson(claim),
   }] as never);
   if (error) throw error;
@@ -179,6 +180,7 @@ export async function saveAdjudication(
   run: AdjudicationRun,
   trace: TraceObject,
   isRetro = false,
+  orgId?: string,
 ): Promise<void> {
   const { error: runErr } = await supabase.from('adjudication_runs').upsert([{
     run_id: run.run_id,
@@ -186,6 +188,7 @@ export async function saveAdjudication(
     total_plan_paid_cents: run.total_plan_paid,
     total_member_responsibility_cents: run.total_member_responsibility,
     is_retro: isRetro,
+    org_id: orgId,
     payload: asJson(run),
   }] as never);
   if (runErr) throw runErr;
@@ -194,12 +197,13 @@ export async function saveAdjudication(
     trace_id: trace.trace_id,
     run_id: run.run_id,
     claim_id: claimId,
+    org_id: orgId,
     payload: asJson(trace),
   }] as never);
   if (traceErr) throw traceErr;
 }
 
-export async function saveAccumulators(acc: MemberAccumulators): Promise<void> {
+export async function saveAccumulators(acc: MemberAccumulators, orgId?: string): Promise<void> {
   const { error } = await supabase.from('member_accumulators').upsert([{
     member_id: acc.member_id,
     plan_year: acc.plan_year,
@@ -207,18 +211,20 @@ export async function saveAccumulators(acc: MemberAccumulators): Promise<void> {
     individual_oop_used_cents: acc.individual_oop_used,
     family_deductible_used_cents: acc.family_deductible_used,
     family_oop_used_cents: acc.family_oop_used,
+    org_id: orgId,
     payload: asJson(acc),
   }] as never);
   if (error) throw error;
 }
 
-export async function saveCase(c: Case): Promise<void> {
+export async function saveCase(c: Case, orgId?: string): Promise<void> {
   const { error: cErr } = await supabase.from('cases').upsert([{
     case_id: c.case_id,
     member_id: c.member_id,
     status: c.status,
     description: c.description,
     tags: c.tags,
+    org_id: orgId,
   }] as never);
   if (cErr) throw cErr;
 
@@ -226,13 +232,13 @@ export async function saveCase(c: Case): Promise<void> {
   await supabase.from('case_claim_links').delete().eq('case_id', c.case_id);
   if (c.claim_ids.length > 0) {
     const { error: lErr } = await supabase.from('case_claim_links').insert(
-      c.claim_ids.map((claim_id) => ({ case_id: c.case_id, claim_id })) as never,
+      c.claim_ids.map((claim_id) => ({ case_id: c.case_id, claim_id, org_id: orgId })) as never,
     );
     if (lErr) throw lErr;
   }
 }
 
-export async function saveCaseEvent(evt: CaseEvent): Promise<void> {
+export async function saveCaseEvent(evt: CaseEvent, orgId?: string): Promise<void> {
   const { error } = await supabase.from('case_events').upsert([{
     event_id: evt.event_id,
     case_id: evt.case_id,
@@ -240,6 +246,7 @@ export async function saveCaseEvent(evt: CaseEvent): Promise<void> {
     event_type: evt.event_type,
     description: evt.description,
     metadata: evt.metadata ? asJson(evt.metadata) : undefined,
+    org_id: orgId,
     occurred_at: evt.timestamp,
   }] as never);
   if (error) throw error;
@@ -251,12 +258,13 @@ export async function saveCaseEvent(evt: CaseEvent): Promise<void> {
  * Save a replay record to persistent storage.
  * Enforces uniqueness on snapshot_id, fingerprint, and run_id.
  */
-export async function saveReplayRecordPersistent(record: ReplayRecord): Promise<void> {
+export async function saveReplayRecordPersistent(record: ReplayRecord, orgId?: string): Promise<void> {
   const { error } = await supabase.from('replay_records').insert([{
     snapshot_id: record.snapshot.snapshot_id,
     run_id: record.run.run_id,
     fingerprint: record.fingerprint,
     claim_id: record.snapshot.claim_id,
+    org_id: orgId,
     created_at: record.created_at,
     payload: asJson(record),
   }] as never);
@@ -327,6 +335,7 @@ export async function listReplayRecordsPersistent(): Promise<ReplayRecord[]> {
  */
 export async function appendLedgerEventPersistent(
   event: ReplayLedgerEvent,
+  orgId?: string,
 ): Promise<void> {
   const { error } = await supabase.from('replay_ledger_events').insert([{
     event_id: event.event_id,
@@ -335,6 +344,7 @@ export async function appendLedgerEventPersistent(
     run_id: event.run_id ?? undefined,
     snapshot_id: event.snapshot_id ?? undefined,
     actor: event.actor,
+    org_id: orgId,
     timestamp: event.timestamp,
     prev_event_hash: event.prev_event_hash,
     event_hash: event.event_hash,
@@ -443,7 +453,15 @@ export async function listIdempotencyKeysForClaimPersistent(
 
 // ── Seed ──────────────────────────────────────────────────────
 
-export async function seedIfEmpty(): Promise<{ seeded: boolean }> {
+/**
+ * Seed demo data on first run if DB is empty.
+ * 
+ * Creates Demo Organization and assigns explicit org_id to all seeded rows,
+ * ensuring RLS policies can match authenticated users to the seeded data.
+ * 
+ * @returns { seeded: boolean, org_id?: string }
+ */
+export async function seedIfEmpty(): Promise<{ seeded: boolean; org_id?: string }> {
   // Phase 12 — demo seeds gated behind dev / VITE_DEMO_MODE.
   const { isDemoModeEnabled } = await import('@/lib/demo-flag');
   if (!isDemoModeEnabled()) return { seeded: false };
@@ -451,12 +469,34 @@ export async function seedIfEmpty(): Promise<{ seeded: boolean }> {
   // Detect whether the Claim Clarity dataset is present (sentinel: CLM-2024-00100).
   const { data: sentinel } = await supabase
     .from('claims')
-    .select('claim_id')
+    .select('org_id')
     .eq('claim_id', 'CLM-2024-00100')
     .maybeSingle();
-  if (sentinel) return { seeded: false };
+  if (sentinel) return { seeded: false, org_id: sentinel.org_id };
 
-  // Wipe legacy DualPay demo claims so the Clarity dataset is the source of truth.
+  // 1. Get or create Demo Organization
+  const { data: orgs, error: orgsError } = await supabase
+    .from('organizations')
+    .select('org_id')
+    .eq('name', 'Demo Organization')
+    .limit(1);
+
+  if (orgsError) throw orgsError;
+
+  let demoOrgId: string;
+  if (orgs && orgs.length > 0) {
+    demoOrgId = orgs[0].org_id;
+  } else {
+    const { data: newOrg, error: createError } = await supabase
+      .from('organizations')
+      .insert([{ name: 'Demo Organization' }])
+      .select('org_id')
+      .single();
+    if (createError) throw createError;
+    demoOrgId = newOrg.org_id;
+  }
+
+  // 2. Wipe legacy DualPay demo claims so the Clarity dataset is the source of truth.
   await supabase.from('case_events').delete().neq('event_id', '');
   await supabase.from('case_claim_links').delete().neq('case_id', '');
   await supabase.from('cases').delete().neq('case_id', '');
@@ -465,15 +505,24 @@ export async function seedIfEmpty(): Promise<{ seeded: boolean }> {
   await supabase.from('claims').delete().neq('claim_id', '');
   await supabase.from('member_accumulators').delete().neq('member_id', '');
 
+  // 3. Re-seed with explicit org_id
   // Claims (Claim Clarity rich dataset — 28 claims with intel envelopes)
-  for (const c of clarityClaims) await saveClaim(c);
+  for (const c of clarityClaims) {
+    await saveClaim(c, demoOrgId);
+  }
 
   // Accumulators
-  for (const acc of Object.values(clarityAccumulators)) await saveAccumulators(acc);
+  for (const acc of Object.values(clarityAccumulators)) {
+    await saveAccumulators(acc, demoOrgId);
+  }
 
   // Cases (+ links) and events (legacy DualPay demo cases — kept for case management module)
-  for (const cs of demoCases) await saveCase(cs);
-  for (const evt of demoCaseEvents) await saveCaseEvent(evt);
+  for (const cs of demoCases) {
+    await saveCase(cs, demoOrgId);
+  }
+  for (const evt of demoCaseEvents) {
+    await saveCaseEvent(evt, demoOrgId);
+  }
 
-  return { seeded: true };
+  return { seeded: true, org_id: demoOrgId };
 }
