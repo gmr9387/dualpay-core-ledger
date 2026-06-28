@@ -78,7 +78,7 @@ export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Prop
         supabase.from('claim_assignments').select('*').eq('claim_id', claimId).maybeSingle(),
         getClaimTimeline(claimId, orgId),
       ]);
-      setClaim((claimRow?.payload as Claim) ?? null);
+      setClaim(((claimRow?.payload as unknown) as Claim) ?? null);
       setAssignment((asgnRow as ClaimAssignmentRecord) ?? null);
       setTimeline(tl);
     } catch (e) {
