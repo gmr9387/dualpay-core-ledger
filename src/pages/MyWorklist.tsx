@@ -8,7 +8,7 @@
  *
  * Uses only Phase 3A repository functions; no new tables, no mock data.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PageHeader, EmptyState } from '@/components/clarity/primitives';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -411,5 +411,3 @@ function UnassignedPool({
   );
 }
 
-const useMemoUnused = useMemo; // keep linter happy when unused tools change
-void useMemoUnused;
