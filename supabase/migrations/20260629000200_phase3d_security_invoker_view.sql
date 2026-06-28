@@ -5,7 +5,7 @@
 --   The view was created without security_invoker, so it runs under the
 --   *owner's* privileges (security definer semantics).  That bypasses the
 --   ops_events RLS policies, letting any authenticated user retrieve
---   aggregate counts for ALL organisations by hitting PostgREST directly
+--   aggregate counts for ALL organizations by hitting PostgREST directly
 --   (e.g. GET /rest/v1/v_appeal_pending_counts).
 --
 -- FIX:

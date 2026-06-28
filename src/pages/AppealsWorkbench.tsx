@@ -112,7 +112,7 @@ export default function AppealsWorkbench() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="Appeals Workbench" subtitle="Live view of appeal lifecycle from ops_events, scoped to your organisation." />
+      <PageHeader title="Appeals Workbench" subtitle="Live view of appeal lifecycle from ops_events, scoped to your organization." />
 
       {/* KPI strip */}
       {kpisLoading ? (
