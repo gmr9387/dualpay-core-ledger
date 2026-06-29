@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Mock persistence layer — replay-store tests are unit tests for the
+// in-memory cache; no live Supabase connection should be required.
+vi.mock('@/data/repository', () => ({
+  saveReplayRecordPersistent: vi.fn().mockResolvedValue(undefined),
+  listReplayRecordsPersistent: vi.fn().mockResolvedValue([]),
+}));
+
 import {
   saveReplayRecord,
   getReplayRecord,

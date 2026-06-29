@@ -277,3 +277,15 @@ export function clearLedger(): void {
   ledger.length = 0;
   ledgerInitialized = false;
 }
+
+/**
+ * Test/dev only — directly replaces a ledger entry at the given index,
+ * bypassing immutability so tamper-detection tests can inject corrupted hashes.
+ * Do not call this in production workflows.
+ */
+export function overwriteLedgerEventForTest(
+  index: number,
+  corrupted: ReplayLedgerEvent,
+): void {
+  ledger[index] = corrupted;
+}

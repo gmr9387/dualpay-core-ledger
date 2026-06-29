@@ -7,9 +7,28 @@
  * - My Worklist queries (assigned, overdue, due today, high dollar)
  * - Timeline queries (unified, filtered by kind)
  * - RLS enforcement via org_id
+ *
+ * These are integration tests that require a live Supabase instance.
+ * Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (see .env.test.example)
+ * to run them. Without those env vars the suite is skipped automatically.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Minimal stub prevents the Supabase client from crashing at module load
+// time when SUPABASE_URL is not set. The actual test cases are gated by
+// `describe.skipIf` below and will not run without a real DB.
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    from: vi.fn(),
+    auth: { getUser: vi.fn() },
+  },
+}));
+
+const supabaseConfigured = !!(
+  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+);
+
 import {
   updateAssignment,
   addNote,
@@ -32,7 +51,7 @@ const TEST_ORG_ID = 'test-org-uuid';
 const TEST_USER_ID = 'test-user-uuid';
 const TEST_CLAIM_ID = 'CLM-2024-00001';
 
-describe('Operational Workflows (Phase 3A)', () => {
+describe.skipIf(!supabaseConfigured)('Operational Workflows (Phase 3A)', () => {
   describe('Assignment Workflow', () => {
     it('should create a new assignment with priority and due_date', async () => {
       const dueDate = new Date();

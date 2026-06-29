@@ -1,10 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Mock the persistence layer so the ledger unit tests run without a live
+// Supabase connection.
+vi.mock('@/data/repository', () => ({
+  appendLedgerEventPersistent: vi.fn().mockResolvedValue(undefined),
+  listLedgerEventsPersistent: vi.fn().mockResolvedValue([]),
+  listLedgerEventsForClaimPersistent: vi.fn().mockResolvedValue([]),
+}));
+
 import {
   appendLedgerEvent,
   listLedgerEventsInAppendOrder,
   listLedgerEventsForClaim,
   verifyLedgerIntegrity,
   clearLedger,
+  overwriteLedgerEventForTest,
   type ReplayLedgerEventType,
 } from '@/engine/replay-ledger';
 
@@ -103,10 +113,10 @@ describe('Replay Ledger — Persistence', () => {
       const event2 = makeLedgerEvent();
       const appended2 = await appendLedgerEvent(event2);
       
-      // Corrupt the ledger in memory (dev/test only)
+      // Corrupt the ledger in memory using the dev escape hatch (objects are frozen)
       const ledgerEvents = listLedgerEventsInAppendOrder();
       if (ledgerEvents[1]) {
-        (ledgerEvents[1] as any).prev_event_hash = 'CORRUPTED_HASH';
+        overwriteLedgerEventForTest(1, { ...ledgerEvents[1], prev_event_hash: 'CORRUPTED_HASH' });
       }
       
       const result = await verifyLedgerIntegrity();
@@ -121,10 +131,10 @@ describe('Replay Ledger — Persistence', () => {
       const event2 = makeLedgerEvent();
       const appended2 = await appendLedgerEvent(event2);
       
-      // Corrupt the event hash (dev/test only)
+      // Corrupt the event hash using the dev escape hatch (objects are frozen)
       const ledgerEvents = listLedgerEventsInAppendOrder();
       if (ledgerEvents[1]) {
-        (ledgerEvents[1] as any).event_hash = 'CORRUPTED_EVENT_HASH';
+        overwriteLedgerEventForTest(1, { ...ledgerEvents[1], event_hash: 'CORRUPTED_EVENT_HASH' });
       }
       
       const result = await verifyLedgerIntegrity();
