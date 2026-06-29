@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Shield } from 'lucide-react';
+import { validatePassword } from '@/lib/password-policy';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -14,12 +15,8 @@ export default function Signup() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null); setMsg(null);
-    if (password.length < 8) {
-      setErr('Password must be at least 8 characters.'); return;
-    }
-    if (!/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) {
-      setErr('Password must contain at least one number or symbol.'); return;
-    }
+    const pwError = validatePassword(password);
+    if (pwError) { setErr(pwError); return; }
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email, password,

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { validatePassword } from '@/lib/password-policy';
 
 // Mock supabase before importing the module under test
 vi.mock('@/integrations/supabase/client', () => ({
@@ -13,6 +14,24 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 import { ensureDevUser } from '@/lib/dev-auth-helper';
+
+describe('validatePassword (shared policy)', () => {
+  it('returns error for password shorter than 8 chars', () => {
+    expect(validatePassword('abc1!')).toBe('Password must be at least 8 characters');
+  });
+
+  it('returns error for 8+ char password with no number or symbol', () => {
+    expect(validatePassword('abcdefgh')).toBe('Password must contain at least one number or symbol');
+  });
+
+  it('returns null for valid password with number', () => {
+    expect(validatePassword('abcdefg1')).toBeNull();
+  });
+
+  it('returns null for valid password with symbol', () => {
+    expect(validatePassword('abcdefg!')).toBeNull();
+  });
+});
 
 describe('ensureDevUser password validation', () => {
   it('throws when password is fewer than 8 characters', async () => {

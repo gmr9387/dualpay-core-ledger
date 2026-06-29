@@ -13,6 +13,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { validatePassword } from '@/lib/password-policy';
 
 export interface DevUserResult {
   user_id: string;
@@ -36,12 +37,8 @@ export async function ensureDevUser(
   password: string,
   role: 'analyst' | 'manager' | 'admin' | 'owner' = 'analyst',
 ): Promise<DevUserResult> {
-  if (password.length < 8) {
-    throw new Error('Password must be at least 8 characters');
-  }
-  if (!/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) {
-    throw new Error('Password must contain at least one number or symbol');
-  }
+  const pwError = validatePassword(password);
+  if (pwError) throw new Error(pwError);
 
   // 1. Sign up (idempotent; if already registered, we'll get existing user)
   const { data: authData, error: authError } = await supabase.auth.signUp({
