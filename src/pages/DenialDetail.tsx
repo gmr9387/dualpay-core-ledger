@@ -1,16 +1,102 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useClarityData, formatCents, relativeTime, slaStatus } from '@/hooks/use-clarity-data';
+import { useOrg } from '@/hooks/use-org';
 import { PageHeader, Panel, SeverityBadge, StateBadge, OwnerChip, RecoverabilityBar, AgingChip, QueueChip, EmptyState, ScrollBody } from '@/components/clarity/primitives';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import { explainRecoverability } from '@/engine/recoverability';
 import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
+import { updateAssignment } from '@/data/operational-workflows';
+import { appendOpsEvent } from '@/lib/ops-events';
+import { uploadEvidenceDocument } from '@/lib/evidence-documents';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, AlertOctagon, FileText, CheckCircle2, Send, Loader2, Clock, TrendingUp, TrendingDown as TrendDownIcon, Sparkles, Zap } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 export default function DenialDetail() {
   const { claimId } = useParams();
   const { data: claims, isLoading } = useClarityData();
+  const { currentOrg } = useOrg();
   const claim = useMemo(() => claims?.find(c => c.claim_id === claimId), [claims, claimId]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [working, setWorking] = useState<string | null>(null);
+  const qc = useQueryClient();
+
+  const orgId = currentOrg?.org_id ?? '';
+
+  const handleMarkResolved = useCallback(async () => {
+    if (!claim || !orgId || working) return;
+    setWorking('resolve');
+    try {
+      await updateAssignment(claim.claim_id, orgId, { status: 'resolved' });
+      await appendOpsEvent({
+        kind: 'workflow_transition',
+        claim_id: claim.claim_id,
+        org_id: orgId,
+        summary: `Claim ${claim.claim_id} marked resolved.`,
+        payload: { to_status: 'resolved' },
+      });
+      qc.invalidateQueries({ queryKey: ['clarity-claims'] });
+      qc.invalidateQueries({ queryKey: ['audit-ops-events'] });
+      toast({ title: 'Claim resolved', description: `${claim.claim_id} has been marked as resolved.` });
+    } catch (e) {
+      toast({ title: 'Error', description: 'Could not mark resolved. Try again.', variant: 'destructive' });
+    } finally {
+      setWorking(null);
+    }
+  }, [claim, orgId, working, qc]);
+
+  const handleEscalate = useCallback(async () => {
+    if (!claim || !orgId || working) return;
+    setWorking('escalate');
+    try {
+      await appendOpsEvent({
+        kind: 'escalation_raised',
+        claim_id: claim.claim_id,
+        org_id: orgId,
+        summary: `Claim ${claim.claim_id} escalated.`,
+        payload: { claim_id: claim.claim_id, payer: claim.intel.payer_name, severity: claim.intel.severity },
+      });
+      qc.invalidateQueries({ queryKey: ['audit-ops-events'] });
+      toast({ title: 'Escalation logged', description: `${claim.claim_id} has been escalated and logged.` });
+    } catch {
+      toast({ title: 'Error', description: 'Could not log escalation. Try again.', variant: 'destructive' });
+    } finally {
+      setWorking(null);
+    }
+  }, [claim, orgId, working, qc]);
+
+  const handleFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !claim || !orgId) return;
+    setWorking('evidence');
+    try {
+      const doc = await uploadEvidenceDocument({
+        file,
+        org_id: orgId,
+        claim_id: claim.claim_id,
+        document_type: 'supporting_document',
+      });
+      if (doc) {
+        await appendOpsEvent({
+          kind: 'document_uploaded',
+          claim_id: claim.claim_id,
+          org_id: orgId,
+          summary: `Evidence attached to ${claim.claim_id}: ${file.name}`,
+          payload: { document_id: doc.document_id, filename: file.name },
+        });
+        qc.invalidateQueries({ queryKey: ['audit-ops-events'] });
+        toast({ title: 'Evidence attached', description: `${file.name} uploaded successfully.` });
+      } else {
+        toast({ title: 'Upload failed', description: 'Could not attach evidence. Try again.', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Upload failed', description: 'Could not attach evidence. Try again.', variant: 'destructive' });
+    } finally {
+      setWorking(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [claim, orgId, qc]);
 
   if (isLoading) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
   if (!claim) return <EmptyState title="Claim not found" body="The claim ID does not exist in the operational dataset." icon={<AlertOctagon className="h-5 w-5" />} />;
@@ -157,9 +243,32 @@ export default function DenialDetail() {
                 <Link to={`/packet/${claim.claim_id}`} className="w-full h-8 px-2.5 rounded-md text-[12px] font-medium inline-flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
                   <Send className="h-3.5 w-3.5" /> Build Appeal Packet
                 </Link>
-                <ActionBtn icon={<FileText className="h-3.5 w-3.5" />} label="Attach Evidence" />
-                <ActionBtn icon={<CheckCircle2 className="h-3.5 w-3.5" />} label="Mark Resolved" />
-                <ActionBtn icon={<AlertOctagon className="h-3.5 w-3.5" />} label="Escalate" tone="danger" />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg,.tiff,.csv,.xlsx"
+                  className="sr-only"
+                  onChange={handleFileSelected}
+                />
+                <ActionBtn
+                  icon={<FileText className="h-3.5 w-3.5" />}
+                  label={working === 'evidence' ? 'Uploading…' : 'Attach Evidence'}
+                  disabled={!!working}
+                  onClick={() => fileInputRef.current?.click()}
+                />
+                <ActionBtn
+                  icon={working === 'resolve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  label={working === 'resolve' ? 'Resolving…' : 'Mark Resolved'}
+                  disabled={!!working}
+                  onClick={handleMarkResolved}
+                />
+                <ActionBtn
+                  icon={working === 'escalate' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertOctagon className="h-3.5 w-3.5" />}
+                  label={working === 'escalate' ? 'Escalating…' : 'Escalate'}
+                  tone="danger"
+                  disabled={!!working}
+                  onClick={handleEscalate}
+                />
               </div>
             </Panel>
 
@@ -234,13 +343,29 @@ function KV({ label, value, mono }: { label: string; value: string; mono?: boole
     </div>
   );
 }
-function ActionBtn({ icon, label, tone }: { icon: React.ReactNode; label: string; tone?: 'primary' | 'danger' }) {
+function ActionBtn({
+  icon,
+  label,
+  tone,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  tone?: 'primary' | 'danger';
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
   const cls =
     tone === 'primary' ? 'bg-primary text-primary-foreground hover:bg-primary/90'
     : tone === 'danger' ? 'border bg-card text-status-denied hover:bg-status-denied/5'
     : 'border bg-card text-foreground hover:bg-muted';
   return (
-    <button className={`w-full h-8 px-2.5 rounded-md text-[12px] font-medium inline-flex items-center gap-2 transition-colors ${cls}`}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-full h-8 px-2.5 rounded-md text-[12px] font-medium inline-flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${cls}`}
+    >
       {icon} {label}
     </button>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   loadAllAssignments, getAllAssignments, setAssignment,
-  _setCache, type Assignment, type WorkingStatus, ASSIGNEES,
+  _setCache, type Assignment, type WorkingStatus,
 } from '@/lib/assignments';
 import { migrateLocalStorageOnce } from '@/lib/persistence-migration';
 
@@ -27,6 +27,5 @@ export function useAssignments() {
     get: (id: string): Assignment => store[id] ?? { claim_id: id, status: 'open' as WorkingStatus, updated_at: '' },
     assign: (id: string, assignee: string | undefined) => { void setAssignment(id, { assignee }); },
     setStatus: (id: string, status: WorkingStatus) => { void setAssignment(id, { status }); },
-    assignees: ASSIGNEES,
   };
 }

@@ -52,12 +52,28 @@ export default function CommandCenter() {
     );
   }
 
+  if (claims?.length === 0) {
+    return (
+      <div className="flex flex-col h-full">
+        <PageHeader
+          title="DualPay · Command Center"
+          subtitle="Healthcare adjudication intelligence — deterministic decisions, auditable trace, replayable across payers."
+        />
+        <EmptyState
+          title="Your organization has no imported claims yet."
+          body="Import a denial file to begin tracking adjudication outcomes and recovery opportunities."
+          action={{ label: 'Import Claims', to: '/import' }}
+        />
+      </div>
+    );
+  }
+
   const maxCat = categoryBreakdown[0]?.[1].amount ?? 1;
 
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="Claim Clarity · Command Center"
+        title="DualPay · Command Center"
         subtitle="Healthcare adjudication intelligence — deterministic decisions, auditable trace, replayable across payers."
       />
       <KpiStrip tiles={[

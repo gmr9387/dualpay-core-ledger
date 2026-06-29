@@ -40,6 +40,19 @@ export default function ExecutiveHome() {
     </div>;
   }
 
+  if (claims?.length === 0) {
+    return (
+      <div className="flex flex-col h-full">
+        <PageHeader title="Executive Intelligence" subtitle="Value realized by DualPay — recovery, leverage, and operational ROI." />
+        <EmptyState
+          title="Your organization has no imported claims yet."
+          body="Import a denial file to begin generating executive intelligence and value realization reports."
+          action={{ label: 'Import Claims', to: '/import' }}
+        />
+      </div>
+    );
+  }
+
   const { value, head, narrative, monthly, playbooks, payers, topOpportunity, underpaymentRecovered } = view;
   const maxRecovered = Math.max(1, ...monthly.map(m => m.recovered_cents));
 
@@ -47,7 +60,7 @@ export default function ExecutiveHome() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Executive Intelligence"
-        subtitle="Value realized by Claim Clarity — recovery, leverage, and operational ROI."
+        subtitle="Value realized by DualPay — recovery, leverage, and operational ROI."
       />
       <KpiStrip tiles={[
         { label: 'Dollars At Risk',     value: formatCentsCompact(value.total_at_risk_cents),       tone: 'amount-negative' },

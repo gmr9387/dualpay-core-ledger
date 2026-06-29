@@ -1,8 +1,9 @@
 /**
- * Shared UI primitives for Claim Clarity modules.
+ * Shared UI primitives for DualPay modules.
  * Flat, enterprise-grade — no decorative gradients or motion.
  */
 import { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import type { DenialSeverity, WorkflowOwner, ReimbursementState, AgingBucket, WorkQueueId } from '@/types/clarity';
 import { ChevronRight } from 'lucide-react';
@@ -120,13 +121,31 @@ export function Panel({
   );
 }
 
-export function EmptyState({ title, body, icon }: { title: string; body?: string; icon?: ReactNode }) {
+export function EmptyState({
+  title,
+  body,
+  icon,
+  action,
+}: {
+  title: string;
+  body?: string;
+  icon?: ReactNode;
+  action?: { label: string; to: string };
+}) {
   return (
     <div className="h-full flex items-center justify-center">
       <div className="text-center max-w-sm py-12">
         {icon && <div className="h-12 w-12 mx-auto rounded-full bg-muted flex items-center justify-center mb-3 text-muted-foreground">{icon}</div>}
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         {body && <p className="text-[12.5px] text-muted-foreground mt-1">{body}</p>}
+        {action && (
+          <Link
+            to={action.to}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-[12.5px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            {action.label}
+          </Link>
+        )}
       </div>
     </div>
   );

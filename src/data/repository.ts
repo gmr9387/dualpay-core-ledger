@@ -36,10 +36,19 @@ import {
 
 // ── Loaders ───────────────────────────────────────────────────
 
-export async function loadClaims(): Promise<Claim[]> {
+/**
+ * Load claims from the database, scoped to the given org.
+ *
+ * Phase 4A: orgId parameter is now required for org-scoped isolation.
+ * Passing no orgId returns an empty array so pages can show an
+ * "Import Claims" empty state rather than leaking cross-org data.
+ */
+export async function loadClaims(orgId?: string): Promise<Claim[]> {
+  if (!orgId) return [];
   const { data, error } = await supabase
     .from('claims')
     .select('payload')
+    .eq('org_id', orgId)
     .order('service_date_from', { ascending: true });
   if (error) throw error;
   return (data ?? []).map((r) => r.payload as unknown as Claim);

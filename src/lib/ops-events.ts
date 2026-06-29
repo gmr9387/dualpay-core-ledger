@@ -53,12 +53,16 @@ export type OpsEventKind =
   | 'edi_validated'
   | 'edi_rejected'
   | 'edi_normalized'
-  | 'edi_imported';
+  | 'edi_imported'
+  | 'appeal_submitted'
+  | 'claim_resolved'
+  | 'evidence_attached';
 
 export interface OpsEvent {
   event_id: string;
   occurred_at: string;
-  kind: OpsEventKind;
+  kind: OpsEventKind | string;
+  org_id: string;
   claim_id?: string | null;
   actor?: string | null;
   actor_user_id?: string | null;
@@ -80,6 +84,30 @@ export async function getOpsEvents(): Promise<OpsEvent[]> {
     .order('occurred_at', { ascending: false })
     .limit(1000);
   if (error) { console.error('[ops-events] load failed', error.message); return []; }
+  return (data ?? []) as OpsEvent[];
+}
+
+export interface OpsEventsFilter {
+  since?: string;   // ISO 8601
+  until?: string;   // ISO 8601
+  kinds?: string[];
+  limit?: number;
+}
+
+export async function getOpsEventsByOrg(orgId: string, filter: OpsEventsFilter = {}): Promise<OpsEvent[]> {
+  let q = supabase
+    .from('ops_events')
+    .select('*')
+    .eq('org_id', orgId)
+    .order('occurred_at', { ascending: false })
+    .limit(filter.limit ?? 500);
+
+  if (filter.since) q = q.gte('occurred_at', filter.since);
+  if (filter.until) q = q.lte('occurred_at', filter.until);
+  if (filter.kinds && filter.kinds.length > 0) q = q.in('kind', filter.kinds);
+
+  const { data, error } = await q;
+  if (error) { console.error('[ops-events] org load failed', error.message); return []; }
   return (data ?? []) as OpsEvent[];
 }
 
@@ -109,6 +137,7 @@ export async function appendOpsEvent(
     event_id: makeEventId(),
     occurred_at: new Date().toISOString(),
     kind: ev.kind,
+    org_id: ev.org_id,
     claim_id: ev.claim_id ?? null,
     actor: ev.actor ?? actor_name ?? actor_email ?? 'system',
     actor_user_id,
