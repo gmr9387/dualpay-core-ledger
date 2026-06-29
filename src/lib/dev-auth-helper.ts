@@ -3,7 +3,7 @@
  * 
  * Use in browser console or programmatically:
  *   import { ensureDevUser } from '@/lib/dev-auth-helper';
- *   const result = await ensureDevUser('test@example.com', 'testpassword', 'analyst');
+ *   const result = await ensureDevUser('test@example.com', 'testpass1!', 'analyst');
  *   console.log('Dev user ready:', result);
  * 
  * Then sign in via Supabase Auth UI with that email/password.
@@ -25,7 +25,7 @@ export interface DevUserResult {
  * Create or get a development user with org membership.
  * 
  * @param email - Email address for the test user
- * @param password - Password for the test user (must be > 6 chars for Supabase)
+ * @param password - Password for the test user (must be ≥ 8 chars with at least one number or symbol)
  * @param role - Role within the org (default: 'analyst')
  * @returns { user_id, org_id, email, role }
  * 
@@ -36,8 +36,11 @@ export async function ensureDevUser(
   password: string,
   role: 'analyst' | 'manager' | 'admin' | 'owner' = 'analyst',
 ): Promise<DevUserResult> {
-  if (password.length < 6) {
-    throw new Error('Password must be at least 6 characters');
+  if (password.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+  if (!/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) {
+    throw new Error('Password must contain at least one number or symbol');
   }
 
   // 1. Sign up (idempotent; if already registered, we'll get existing user)

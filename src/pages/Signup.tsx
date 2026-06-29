@@ -13,7 +13,14 @@ export default function Signup() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr(null); setMsg(null); setBusy(true);
+    setErr(null); setMsg(null);
+    if (password.length < 8) {
+      setErr('Password must be at least 8 characters.'); return;
+    }
+    if (!/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) {
+      setErr('Password must contain at least one number or symbol.'); return;
+    }
+    setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email, password,
       options: { emailRedirectTo: `${window.location.origin}/` },
