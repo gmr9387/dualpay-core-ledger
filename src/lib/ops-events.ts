@@ -56,7 +56,12 @@ export type OpsEventKind =
   | 'edi_imported'
   | 'appeal_submitted'
   | 'claim_resolved'
-  | 'evidence_attached';
+  | 'evidence_attached'
+  | 'claim_written_off'
+  | 'org_settings_updated'
+  | 'payer_config_updated'
+  | 'invitation_created'
+  | 'profile_updated';
 
 export interface OpsEvent {
   event_id: string;

@@ -155,10 +155,18 @@ export default function AuditTrace() {
                   <span>Claim</span>
                 </div>
                 {events?.map(e => (
-                  <div key={e.event_id} className="grid grid-cols-[160px_180px_1fr_160px_120px] gap-3 items-center px-4 py-2">
+                  <div key={e.event_id} className="grid grid-cols-[160px_180px_1fr_160px_120px] gap-3 items-start px-4 py-2">
                     <span className="font-mono text-[11px] text-muted-foreground">{formatTimestamp(e.occurred_at)}</span>
                     <span className="font-mono text-[11px] font-semibold text-foreground">{e.kind}</span>
-                    <span className="text-foreground truncate">{e.summary}</span>
+                    <div>
+                      <span className="text-foreground">{e.summary}</span>
+                      {/* Phase 4B: display write-off reason in audit trail */}
+                      {e.kind === 'claim_written_off' && (e.payload as Record<string, unknown>)?.reason && (
+                        <div className="text-[10.5px] font-mono text-status-denied mt-0.5">
+                          Reason: {String((e.payload as Record<string, unknown>).reason)}
+                        </div>
+                      )}
+                    </div>
                     <span className="text-muted-foreground truncate">{e.actor_name ?? e.actor_email ?? e.actor ?? '—'}</span>
                     {e.claim_id ? (
                       <Link to={`/denials/${e.claim_id}`} className="font-mono text-[11px] text-primary hover:underline">{e.claim_id}</Link>

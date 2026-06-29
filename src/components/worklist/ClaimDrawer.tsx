@@ -701,24 +701,46 @@ function RecoveryPanel({
   );
 }
 
+/** C-2/L-1 / Phase-4B: Required reason codes — free-text replaced with dropdown. */
+const WRITE_OFF_REASONS = [
+  { value: 'timely_filing',     label: 'Timely filing exhausted' },
+  { value: 'duplicate',         label: 'Duplicate claim' },
+  { value: 'contractual',       label: 'Contractual adjustment' },
+  { value: 'medical_necessity', label: 'Medical necessity denial' },
+  { value: 'uncollectable',     label: 'Uncollectable / no response' },
+  { value: 'other',             label: 'Other' },
+] as const;
+
 /** C-2/L-1: Visible only to manager/admin; triggers confirmation modal before executing. */
 function WriteOffForm({
   busy, onSubmit,
 }: { busy: boolean; onSubmit: (reason: string) => void }) {
   const [reason, setReason] = useState('');
+  const [other, setOther] = useState('');
+  const finalReason = reason === 'other' ? other.trim() : reason;
   return (
     <div className="space-y-2">
       <Label className="text-[10.5px]">Write-off reason</Label>
-      <Input
-        value={reason} onChange={(e) => setReason(e.target.value)}
-        placeholder="Timely filing exhausted, uncollectable, etc."
-        className="h-8 text-[12.5px]"
-      />
+      <Select value={reason} onValueChange={setReason}>
+        <SelectTrigger className="h-8 text-[12.5px]"><SelectValue placeholder="Select reason…" /></SelectTrigger>
+        <SelectContent>
+          {WRITE_OFF_REASONS.map(r => (
+            <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {reason === 'other' && (
+        <Input
+          value={other} onChange={(e) => setOther(e.target.value)}
+          placeholder="Describe reason…"
+          className="h-8 text-[12.5px]"
+        />
+      )}
       <div className="flex justify-end">
         <Button
-          size="sm" variant="outline" disabled={busy || !reason.trim()}
+          size="sm" variant="outline" disabled={busy || !finalReason}
           className="border-status-denied/40 text-status-denied hover:bg-status-denied/10"
-          onClick={() => { onSubmit(reason.trim()); setReason(''); }}
+          onClick={() => { onSubmit(finalReason); setReason(''); setOther(''); }}
         >
           <XCircle className="h-3.5 w-3.5 mr-1" /> Write off claim
         </Button>
@@ -745,6 +767,12 @@ function TimelineView({
             </span>
           </div>
           <div className="text-[12.5px] mt-0.5">{e.summary}</div>
+          {/* Phase 4B: display write-off reason from payload */}
+          {e.kind === 'claim_written_off' && e.payload?.reason && (
+            <div className="text-[11px] font-mono text-status-denied mt-0.5">
+              Reason: {String(e.payload.reason)}
+            </div>
+          )}
         </li>
       ))}
     </ol>

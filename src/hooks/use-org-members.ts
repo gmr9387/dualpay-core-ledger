@@ -1,13 +1,10 @@
 /**
- * useOrgMembers — Phase 4A
+ * useOrgMembers — Phase 4B
  *
  * Returns the live member roster for the current organization.
- * Replaces the hardcoded ASSIGNEES array in TeamOperations,
- * WorkloadManagement, and auto-assignment logic.
- *
- * Display names are resolved by joining organization_members with
- * actor identity captured in ops_events. Falls back to a
- * role-prefixed user_id slice when no prior activity is found.
+ * Display names are resolved from user_profiles (primary source).
+ * Falls back to ops_events actor enrichment, then role-prefixed
+ * user_id slice when no other identity is found.
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +15,8 @@ export interface OrgMember {
   role: string;
   /** Human-readable label for assignment dropdowns and team tables. */
   display_name: string;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 export function useOrgMembers() {
@@ -45,15 +44,29 @@ export function useOrgMembers() {
 
       const userIds = rows.map(r => r.user_id).filter(Boolean) as string[];
 
-      // 2. Enrich with real actor identity captured during event logging.
-      //    ops_events stores actor_email / actor_name at the time of each action.
-      const emailMap: Record<string, string> = {};
+      // 2. PRIMARY: load user_profiles for display names.
+      const profileMap: Record<string, { display_name: string | null; first_name: string | null; last_name: string | null }> = {};
       if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('user_id, first_name, last_name, display_name')
+          .eq('org_id', orgId)
+          .in('user_id', userIds);
+
+        for (const p of profiles ?? []) {
+          if (p.user_id) profileMap[p.user_id] = { display_name: p.display_name, first_name: p.first_name, last_name: p.last_name };
+        }
+      }
+
+      // 3. FALLBACK: enrich from ops_events actor identity for users without profiles.
+      const missingIds = userIds.filter(id => !profileMap[id]);
+      const emailMap: Record<string, string> = {};
+      if (missingIds.length > 0) {
         const { data: actorRows } = await supabase
           .from('ops_events')
           .select('actor_user_id, actor_email, actor_name')
           .eq('org_id', orgId)
-          .in('actor_user_id', userIds)
+          .in('actor_user_id', missingIds)
           .not('actor_email', 'is', null)
           .order('occurred_at', { ascending: false })
           .limit(200);
@@ -66,13 +79,28 @@ export function useOrgMembers() {
         }
       }
 
-      return rows.map(r => ({
-        user_id: r.user_id,
-        role: r.role,
-        display_name:
-          emailMap[r.user_id] ??
-          `${capitalize(r.role)} (${r.user_id.slice(0, 8)})`,
-      }));
+      return rows.map(r => {
+        const profile = profileMap[r.user_id];
+        let display_name: string;
+        if (profile) {
+          display_name =
+            profile.display_name ||
+            [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
+            emailMap[r.user_id] ||
+            `${capitalize(r.role)} (${r.user_id.slice(0, 8)})`;
+        } else {
+          display_name =
+            emailMap[r.user_id] ??
+            `${capitalize(r.role)} (${r.user_id.slice(0, 8)})`;
+        }
+        return {
+          user_id: r.user_id,
+          role: r.role,
+          display_name,
+          first_name: profile?.first_name ?? null,
+          last_name: profile?.last_name ?? null,
+        };
+      });
     },
     enabled: !!orgId,
     staleTime: 5 * 60_000,
@@ -82,3 +110,4 @@ export function useOrgMembers() {
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+

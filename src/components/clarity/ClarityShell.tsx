@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { UserOrgMenu, NoOrgEmptyState } from '@/components/auth/UserOrgMenu';
 import { useOrg } from '@/hooks/use-org';
+import { ClaimSearch } from '@/components/clarity/ClaimSearch';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
 interface NavSection { title: string; items: NavItem[] }
@@ -136,6 +137,9 @@ const SECTIONS: NavSection[] = [
       { to: '/admin',           label: 'Admin Console',       icon: Shield, badge: 'NEW' },
       { to: '/admin/security',  label: 'Security Inventory',  icon: ShieldCheck, badge: 'NEW' },
       { to: '/admin/audit',     label: 'Audit Export',        icon: ScrollText, badge: 'NEW' },
+      { to: '/admin/team',      label: 'Team Management',     icon: Users, badge: 'NEW' },
+      { to: '/admin/settings',  label: 'Org Settings',        icon: Settings2, badge: 'NEW' },
+      { to: '/admin/payer-config', label: 'Payer Config',     icon: Building2, badge: 'NEW' },
     ],
   },
 ];
@@ -230,13 +234,7 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
           </nav>
 
           <div className="flex-1 max-w-md ml-4">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                placeholder="Search claims, denials, payers, members…"
-                className="w-full h-8 pl-8 pr-3 text-[12.5px] rounded-md bg-muted/60 border border-transparent focus:bg-card focus:border-input focus:outline-none focus:ring-2 focus:ring-ring/40 placeholder:text-muted-foreground"
-              />
-            </div>
+            <ClaimSearch />
           </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -303,6 +301,12 @@ function breadcrumbsFor(pathname: string): string[] {
     '/factory/history':      ['Recovery Factory', 'Import History'],
     '/ingest':              ['Admin',      'Ingestion'],
     '/audit':               ['Admin',      'Audit & Trace'],
+    '/admin':               ['Admin',      'Admin Console'],
+    '/admin/security':      ['Admin',      'Security Inventory'],
+    '/admin/audit':         ['Admin',      'Audit Export'],
+    '/admin/team':          ['Admin',      'Team Management'],
+    '/admin/settings':      ['Admin',      'Org Settings'],
+    '/admin/payer-config':  ['Admin',      'Payer Configuration'],
     '/executive':            ['Executive Intelligence', 'Executive Home'],
     '/executive/value':      ['Executive Intelligence', 'Value Realization'],
     '/executive/recovery':   ['Executive Intelligence', 'Recovery Attribution'],
