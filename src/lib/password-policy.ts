@@ -1,4 +1,8 @@
-/** Matches at least one digit or non-letter character (any symbol or number). */
+/**
+ * Matches any non-letter character (digits, symbols, whitespace, etc.).
+ * Passwords must contain at least one such character; this is intentionally
+ * broad so that any non-alpha character satisfies the complexity requirement.
+ */
 export const PASSWORD_COMPLEXITY_REGEX = /[^a-zA-Z]/;
 
 export const PASSWORD_MIN_LENGTH = 8;
