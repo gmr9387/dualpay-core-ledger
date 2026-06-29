@@ -17,7 +17,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { startJob, completeJob, failJob } from '@/lib/automation';
 import { listContracts, listDisputes, createDispute } from '@/lib/contracts';
-import { setAssignment, ASSIGNEES } from '@/lib/assignments';
+import { setAssignment } from '@/lib/assignments';
 import { autoCreateCase } from './auto-case-generator';
 import { evaluateRules } from './automation-rules';
 import type { JobType, JobRunResult, AutomationJob } from '@/types/automation';
@@ -152,23 +152,53 @@ const recovery_case_generation: Handler = async () => {
 };
 
 const queue_assignment: Handler = async () => {
-  // Round-robin assign unassigned open disputes to ASSIGNEES.
+  // Assign unassigned open disputes to eligible org members (round-robin per org).
+  // Never uses hardcoded user lists — assignees are sourced from organization_members.
   const disputes = await listDisputes();
   const open = disputes.filter(d => d.status === 'open');
   const { data: assigns } = await sb.from('claim_assignments').select('claim_id');
   const assigned = new Set(((assigns ?? []) as Array<{ claim_id: string }>).map(r => r.claim_id));
   const queue = open.filter(d => !assigned.has(d.claim_id));
-  let succeeded = 0; let failed = 0;
-  for (let i = 0; i < queue.length; i++) {
-    const assignee = ASSIGNEES[i % ASSIGNEES.length];
-    const r = await setAssignment(queue[i].claim_id, { assignee, status: 'open' });
+
+  // Cache eligible member user_ids per org to avoid repeated DB round-trips.
+  const memberCache: Record<string, string[]> = {};
+  const getEligibleMembers = async (orgId: string): Promise<string[]> => {
+    if (memberCache[orgId] !== undefined) return memberCache[orgId];
+    const { data } = await sb
+      .from('organization_members')
+      .select('user_id')
+      .eq('org_id', orgId)
+      .in('role', ['analyst', 'manager', 'admin', 'owner']);
+    memberCache[orgId] = ((data ?? []) as Array<{ user_id: string }>).map(r => r.user_id);
+    return memberCache[orgId];
+  };
+
+  let succeeded = 0; let failed = 0; let skipped = 0;
+  const orgCounters: Record<string, number> = {};
+
+  for (const dispute of queue) {
+    const orgId = dispute.org_id;
+    const members = await getEligibleMembers(orgId);
+
+    if (members.length === 0) {
+      console.warn(`[queue_assignment] No eligible assignees for org ${orgId} (claim ${dispute.claim_id}) — leaving unassigned`);
+      skipped += 1;
+      continue; // Do not assign to fake/hardcoded users.
+    }
+
+    const counter = orgCounters[orgId] ?? 0;
+    const assigneeId = members[counter % members.length];
+    orgCounters[orgId] = counter + 1;
+
+    const r = await setAssignment(dispute.claim_id, { assignee: assigneeId, status: 'open' });
     if (r) succeeded += 1; else failed += 1;
   }
+
   return {
     records_processed: queue.length,
     records_succeeded: succeeded,
     records_failed: failed,
-    details: { round_robin_size: ASSIGNEES.length },
+    details: { skipped_no_assignee: skipped },
   };
 };
 
