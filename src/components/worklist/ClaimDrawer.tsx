@@ -495,15 +495,6 @@ function AssignmentPanel({
     </div>
   );
 }
-            priority,
-            status,
-            dueDate: due ? new Date(due) : undefined,
-          })}
-        >Save changes</Button>
-      </div>
-    </div>
-  );
-}
 
 function NotesPanel({
   claimId, orgId, userId, busy, onAdd,
