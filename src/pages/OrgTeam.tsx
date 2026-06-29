@@ -322,11 +322,9 @@ function MembersList({ members, orgId, userId }: MembersListProps) {
                 {ROLES.find(r => r.value === m.role)?.label ?? m.role}
               </Badge>
               <div className="flex justify-end">
-                {(m.user_id === userId || true) && (
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(m)}>
-                    <Edit2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(m)}>
+                  <Edit2 className="h-3.5 w-3.5" />
+                </Button>
               </div>
             </div>
           )}

@@ -24,10 +24,11 @@ interface SearchResult {
   status?: string;
 }
 
-export function ClaimSearch({ userRole }: { userRole?: OrgRole | null }) {
+export function ClaimSearch() {
   const { currentOrg } = useOrg();
   const { user } = useAuth();
   const orgId = currentOrg?.org_id ?? null;
+  const userRole: OrgRole | null = currentOrg?.role ?? null;
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
