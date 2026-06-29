@@ -53,7 +53,7 @@ export default function Signup() {
             <label className="text-xs font-medium">Password</label>
             <input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)}
               className="mt-1 w-full h-9 px-3 rounded-md border bg-background text-sm" />
-            <div className="mt-1 text-[10px] text-muted-foreground">At least 8 characters. Use a mix of letters, numbers, and symbols.</div>
+            <div className="mt-1 text-[10px] text-muted-foreground">At least 8 characters with one number or symbol.</div>
           </div>
           {err && <div className="text-xs text-status-denied">{err}</div>}
           {msg && <div className="text-xs text-status-paid">{msg}</div>}

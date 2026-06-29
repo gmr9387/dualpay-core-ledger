@@ -1,5 +1,5 @@
-/** Matches at least one digit or common symbol character. */
-export const PASSWORD_COMPLEXITY_REGEX = /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/;
+/** Matches at least one digit or non-letter character (any symbol or number). */
+export const PASSWORD_COMPLEXITY_REGEX = /[^a-zA-Z]/;
 
 export const PASSWORD_MIN_LENGTH = 8;
 
