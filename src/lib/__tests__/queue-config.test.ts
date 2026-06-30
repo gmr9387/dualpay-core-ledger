@@ -1,7 +1,7 @@
 /**
  * Tests for src/lib/queue-config.ts
  *
- * Covers: defaultQueueConfig, save/load/hasQueueConfig,
+ * Covers: createDefaultQueueConfig, save/load/hasQueueConfig,
  * getOrDefaultQueueConfig, onboarding completion flag,
  * and QUEUE_ORDER completeness.
  */
@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   QUEUE_ORDER,
-  defaultQueueConfig,
+  createDefaultQueueConfig,
   saveQueueConfig,
   loadQueueConfig,
   getOrDefaultQueueConfig,
@@ -54,18 +54,18 @@ describe('QUEUE_ORDER', () => {
   });
 });
 
-// ── defaultQueueConfig ─────────────────────────────────────────
+// ── createDefaultQueueConfig ─────────────────────────────────────────
 
-describe('defaultQueueConfig', () => {
+describe('createDefaultQueueConfig', () => {
   it('returns an entry for every queue in QUEUE_ORDER', () => {
-    const config = defaultQueueConfig();
+    const config = createDefaultQueueConfig();
     for (const q of QUEUE_ORDER) {
       expect(config[q]).toBeDefined();
     }
   });
 
   it('enables all queues by default', () => {
-    const config = defaultQueueConfig();
+    const config = createDefaultQueueConfig();
     for (const q of QUEUE_ORDER) {
       expect(config[q].enabled).toBe(true);
     }
@@ -76,22 +76,22 @@ describe('defaultQueueConfig', () => {
       'biller', 'coder', 'auth_team', 'clinical',
       'appeals', 'cob_team', 'eligibility', 'unassigned',
     ];
-    const config = defaultQueueConfig();
+    const config = createDefaultQueueConfig();
     for (const q of QUEUE_ORDER) {
       expect(validOwners).toContain(config[q].owner);
     }
   });
 
   it('assigns a valid priority to every queue', () => {
-    const config = defaultQueueConfig();
+    const config = createDefaultQueueConfig();
     for (const q of QUEUE_ORDER) {
       expect(['high', 'medium', 'low']).toContain(config[q].priority);
     }
   });
 
   it('returns a new object on each call (no shared reference)', () => {
-    const a = defaultQueueConfig();
-    const b = defaultQueueConfig();
+    const a = createDefaultQueueConfig();
+    const b = createDefaultQueueConfig();
     a.high_value.enabled = false;
     expect(b.high_value.enabled).toBe(true);
   });
@@ -101,7 +101,7 @@ describe('defaultQueueConfig', () => {
 
 describe('saveQueueConfig + loadQueueConfig', () => {
   it('round-trips the full config correctly', () => {
-    const config = defaultQueueConfig();
+    const config = createDefaultQueueConfig();
     config.high_value.enabled = false;
     config.high_value.owner = 'coder';
     config.high_value.priority = 'low';
@@ -116,7 +116,7 @@ describe('saveQueueConfig + loadQueueConfig', () => {
   });
 
   it('returns true on successful save', () => {
-    const ok = saveQueueConfig(ORG_A, defaultQueueConfig());
+    const ok = saveQueueConfig(ORG_A, createDefaultQueueConfig());
     expect(ok).toBe(true);
   });
 
@@ -125,9 +125,9 @@ describe('saveQueueConfig + loadQueueConfig', () => {
   });
 
   it('isolates configs by orgId', () => {
-    const cfgA = defaultQueueConfig();
+    const cfgA = createDefaultQueueConfig();
     cfgA.aging.enabled = false;
-    const cfgB = defaultQueueConfig();
+    const cfgB = createDefaultQueueConfig();
     cfgB.stalled.owner = 'coder';
 
     saveQueueConfig(ORG_A, cfgA);
@@ -141,10 +141,10 @@ describe('saveQueueConfig + loadQueueConfig', () => {
   });
 
   it('overwrites an existing config on re-save', () => {
-    const config = defaultQueueConfig();
+    const config = createDefaultQueueConfig();
     saveQueueConfig(ORG_A, config);
 
-    const updated = defaultQueueConfig();
+    const updated = createDefaultQueueConfig();
     updated.escalation.owner = 'coder';
     saveQueueConfig(ORG_A, updated);
 
@@ -160,12 +160,12 @@ describe('hasQueueConfig', () => {
   });
 
   it('returns true after config is saved', () => {
-    saveQueueConfig(ORG_A, defaultQueueConfig());
+    saveQueueConfig(ORG_A, createDefaultQueueConfig());
     expect(hasQueueConfig(ORG_A)).toBe(true);
   });
 
   it('is independent across orgs', () => {
-    saveQueueConfig(ORG_A, defaultQueueConfig());
+    saveQueueConfig(ORG_A, createDefaultQueueConfig());
     expect(hasQueueConfig(ORG_B)).toBe(false);
   });
 });
@@ -175,7 +175,7 @@ describe('hasQueueConfig', () => {
 describe('getOrDefaultQueueConfig', () => {
   it('returns default config when none saved', () => {
     const result = getOrDefaultQueueConfig(ORG_A);
-    const def = defaultQueueConfig();
+    const def = createDefaultQueueConfig();
     for (const q of QUEUE_ORDER) {
       expect(result[q].enabled).toBe(def[q].enabled);
       expect(result[q].owner).toBe(def[q].owner);
@@ -184,7 +184,7 @@ describe('getOrDefaultQueueConfig', () => {
   });
 
   it('returns saved config when one exists', () => {
-    const config = defaultQueueConfig();
+    const config = createDefaultQueueConfig();
     config.missing_docs.enabled = false;
     saveQueueConfig(ORG_A, config);
 
@@ -223,7 +223,7 @@ describe('markOnboardingComplete / isOnboardingComplete', () => {
 
 describe('QueueConfigMap shape', () => {
   it('saved config preserves all QUEUE_ORDER keys after round-trip', () => {
-    saveQueueConfig(ORG_A, defaultQueueConfig());
+    saveQueueConfig(ORG_A, createDefaultQueueConfig());
     const loaded = loadQueueConfig(ORG_A) as QueueConfigMap;
     for (const q of QUEUE_ORDER) {
       expect(loaded[q]).toBeDefined();

@@ -25,7 +25,7 @@ import { useOrg } from '@/hooks/use-org';
 import { useClarityData, selectByQueue, formatCentsCompact } from '@/hooks/use-clarity-data';
 import {
   QUEUE_ORDER,
-  defaultQueueConfig,
+  createDefaultQueueConfig,
   saveQueueConfig,
   markOnboardingComplete,
   type QueueConfigMap,
@@ -82,7 +82,7 @@ export default function OnboardingWizard() {
   const [orgError, setOrgError] = useState<string | null>(null);
 
   // Step 4 state — queue configuration
-  const [queueConfig, setQueueConfig] = useState<QueueConfigMap>(defaultQueueConfig);
+  const [queueConfig, setQueueConfig] = useState<QueueConfigMap>(createDefaultQueueConfig);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -136,7 +136,7 @@ export default function OnboardingWizard() {
 
   function handleSkipQueues() {
     if (currentOrg) {
-      saveQueueConfig(currentOrg.org_id, defaultQueueConfig());
+      saveQueueConfig(currentOrg.org_id, createDefaultQueueConfig());
     }
     advance();
   }
@@ -276,7 +276,7 @@ function Step1OrgSetup({
         </div>
       )}
       <div className="space-y-4">
-        <Field label="Organization Name" hint="Legal or billing entity name">
+        <Field label="Organization Name" hint="Legal or billing entity name (e.g. health system, practice group)">
           <input
             className="w-full h-9 px-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             placeholder="e.g. Great Lakes Health System"
@@ -285,7 +285,7 @@ function Step1OrgSetup({
             disabled={!!existingOrg}
           />
         </Field>
-        <Field label="Clinic Name" hint="Primary clinic or practice location">
+        <Field label="Clinic / Location Name" hint="Specific clinic or site within the organization — combined with Organization Name to form your workspace identifier">
           <input
             className="w-full h-9 px-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             placeholder="e.g. Northside Family Medicine"

@@ -62,7 +62,7 @@ const DEFAULT_PRIORITY_BY_QUEUE: Record<WorkQueueId, QueueEntry['priority']> = {
 };
 
 /** Returns a fresh default config with all queues enabled. */
-export function defaultQueueConfig(): QueueConfigMap {
+export function createDefaultQueueConfig(): QueueConfigMap {
   return Object.fromEntries(
     QUEUE_ORDER.map((q) => [
       q,
@@ -112,7 +112,7 @@ export function loadQueueConfig(orgId: string): QueueConfigMap | null {
  * Returns the saved config if one exists, otherwise the default config.
  */
 export function getOrDefaultQueueConfig(orgId: string): QueueConfigMap {
-  return loadQueueConfig(orgId) ?? defaultQueueConfig();
+  return loadQueueConfig(orgId) ?? createDefaultQueueConfig();
 }
 
 /** True when the given org has completed queue setup. */
