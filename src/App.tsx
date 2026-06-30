@@ -9,6 +9,7 @@ import { OrgProvider } from "@/hooks/use-org";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import OnboardingWizard from "./pages/OnboardingWizard";
 import CommandCenter from "./pages/CommandCenter";
 import ExecutiveCommand from "./pages/ExecutiveCommand";
 import TodaysOpportunities from "./pages/TodaysOpportunities";
@@ -83,6 +84,15 @@ import OrgSettings from "./pages/OrgSettings";
 import PayerConfig from "./pages/PayerConfig";
 
 const queryClient = new QueryClient();
+
+/** Onboarding wizard — authenticated but rendered outside the main shell. */
+const OnboardingRoute = () => (
+  <RequireAuth>
+    <OrgProvider>
+      <OnboardingWizard />
+    </OrgProvider>
+  </RequireAuth>
+);
 
 const ProtectedShell = () => (
   <RequireAuth>
@@ -181,6 +191,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
+            <Route path="/onboarding" element={<OnboardingRoute />} />
             <Route path="/*" element={<ProtectedShell />} />
           </Routes>
         </AuthProvider>
