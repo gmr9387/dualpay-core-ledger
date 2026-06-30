@@ -3,19 +3,26 @@
  * a single claim with denial details, evidence, payer requirements,
  * and a submission checklist.  Returns explicit readiness verdict.
  */
-import { useMemo } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useClarityData, formatCents } from '@/hooks/use-clarity-data';
+import { useOrg } from '@/hooks/use-org';
 import { PageHeader, Panel, ScrollBody, EmptyState, SeverityBadge, RecoverabilityBar } from '@/components/clarity/primitives';
 import { recommendPlaybook } from '@/engine/playbooks';
 import { findRequirementsFor } from '@/engine/payer-requirements';
 import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
+import { appendOpsEvent } from '@/lib/ops-events';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2, CheckCircle2, AlertCircle, XCircle, FileText, Send, Inbox } from 'lucide-react';
 
 export default function AppealPacket() {
   const { claimId } = useParams();
   const { data: claims, isLoading } = useClarityData();
+  const { currentOrg } = useOrg();
+  const qc = useQueryClient();
+  const [submitting, setSubmitting] = useState(false);
   const claim = useMemo(() => claims?.find(c => c.claim_id === claimId), [claims, claimId]);
 
   if (isLoading) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
@@ -43,6 +50,66 @@ export default function AppealPacket() {
   const verdictCls = verdict === 'COMPLETE' ? 'bg-status-paid/15 text-status-paid border-status-paid/30'
     : verdict === 'MISSING_REQUIREMENTS' ? 'bg-status-pending/15 text-status-pending border-status-pending/30'
     : 'bg-status-denied/15 text-status-denied border-status-denied/30';
+
+  const handleSubmitAppeal = useCallback(async () => {
+    if (verdict !== 'COMPLETE' || submitting || !currentOrg) return;
+    setSubmitting(true);
+    try {
+      // Build appeal packet text document.
+      const lines = [
+        `APPEAL PACKET — ${claim.claim_id}`,
+        `Generated: ${new Date().toLocaleString('en-US')}`,
+        `Organization: ${currentOrg.org_id}`,
+        '',
+        `CLAIM SUMMARY`,
+        `  Claim ID:      ${claim.claim_id}`,
+        `  Provider:      ${claim.provider_name}`,
+        `  Facility:      ${claim.facility_name}`,
+        `  Payer:         ${claim.intel.payer_name}`,
+        `  Total Billed:  ${formatCents(claim.total_billed)}`,
+        `  Service Lines: ${claim.lines.length}`,
+        '',
+        primary ? [
+          `PRIMARY DENIAL`,
+          `  CARC: ${primary.carc_code}  RARC: ${primary.rarc_code ?? '—'}`,
+          `  Category: ${CATEGORY_LABEL[primary.category]}`,
+          `  Amount At Risk: ${formatCents(primary.amount_cents)}`,
+          `  Recoverability: ${primary.recoverability_score}`,
+          '',
+        ].join('\n') : '',
+        rec ? [
+          `APPEAL STRATEGY`,
+          `  Playbook: ${rec.playbook.name}`,
+          `  Strategy: ${rec.playbook.appeal_strategy}`,
+          '',
+        ].join('\n') : '',
+        `SUBMISSION CHECKLIST`,
+        ...checklist.map(c => `  [${c.ok ? 'x' : ' '}] ${c.label}${c.detail ? ` — ${c.detail}` : ''}`),
+      ].join('\n');
+
+      const blob = new Blob([lines], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `appeal-packet-${claim.claim_id}-${new Date().toISOString().slice(0, 10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      await appendOpsEvent({
+        kind: 'appeal_submitted',
+        claim_id: claim.claim_id,
+        org_id: currentOrg.org_id,
+        summary: `Appeal packet submitted for ${claim.claim_id} (${claim.intel.payer_name}).`,
+        payload: { claim_id: claim.claim_id, payer: claim.intel.payer_name, checklist_passing: passing, checklist_total: checklist.length },
+      });
+      qc.invalidateQueries({ queryKey: ['audit-ops-events'] });
+      toast({ title: 'Appeal submitted', description: `Packet downloaded and submission logged for ${claim.claim_id}.` });
+    } catch {
+      toast({ title: 'Error', description: 'Could not submit appeal. Try again.', variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [verdict, submitting, currentOrg, claim, primary, rec, checklist, passing, qc]);
 
   return (
     <div className="flex flex-col h-full">
@@ -72,8 +139,12 @@ export default function AppealPacket() {
         <div className="ml-auto flex items-center gap-2">
           {primary && <SeverityBadge severity={primary.severity} />}
           {primary && <div className="w-32"><RecoverabilityBar score={primary.recoverability_score} /></div>}
-          <button disabled={verdict !== 'COMPLETE'} className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground">
-            <Send className="h-3.5 w-3.5" /> Submit Appeal
+          <button
+            onClick={handleSubmitAppeal}
+            disabled={verdict !== 'COMPLETE' || submitting}
+            className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
+          >
+            <Send className="h-3.5 w-3.5" /> {submitting ? 'Submitting…' : 'Submit Appeal'}
           </button>
         </div>
       </div>

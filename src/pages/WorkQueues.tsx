@@ -4,12 +4,8 @@ import { useClarityData, selectByQueue, formatCents, formatCentsCompact, slaStat
 import { PageHeader, ScrollBody, SeverityBadge, OwnerChip, AgingChip, EmptyState, RecoverabilityBar } from '@/components/clarity/primitives';
 import { QUEUE_LABEL } from '@/engine/denial-intelligence';
 import type { WorkQueueId } from '@/types/clarity';
+import { QUEUE_ORDER } from '@/lib/queue-config';
 import { ListChecks, Loader2, ArrowLeft, Clock } from 'lucide-react';
-
-const QUEUE_ORDER: WorkQueueId[] = [
-  'unresolved_denials', 'high_value', 'appeals_in_progress', 'escalation',
-  'missing_docs', 'aging', 'stalled', 'payer_follow_up',
-];
 
 export default function WorkQueues() {
   const { queueId } = useParams<{ queueId?: WorkQueueId }>();

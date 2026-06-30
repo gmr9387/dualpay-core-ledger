@@ -15,11 +15,16 @@ import type {
   Claim,
   AdjudicationRun,
   MemberAccumulators,
+  ClaimStatus,
 } from '@/types/claim';
 import type { TraceObject } from '@/types/trace';
 import type { Case, CaseEvent } from '@/types/case';
 import type { ReplayRecord } from '@/engine/replay-store';
 import type { ReplayLedgerEvent } from '@/engine/replay-ledger';
+import {
+  canTransitionWithPersistentIdempotency,
+  type TransitionContext,
+} from '@/engine/state-machine';
 import {
   demoCases,
   demoCaseEvents,
@@ -31,10 +36,19 @@ import {
 
 // ── Loaders ───────────────────────────────────────────────────
 
-export async function loadClaims(): Promise<Claim[]> {
+/**
+ * Load claims from the database, scoped to the given org.
+ *
+ * Phase 4A: orgId parameter is now required for org-scoped isolation.
+ * Passing no orgId returns an empty array so pages can show an
+ * "Import Claims" empty state rather than leaking cross-org data.
+ */
+export async function loadClaims(orgId?: string): Promise<Claim[]> {
+  if (!orgId) return [];
   const { data, error } = await supabase
     .from('claims')
     .select('payload')
+    .eq('org_id', orgId)
     .order('service_date_from', { ascending: true });
   if (error) throw error;
   return (data ?? []).map((r) => r.payload as unknown as Claim);
@@ -173,6 +187,51 @@ export async function saveClaim(claim: Claim, orgId?: string): Promise<void> {
     payload: asJson(claim),
   }] as never);
   if (error) throw error;
+}
+
+/**
+ * B-1 (Phase 3D): Safe claim-status mutation entry point for payment transitions.
+ *
+ * This is the ONLY function that should be used when advancing a claim to
+ * PAYMENT_IN_PROGRESS or PAID.  It calls canTransitionWithPersistentIdempotency
+ * which:
+ *   1. Validates the transition against the state machine guards.
+ *   2. Checks the idempotency_keys table in Postgres (survives process restarts).
+ *   3. Records the key atomically before returning to the caller.
+ *
+ * Non-payment status changes (e.g. RECEIVED → ELIGIBILITY_CHECK) may use
+ * saveClaim() directly because they are idempotent by nature and carry no
+ * financial side-effects.
+ *
+ * Throws if:
+ *   - The transition is invalid (guard failure).
+ *   - The idempotency key was already consumed (duplicate call).
+ *   - The DB write fails.
+ */
+export async function updateClaimStatus(
+  claimId: string,
+  context: TransitionContext & { orgId: string },
+): Promise<{ fromStatus: ClaimStatus; toStatus: ClaimStatus }> {
+  // Validate + record idempotency key via persistent DB check.
+  const result = await canTransitionWithPersistentIdempotency(context);
+
+  if (!result.allowed) {
+    throw new Error(
+      `Claim status transition blocked [${context.currentStatus} → ${context.targetStatus}]: ` +
+      result.failedGuards.join(', '),
+    );
+  }
+
+  // Write the new status to the DB.
+  const { error } = await supabase
+    .from('claims')
+    .update({ status: context.targetStatus } as never)
+    .eq('claim_id', claimId)
+    .eq('org_id', context.orgId);
+
+  if (error) throw error;
+
+  return { fromStatus: context.currentStatus, toStatus: context.targetStatus };
 }
 
 export async function saveAdjudication(

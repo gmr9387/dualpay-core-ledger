@@ -1,10 +1,15 @@
 /**
- * Claim Clarity data hooks.
- * Loads claims (with embedded intel) from persistence and exposes
- * derived views for the operational modules.
+ * DualPay data hooks.
+ * Loads claims (with embedded intel) from persistence — scoped to the
+ * current organization — and exposes derived views for operational modules.
+ *
+ * Phase 4A: org-scoped query replaces the un-scoped loadClaims() call.
+ * Demo seeding (seedIfEmpty) is still gated by isDemoModeEnabled() in
+ * repository.ts and is NOT called here for production orgs.
  */
 import { useQuery } from '@tanstack/react-query';
-import { loadClaims, seedIfEmpty } from '@/data/repository';
+import { loadClaims } from '@/data/repository';
+import { useOrg } from '@/hooks/use-org';
 import type { Claim } from '@/types/claim';
 import type { ClaimIntel, WorkQueueId, DenialEvent } from '@/types/clarity';
 
@@ -13,13 +18,17 @@ export interface ClarityClaim extends Claim {
 }
 
 export function useClarityData() {
+  const { currentOrg } = useOrg();
+  const orgId = currentOrg?.org_id ?? null;
+
   return useQuery({
-    queryKey: ['clarity-claims'],
+    queryKey: ['clarity-claims', orgId],
     queryFn: async () => {
-      await seedIfEmpty();
-      const claims = await loadClaims();
+      if (!orgId) return [];
+      const claims = await loadClaims(orgId);
       return claims.filter((c): c is ClarityClaim => !!c.intel);
     },
+    enabled: !!orgId,
     staleTime: 60_000,
   });
 }

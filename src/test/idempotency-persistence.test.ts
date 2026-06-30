@@ -1,4 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Mock the persistence layer so idempotency unit tests run without a live
+// Supabase connection. The mock is stateful: recordIdempotencyKeyConsumption
+// populates a Set that isIdempotencyKeyConsumedPersistent then reads from,
+// matching the real DB behaviour under test.
+const _consumedKeys = new Set<string>();
+vi.mock('@/data/repository', () => ({
+  isIdempotencyKeyConsumedPersistent: vi.fn(async (key: string) => _consumedKeys.has(key)),
+  recordIdempotencyKeyConsumption: vi.fn(async (key: string) => { _consumedKeys.add(key); }),
+}));
+
 import {
   consumeIdempotencyKey,
   isIdempotencyKeyConsumed,
@@ -12,10 +23,12 @@ import {
 describe('Idempotency — Persistence', () => {
   beforeEach(() => {
     clearIdempotencyKeysForDev();
+    _consumedKeys.clear();
   });
 
   afterEach(() => {
     clearIdempotencyKeysForDev();
+    _consumedKeys.clear();
   });
 
   describe('In-Memory Key Consumption', () => {

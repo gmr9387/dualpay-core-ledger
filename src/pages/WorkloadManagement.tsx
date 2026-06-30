@@ -8,22 +8,26 @@ import { useClarityData, formatCents, formatCentsCompact } from '@/hooks/use-cla
 import { PageHeader, KpiStrip, ScrollBody, Panel, EmptyState, SeverityBadge } from '@/components/clarity/primitives';
 import { useAssignments } from '@/hooks/use-assignments';
 import { useOpsEvents } from '@/hooks/use-ops-events';
+import { useOrgMembers } from '@/hooks/use-org-members';
 import { aggregateTeam } from '@/engine/team-ops';
 import { evaluateSla } from '@/engine/sla';
-import { ASSIGNEES } from '@/lib/assignments';
 import { Loader2, Scale, UserPlus, AlertOctagon } from 'lucide-react';
 
 export default function WorkloadManagement() {
   const { data: claims, isLoading } = useClarityData();
   const { store, assign } = useAssignments();
   const { append } = useOpsEvents();
+  const { data: roster = [] } = useOrgMembers();
 
   const data = useMemo(() => {
     if (!claims) return null;
     const team = aggregateTeam(claims, store);
     const avgLoad = team.members.length ? team.members.reduce((s, m) => s + m.active_count, 0) / team.members.length : 0;
     const overloaded = team.members.filter(m => m.active_count > avgLoad * 1.4 && avgLoad > 0);
-    const underutilized = ASSIGNEES.map(a => team.members.find(m => m.assignee === a) ?? { assignee: a, active_count: 0, in_progress_count: 0, snoozed_count: 0, resolved_count: 0, overdue_count: 0, total_at_risk_cents: 0, expected_recovery_cents: 0, recovered_cents: 0, avg_recoverability: 0 })
+    // Underutilized: members from live roster with fewer than 60% of average load.
+    const rosterNames = roster.map(r => r.display_name);
+    const underutilized = rosterNames
+      .map(a => team.members.find(m => m.assignee === a) ?? { assignee: a, active_count: 0, in_progress_count: 0, snoozed_count: 0, resolved_count: 0, overdue_count: 0, total_at_risk_cents: 0, expected_recovery_cents: 0, recovered_cents: 0, avg_recoverability: 0 })
       .filter(m => m.active_count < Math.max(1, avgLoad * 0.6));
     const critical = claims.filter(c => c.intel.severity === 'critical' && c.intel.reimbursement_state !== 'paid' && c.intel.reimbursement_state !== 'resolved');
     const breached = claims.filter(c => {
@@ -31,15 +35,14 @@ export default function WorkloadManagement() {
       return evaluateSla(c).state === 'breached';
     });
     return { team, avgLoad, overloaded, underutilized, critical, breached };
-  }, [claims, store]);
+  }, [claims, store, roster]);
 
   if (isLoading || !data) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
 
   const totalActive = data.team.members.reduce((s, m) => s + m.active_count, 0);
-  const maxLoad = Math.max(1, ...ASSIGNEES.map(a => data.team.members.find(m => m.assignee === a)?.active_count ?? 0));
+  const maxLoad = Math.max(1, ...roster.map(r => data.team.members.find(m => m.assignee === r.display_name)?.active_count ?? 0));
 
   const rebalance = () => {
-    // Take the most-overloaded owner and move their oldest claims to the most-underutilized owner.
     if (data.overloaded.length === 0 || data.underutilized.length === 0 || !claims) return;
     const from = data.overloaded[0];
     const to = data.underutilized[0];
@@ -55,13 +58,19 @@ export default function WorkloadManagement() {
   };
 
   const autoAssign = () => {
-    if (!data.team.unassigned.length) return;
+    if (!data.team.unassigned.length || !roster.length) return;
     data.team.unassigned.forEach((c, i) => {
-      const to = ASSIGNEES[i % ASSIGNEES.length];
+      const to = roster[i % roster.length].display_name;
       assign(c.claim_id, to);
       append({ kind: 'assignment_changed', claim_id: c.claim_id, summary: `Auto-assigned ${c.claim_id} → ${to}.`, payload: { from: null, to } });
     });
   };
+
+  // Determine which names to show in the load distribution table.
+  // Prefer live roster; fall back to team members already in the store.
+  const displayNames = roster.length > 0
+    ? roster.map(r => r.display_name)
+    : data.team.members.map(m => m.assignee);
 
   return (
     <div className="flex flex-col h-full">
@@ -70,7 +79,7 @@ export default function WorkloadManagement() {
         subtitle="Recovery-team load balance, critical & breached distribution, and rapid rebalancing."
         actions={
           <div className="flex items-center gap-2">
-            <button onClick={autoAssign} disabled={data.team.unassigned.length === 0} className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 border hover:bg-muted disabled:opacity-50">
+            <button onClick={autoAssign} disabled={data.team.unassigned.length === 0 || roster.length === 0} className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 border hover:bg-muted disabled:opacity-50">
               <UserPlus className="h-3.5 w-3.5" /> Auto-assign backlog ({data.team.unassigned.length})
             </button>
             <button onClick={rebalance} disabled={data.overloaded.length === 0 || data.underutilized.length === 0} className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground">
@@ -95,7 +104,9 @@ export default function WorkloadManagement() {
                 <div className="grid grid-cols-[1fr_50px_60px_60px_140px_120px] gap-3 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/40">
                   <span>Owner</span><span>Claims</span><span>Critical</span><span>Breach</span><span>Load</span><span className="text-right">At Risk</span>
                 </div>
-                {ASSIGNEES.map(a => {
+                {displayNames.length === 0 ? (
+                  <div className="px-4 py-6 text-[12px] text-muted-foreground italic">No team members. Add users to your organization to see load distribution.</div>
+                ) : displayNames.map(a => {
                   const m = data.team.members.find(x => x.assignee === a);
                   const owned = claims!.filter(c => store[c.claim_id]?.assignee === a);
                   const critCount = owned.filter(c => c.intel.severity === 'critical').length;

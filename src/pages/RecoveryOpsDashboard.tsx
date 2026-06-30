@@ -78,6 +78,14 @@ export default function RecoveryOpsDashboard() {
         { label: 'SLA Breaches',        value: String(view.sla.breached), tone: view.sla.breached > 0 ? 'text-status-denied' : 'text-status-paid' },
         { label: 'Stalled',             value: String(view.stalled.length), tone: 'text-status-pending' },
       ]} />
+      {/* C-4/M-3: Demo data banner — all queue/team data is from clarity sample data */}
+      <div className="mx-5 mt-3 mb-1 flex items-start gap-2 rounded-md border border-status-pending/40 bg-status-pending/5 px-3 py-2 text-[11.5px] text-status-pending">
+        <span className="text-[13px] shrink-0">⚠️</span>
+        <span>
+          <strong>Demo data:</strong> KPIs, queue, and team panels below are sourced from sample clarity data.
+          Connect a live payer feed to see real figures.
+        </span>
+      </div>
       <ScrollBody>
         <div className="grid grid-cols-2 gap-4 p-5">
 

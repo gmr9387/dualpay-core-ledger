@@ -10,6 +10,7 @@ import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import type { DenialCategory, DenialSeverity } from '@/types/clarity';
 import { AlertOctagon, Filter, Loader2, Search, Target, Clock } from 'lucide-react';
 import { useAssignments } from '@/hooks/use-assignments';
+import { useOrgMembers } from '@/hooks/use-org-members';
 
 const CATEGORIES: ('all' | DenialCategory)[] = ['all', 'authorization', 'eligibility', 'cob', 'modifier', 'duplicate', 'medical_necessity', 'missing_documentation', 'timely_filing', 'contractual', 'bundled', 'coding', 'coverage', 'underpayment'];
 const SEVS: ('all' | DenialSeverity)[] = ['all', 'critical', 'high', 'medium', 'low'];
@@ -17,7 +18,8 @@ type RecBand = 'all' | 'high' | 'medium' | 'low';
 
 export default function DenialIntelligence() {
   const { data: claims, isLoading } = useClarityData();
-  const { get, assign, assignees } = useAssignments();
+  const { get, assign } = useAssignments();
+  const { data: roster = [] } = useOrgMembers();
   const [category, setCategory] = useState<typeof CATEGORIES[number]>('all');
   const [severity, setSeverity] = useState<typeof SEVS[number]>('all');
   const [recBand, setRecBand] = useState<RecBand>('all');
@@ -159,7 +161,7 @@ export default function DenialIntelligence() {
                       className="h-6 text-[10.5px] rounded border bg-card px-1 focus:outline-none focus:ring-2 focus:ring-ring/40"
                     >
                       <option value="">Unassigned</option>
-                      {assignees.map(n => <option key={n} value={n}>{n}</option>)}
+                      {roster.map(m => <option key={m.user_id} value={m.display_name}>{m.display_name}</option>)}
                     </select>
                   </div>
                 </div>

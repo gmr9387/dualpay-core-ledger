@@ -1241,6 +1241,203 @@ export type Database = {
         }
         Relationships: []
       }
+      user_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          org_id: string
+          first_name: string | null
+          last_name: string | null
+          display_name: string | null
+          role: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          org_id: string
+          first_name?: string | null
+          last_name?: string | null
+          display_name?: string | null
+          role?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          org_id?: string
+          first_name?: string | null
+          last_name?: string | null
+          display_name?: string | null
+          role?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
+      invitations: {
+        Row: {
+          invite_id: string
+          org_id: string
+          email: string
+          role: string
+          token: string
+          status: string
+          created_by: string
+          created_at: string
+          expires_at: string
+          accepted_at: string | null
+          accepted_by: string | null
+        }
+        Insert: {
+          invite_id?: string
+          org_id: string
+          email: string
+          role?: string
+          token?: string
+          status?: string
+          created_by: string
+          created_at?: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by?: string | null
+        }
+        Update: {
+          invite_id?: string
+          org_id?: string
+          email?: string
+          role?: string
+          token?: string
+          status?: string
+          created_by?: string
+          created_at?: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
+      org_settings: {
+        Row: {
+          id: string
+          org_id: string
+          clinic_name: string | null
+          address: string | null
+          phone: string | null
+          npi: string | null
+          tax_id: string | null
+          timezone: string
+          default_sla_days: number
+          mfa_required: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          clinic_name?: string | null
+          address?: string | null
+          phone?: string | null
+          npi?: string | null
+          tax_id?: string | null
+          timezone?: string
+          default_sla_days?: number
+          mfa_required?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          clinic_name?: string | null
+          address?: string | null
+          phone?: string | null
+          npi?: string | null
+          tax_id?: string | null
+          timezone?: string
+          default_sla_days?: number
+          mfa_required?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
+      payer_configs: {
+        Row: {
+          payer_config_id: string
+          org_id: string
+          payer_name: string
+          payer_id: string | null
+          timely_filing_days: number
+          appeal_deadline_days: number
+          portal_url: string | null
+          documentation_checklist: Json
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          payer_config_id?: string
+          org_id: string
+          payer_name: string
+          payer_id?: string | null
+          timely_filing_days?: number
+          appeal_deadline_days?: number
+          portal_url?: string | null
+          documentation_checklist?: Json
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          payer_config_id?: string
+          org_id?: string
+          payer_name?: string
+          payer_id?: string | null
+          timely_filing_days?: number
+          appeal_deadline_days?: number
+          portal_url?: string | null
+          documentation_checklist?: Json
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payer_configs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
       payer_contracts: {
         Row: {
           contract_id: string

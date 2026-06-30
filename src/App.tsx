@@ -9,6 +9,7 @@ import { OrgProvider } from "@/hooks/use-org";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import OnboardingWizard from "./pages/OnboardingWizard";
 import CommandCenter from "./pages/CommandCenter";
 import ExecutiveCommand from "./pages/ExecutiveCommand";
 import TodaysOpportunities from "./pages/TodaysOpportunities";
@@ -77,8 +78,21 @@ import EdiTransactions from "./pages/EdiTransactions";
 import EdiErrors from "./pages/EdiErrors";
 import NotFound from "./pages/NotFound";
 import MyWorklist from "./pages/MyWorklist";
+import OrgTeam from "./pages/OrgTeam";
+import AcceptInvite from "./pages/AcceptInvite";
+import OrgSettings from "./pages/OrgSettings";
+import PayerConfig from "./pages/PayerConfig";
 
 const queryClient = new QueryClient();
+
+/** Onboarding wizard — authenticated but rendered outside the main shell. */
+const OnboardingRoute = () => (
+  <RequireAuth>
+    <OrgProvider>
+      <OnboardingWizard />
+    </OrgProvider>
+  </RequireAuth>
+);
 
 const ProtectedShell = () => (
   <RequireAuth>
@@ -156,6 +170,9 @@ const ProtectedShell = () => (
           <Route path="/edi/transactions" element={<EdiTransactions />} />
           <Route path="/edi/errors" element={<EdiErrors />} />
           <Route path="/worklist" element={<MyWorklist />} />
+          <Route path="/admin/team" element={<OrgTeam />} />
+          <Route path="/admin/settings" element={<OrgSettings />} />
+          <Route path="/admin/payer-config" element={<PayerConfig />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>
@@ -173,6 +190,8 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/accept-invite" element={<AcceptInvite />} />
+            <Route path="/onboarding" element={<OnboardingRoute />} />
             <Route path="/*" element={<ProtectedShell />} />
           </Routes>
         </AuthProvider>

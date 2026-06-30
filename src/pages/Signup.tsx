@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Shield } from 'lucide-react';
+import { validatePassword } from '@/lib/password-policy';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -13,7 +14,10 @@ export default function Signup() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr(null); setMsg(null); setBusy(true);
+    setErr(null); setMsg(null);
+    const pwError = validatePassword(password);
+    if (pwError) { setErr(pwError); return; }
+    setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email, password,
       options: { emailRedirectTo: `${window.location.origin}/` },
@@ -47,8 +51,9 @@ export default function Signup() {
           </div>
           <div>
             <label className="text-xs font-medium">Password</label>
-            <input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)}
+            <input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)}
               className="mt-1 w-full h-9 px-3 rounded-md border bg-background text-sm" />
+            <div className="mt-1 text-[10px] text-muted-foreground">At least 8 characters with one number or symbol.</div>
           </div>
           {err && <div className="text-xs text-status-denied">{err}</div>}
           {msg && <div className="text-xs text-status-paid">{msg}</div>}

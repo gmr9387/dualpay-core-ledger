@@ -33,6 +33,8 @@ export interface ClaimAssignmentRecord {
   assigned_at: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   due_date?: string;
+  /** ISO timestamp; required when status = 'snoozed'. */
+  snooze_until?: string;
   status: 'open' | 'in_progress' | 'snoozed' | 'resolved';
   created_at: string;
   updated_at: string;
@@ -66,6 +68,9 @@ export interface WorklistItem {
 
 /**
  * Create or update a claim assignment.
+ *
+ * H-6: Uses (claim_id, org_id) composite conflict key for multi-tenant safety.
+ * H-3: snooze_until is required when status = 'snoozed'.
  */
 export async function updateAssignment(
   claimId: string,
@@ -75,6 +80,8 @@ export async function updateAssignment(
     assignedByUserId?: string;
     priority?: 'low' | 'medium' | 'high' | 'urgent';
     dueDate?: Date;
+    /** H-3: Required when status='snoozed'. */
+    snoozeUntil?: Date;
     status?: 'open' | 'in_progress' | 'snoozed' | 'resolved';
   },
 ): Promise<ClaimAssignmentRecord> {
@@ -83,14 +90,21 @@ export async function updateAssignment(
     assignedByUserId,
     priority,
     dueDate,
+    snoozeUntil,
     status,
   } = params;
 
-  // Get current assignment (if exists)
+  // H-3: Enforce snooze_until when snoozed.
+  if (status === 'snoozed' && !snoozeUntil) {
+    throw new Error('snooze_until is required when setting status to snoozed');
+  }
+
+  // Get current assignment (if exists) — scoped to org for multi-tenancy.
   const { data: current } = await supabase
     .from('claim_assignments')
     .select('*')
     .eq('claim_id', claimId)
+    .eq('org_id', orgId)
     .maybeSingle();
 
   // Prepare update payload
@@ -100,6 +114,9 @@ export async function updateAssignment(
 
   if (priority !== undefined) updateData.priority = priority;
   if (dueDate !== undefined) updateData.due_date = dueDate.toISOString();
+  if (snoozeUntil !== undefined) updateData.snooze_until = snoozeUntil.toISOString();
+  // Clear snooze_until when un-snoozing.
+  if (status !== undefined && status !== 'snoozed') updateData.snooze_until = null;
   if (status !== undefined) updateData.status = status;
   if (assignedToUserId !== undefined) {
     updateData.assigned_to_user_id = assignedToUserId;
@@ -108,13 +125,13 @@ export async function updateAssignment(
     updateData.assigned_by_user_id = assignedByUserId;
   }
 
-  // Upsert assignment
+  // H-6: Upsert on composite (claim_id, org_id) — multi-tenant safe.
   const { data, error } = await supabase
     .from('claim_assignments')
     .upsert([{
       claim_id: claimId,
       ...updateData,
-    }] as never, { onConflict: 'claim_id' })
+    }] as never, { onConflict: 'claim_id,org_id' })
     .select()
     .single();
 
@@ -123,7 +140,7 @@ export async function updateAssignment(
   // Log assignment event
   const eventKind = current ? 'assignment_updated' : 'assignment_created';
   const summary = current
-    ? `Assignment updated: ${priority ? `priority=${priority}` : ''} ${dueDate ? `due=${dueDate.toLocaleDateString()}` : ''}`
+    ? `Assignment updated: ${priority ? `priority=${priority}` : ''} ${dueDate ? `due=${dueDate.toLocaleDateString()}` : ''} ${status ? `status=${status}` : ''}`
     : `Assigned to ${assignedToUserId || 'unassigned'}`;
 
   await appendOpsEvent({
@@ -138,6 +155,9 @@ export async function updateAssignment(
       new_priority: priority,
       previous_due_date: current?.due_date,
       new_due_date: dueDate?.toISOString(),
+      previous_status: current?.status,
+      new_status: status,
+      snooze_until: snoozeUntil?.toISOString(),
       assigned_by: assignedByUserId,
     },
   });
@@ -182,6 +202,35 @@ export async function logAppealEvent(
     notes?: string;
   },
 ): Promise<string> {
+  // M-1: Appeal state transition guard.
+  // Fetch the latest appeal event for this claim to validate the transition.
+  const { data: latestEvents } = await supabase
+    .from('ops_events')
+    .select('kind')
+    .eq('claim_id', claimId)
+    .eq('org_id', orgId)
+    .in('kind', ['appeal_submitted', 'appeal_responded', 'appeal_resolved'])
+    .order('occurred_at', { ascending: false })
+    .limit(1);
+
+  const latestKind = latestEvents?.[0]?.kind as string | undefined;
+
+  const VALID_TRANSITIONS: Record<string, string[]> = {
+    // No prior appeal: can submit
+    undefined: ['appeal_submitted'],
+    appeal_submitted: ['appeal_responded', 'appeal_resolved'],
+    appeal_responded: ['appeal_resolved', 'appeal_submitted'], // re-submit on new level
+    appeal_resolved: ['appeal_submitted'], // new appeal level allowed
+  };
+
+  const allowed = VALID_TRANSITIONS[latestKind ?? 'undefined'] ?? ['appeal_submitted'];
+  if (!allowed.includes(params.kind)) {
+    throw new Error(
+      `Invalid appeal transition: cannot ${params.kind} when latest event is ${latestKind ?? 'none'}. ` +
+      `Allowed: ${allowed.join(', ')}`,
+    );
+  }
+
   return appendOpsEvent({
     kind: params.kind,
     claimId,
@@ -197,18 +246,116 @@ export async function logAppealEvent(
 
 /**
  * Log a recovery transaction.
+ *
+ * B-5 (Phase 3D/3E): When totalBilledCents is not supplied, it is automatically
+ * fetched from the claims table so the cap and auto-close logic always fires.
+ * If the lookup returns null, missing row, or 0, the call throws
+ * "Cannot log recovery: claim billed amount is unknown." — unless the caller
+ * sets allowUncappedRecovery = true with actorRole = 'admin' (admin-only
+ * correction path that stamps uncapped_override = true in the payload).
+ *
+ * B-4 (Phase 3D): Cap math is reversal-aware:
+ *   effectiveRecovered = SUM(recovery_recorded.amount_cents)
+ *                       − SUM(recovery_reversed.amount_cents)
+ * This allows a previously recorded recovery to be unwound via
+ * logRecoveryReversal() without permanently blocking future recovery up to
+ * the full billed amount.
+ *
+ * H-2/H-4: Does NOT accept 'writeoff' as a recovery type — write-offs are
+ * logged separately via logWriteOff() which requires elevated role checks.
+ * M-6: Automatically closes the assignment when claim is fully recovered.
  */
 export async function logRecoveryEvent(
   claimId: string,
   orgId: string,
   params: {
-    recoveryType: 'payer_payment' | 'patient_payment' | 'writeoff' | 'adjustment';
+    recoveryType: 'payer_payment' | 'patient_payment' | 'adjustment';
     amountCents: number;
     recoveredFrom: string;
     analystUserId?: string;
     notes?: string;
+    /**
+     * Total billed/denied amount for this claim (cents).
+     * B-5: If omitted, fetched from the claims table automatically so the cap
+     * and auto-close logic always runs.  When the lookup returns null or 0,
+     * the function throws unless allowUncappedRecovery is set.
+     */
+    totalBilledCents?: number;
+    /**
+     * B-5 (Phase 3E): Set true ONLY for admin/import-correction paths where
+     * the billed amount is intentionally absent.  Requires actorRole = 'admin'.
+     * Records uncapped_override = true in the event payload for audit trail.
+     */
+    allowUncappedRecovery?: boolean;
+    /**
+     * Role of the calling actor.  Required (must equal 'admin') when
+     * allowUncappedRecovery = true.
+     */
+    actorRole?: string;
   },
 ): Promise<string> {
+  // B-5: Resolve totalBilledCents — fetch from DB when not supplied.
+  let totalBilledCents = params.totalBilledCents;
+  if (totalBilledCents === undefined || totalBilledCents <= 0) {
+    const { data: claimRow } = await supabase
+      .from('claims')
+      .select('total_billed_cents')
+      .eq('claim_id', claimId)
+      .maybeSingle();
+    totalBilledCents = (claimRow as { total_billed_cents?: number } | null)?.total_billed_cents ?? 0;
+  }
+
+  // B-5 (Phase 3E): Guard — unknown billed amount must not silently bypass cap.
+  // A zero or negative totalBilledCents after the DB fallback means the row is
+  // missing, NULL, stored as 0, or otherwise invalid — all cases where
+  // enforcing no cap would risk unbounded over-recovery.
+  if (totalBilledCents <= 0) {
+    if (!params.allowUncappedRecovery) {
+      throw new Error('Cannot log recovery: claim billed amount is unknown.');
+    }
+    if (params.actorRole !== 'admin') {
+      throw new Error('allowUncappedRecovery requires actorRole to be "admin".');
+    }
+    // Admin-gated override: cap block below is intentionally skipped.
+    // uncapped_override = true is stamped on the payload for audit purposes.
+  }
+
+  // H-2/H-4 + B-4: Cap recovery at remaining balance (reversal-aware).
+  // Skipped only when allowUncappedRecovery = true (admin override, totalBilledCents unknown).
+  if (totalBilledCents > 0) {
+    const { data: priorEvents } = await supabase
+      .from('ops_events')
+      .select('kind, payload')
+      .eq('claim_id', claimId)
+      .eq('org_id', orgId)
+      .in('kind', ['recovery_recorded', 'recovery_reversed']);
+
+    const alreadyRecoveredCents = (priorEvents ?? []).reduce((sum, e) => {
+      const p = e.payload as Record<string, unknown> | null;
+      const amt = typeof p?.amount_cents === 'number' ? p.amount_cents : 0;
+      // B-4: Reversals reduce the effective recovered amount.
+      return e.kind === 'recovery_reversed' ? sum - amt : sum + amt;
+    }, 0);
+
+    const remainingCents = totalBilledCents - alreadyRecoveredCents;
+    if (params.amountCents > remainingCents) {
+      throw new Error(
+        `Recovery amount $${(params.amountCents / 100).toFixed(2)} exceeds remaining balance ` +
+        `$${(remainingCents / 100).toFixed(2)}. Effective recovered: $${(alreadyRecoveredCents / 100).toFixed(2)}.`,
+      );
+    }
+
+    // M-6: Auto-close assignment when fully recovered.
+    const newTotal = alreadyRecoveredCents + params.amountCents;
+    if (newTotal >= totalBilledCents) {
+      await supabase
+        .from('claim_assignments')
+        .update({ status: 'resolved' } as never)
+        .eq('claim_id', claimId)
+        .eq('org_id', orgId);
+    }
+  }
+
   const summary = `Recovery recorded: ${params.recoveryType} of $${(params.amountCents / 100).toFixed(2)} from ${params.recoveredFrom}`;
 
   return appendOpsEvent({
@@ -222,26 +369,91 @@ export async function logRecoveryEvent(
       recovered_from: params.recoveredFrom,
       analyst_user_id: params.analystUserId,
       notes: params.notes,
+      ...(params.allowUncappedRecovery === true ? { uncapped_override: true } : {}),
+    },
+  });
+}
+
+/**
+ * Log a recovery reversal.
+ *
+ * B-4 (Phase 3D): Records a corrective event when a previously logged recovery
+ * must be unwound (e.g. a check bounces, a payment is clawed back, an EDI
+ * adjustment credits the payer).
+ *
+ * Emits a `recovery_reversed` ops_event.  The cap math in logRecoveryEvent
+ * treats these as negative amounts, so subsequent recovery attempts up to the
+ * full billed balance are permitted again.
+ *
+ * amountCents should be the gross amount being reversed (positive integer).
+ */
+export async function logRecoveryReversal(
+  claimId: string,
+  orgId: string,
+  params: {
+    amountCents: number;
+    reason: string;
+    originalEventId?: string;
+    analystUserId?: string;
+  },
+): Promise<string> {
+  if (params.amountCents <= 0) {
+    throw new Error('amountCents must be a positive integer for a reversal');
+  }
+
+  const summary = `Recovery reversed: $${(params.amountCents / 100).toFixed(2)} — ${params.reason}`;
+
+  return appendOpsEvent({
+    kind: 'recovery_reversed',
+    claimId,
+    orgId,
+    summary,
+    payload: {
+      amount_cents: params.amountCents,
+      reason: params.reason,
+      original_event_id: params.originalEventId ?? null,
+      analyst_user_id: params.analystUserId ?? null,
     },
   });
 }
 
 /**
  * Log a write-off.
+ *
+ * C-2/L-1: Records full audit trail — actor_id, actor_role, reason, amount, org_id.
+ * M-6: Automatically closes the assignment after write-off.
  */
 export async function logWriteOff(
   claimId: string,
   orgId: string,
   reason: string,
-  actor?: string,
+  options: {
+    actorId: string;
+    actorRole: string;
+    amountCents?: number;
+    actor?: string;
+  },
 ): Promise<string> {
+  // M-6: Close the assignment when writing off.
+  await supabase
+    .from('claim_assignments')
+    .update({ status: 'resolved' } as never)
+    .eq('claim_id', claimId)
+    .eq('org_id', orgId);
+
   return appendOpsEvent({
     kind: 'claim_written_off',
     claimId,
     orgId,
-    summary: `Claim written off: ${reason}`,
-    payload: { reason },
-    actor,
+    summary: `Claim written off by ${options.actor ?? options.actorId}: ${reason}`,
+    payload: {
+      reason,
+      actor_id: options.actorId,
+      actor_role: options.actorRole,
+      amount_cents: options.amountCents,
+      org_id: orgId,
+    },
+    actor: options.actor,
   });
 }
 
@@ -537,13 +749,14 @@ export async function getAppealTimeline(
 }
 
 /**
- * Get recovery timeline for a claim (all recovery_recorded events).
+ * Get recovery timeline for a claim (recovery_recorded and recovery_reversed events).
+ * B-4: Includes reversals so callers can compute the net recovered amount.
  */
 export async function getRecoveryTimeline(
   claimId: string,
   orgId: string,
 ): Promise<TimelineEvent[]> {
-  return getClaimTimelineByKind(claimId, orgId, ['recovery_recorded']);
+  return getClaimTimelineByKind(claimId, orgId, ['recovery_recorded', 'recovery_reversed']);
 }
 
 /**

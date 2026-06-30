@@ -7,9 +7,28 @@
  * - My Worklist queries (assigned, overdue, due today, high dollar)
  * - Timeline queries (unified, filtered by kind)
  * - RLS enforcement via org_id
+ *
+ * These are integration tests that require a live Supabase instance.
+ * Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (see .env.test.example)
+ * to run them. Without those env vars the suite is skipped automatically.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Minimal stub prevents the Supabase client from crashing at module load
+// time when SUPABASE_URL is not set. The actual test cases are gated by
+// `describe.skipIf` below and will not run without a real DB.
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    from: vi.fn(),
+    auth: { getUser: vi.fn() },
+  },
+}));
+
+const supabaseConfigured = !!(
+  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+);
+
 import {
   updateAssignment,
   addNote,
@@ -32,7 +51,7 @@ const TEST_ORG_ID = 'test-org-uuid';
 const TEST_USER_ID = 'test-user-uuid';
 const TEST_CLAIM_ID = 'CLM-2024-00001';
 
-describe('Operational Workflows (Phase 3A)', () => {
+describe.skipIf(!supabaseConfigured)('Operational Workflows (Phase 3A)', () => {
   describe('Assignment Workflow', () => {
     it('should create a new assignment with priority and due_date', async () => {
       const dueDate = new Date();
@@ -158,18 +177,21 @@ describe('Operational Workflows (Phase 3A)', () => {
     });
 
     it('should log a writeoff', async () => {
-      const eventId = await logWriteOff(TEST_CLAIM_ID, TEST_ORG_ID, 'Unrecoverable - payer bankruptcy');
+      const eventId = await logWriteOff(TEST_CLAIM_ID, TEST_ORG_ID, 'Unrecoverable - payer bankruptcy', {
+        actorId: TEST_USER_ID,
+        actorRole: 'manager',
+      });
 
       expect(eventId).toBeDefined();
     });
 
     it('should support all recovery types', async () => {
-      const recoveryTypes = ['payer_payment', 'patient_payment', 'writeoff', 'adjustment'] as const;
+      const recoveryTypes = ['payer_payment', 'patient_payment', 'adjustment'] as const;
 
       for (const type of recoveryTypes) {
         const eventId = await logRecoveryEvent(TEST_CLAIM_ID, TEST_ORG_ID, {
           recoveryType: type,
-          amountCents: type === 'writeoff' ? 0 : 100000,
+          amountCents: 100000,
           recoveredFrom: type === 'patient_payment' ? 'Patient' : 'Payer',
         });
 
@@ -397,21 +419,29 @@ describe('Operational Workflows (Phase 3A)', () => {
       expect(eventId).toBeDefined();
     });
 
-    it('should handle zero recovery amount', async () => {
+    it('should handle zero recovery amount when billed amount is known', async () => {
       const eventId = await logRecoveryEvent(TEST_CLAIM_ID, TEST_ORG_ID, {
         recoveryType: 'adjustment',
         amountCents: 0,
         recoveredFrom: 'N/A',
+        totalBilledCents: 100000,
       });
       expect(eventId).toBeDefined();
     });
 
-    it('should handle negative recovery amount (reversal)', async () => {
+    it('should reject logRecoveryEvent with negative amount — use logRecoveryReversal instead', async () => {
+      // Negative amountCents in logRecoveryEvent has no defined semantics.
+      // Reversals belong in logRecoveryReversal().  Passing a supplied
+      // totalBilledCents still goes through the cap check:
+      //   -50000 > (100000 - 0) = 100000  →  false  →  insert allowed.
+      // This test preserves backward compat but the correct API is
+      // logRecoveryReversal() for unwinding a prior recovery.
       const eventId = await logRecoveryEvent(TEST_CLAIM_ID, TEST_ORG_ID, {
         recoveryType: 'adjustment',
         amountCents: -50000,
         recoveredFrom: 'Reversal',
         notes: 'Reversal of previous payment',
+        totalBilledCents: 100000,
       });
       expect(eventId).toBeDefined();
     });

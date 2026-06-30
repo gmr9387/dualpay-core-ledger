@@ -384,7 +384,8 @@ export function adjudicateLine(
       coinsurance: 0,
       copay: 0,
       plan_paid: 0,
-      member_responsibility: 0,
+      // Member owes the full billed amount when the plan denies as non-covered.
+      member_responsibility: line.billed_amount,
       adjustments: [
         ...adjustments,
         {

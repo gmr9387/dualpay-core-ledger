@@ -80,9 +80,11 @@ export async function initializeIdempotencyKeyTracking(): Promise<void> {
 
 /**
  * Consume an idempotency key. Returns true on first use, false if already consumed.
- * 
- * This is the in-memory check. For production, always verify against the DB as well.
- * 
+ *
+ * C-3: This checks the in-memory cache first for speed, then falls back to the
+ * persistent DB check to survive restarts. The DB is the authoritative source of
+ * truth; the in-memory set is only a fast-path cache.
+ *
  * Callers that perform side-effectful payment work should invoke this before
  * acting and abort if it returns false.
  */
@@ -300,6 +302,18 @@ export function getValidTransitions(
   );
 }
 
+/**
+ * Run the synchronous guard checks for a status transition.
+ *
+ * ⚠️  DO NOT call this function for production payment mutations
+ * (transitions to PAYMENT_IN_PROGRESS or PAID).  Use
+ * `canTransitionWithPersistentIdempotency()` instead — it adds the
+ * DB-backed idempotency check that survives process restarts.
+ *
+ * Safe uses: rendering UI transition validity (e.g. StateDiagram),
+ * non-payment status transitions, and as the internal fast-path
+ * called from canTransitionWithPersistentIdempotency itself.
+ */
 export function canTransition(
   context: TransitionContext,
 ): TransitionResult {
@@ -354,6 +368,58 @@ export function canTransition(
     appliedGuards,
     idempotencyKey: context.idempotencyKey,
   };
+}
+
+/**
+ * ⚠️  PRODUCTION PAYMENT GUARD — use this for ANY mutation that writes a claim
+ * to PAYMENT_IN_PROGRESS or PAID (or any financial recovery/write-off action).
+ *
+ * C-3: Persistent DB-backed idempotency check for payment transitions.
+ *
+ * For payment/recovery transitions this function:
+ *   1. Checks the in-memory cache (fast path).
+ *   2. Checks the persistent idempotency_keys table (survives restarts).
+ *   3. Only if both checks pass, records the key in the DB before returning.
+ *
+ * Must be awaited before performing any payment side-effect.
+ * Returns the same TransitionResult shape as canTransition().
+ *
+ * Callers in data/repository.ts (updateClaimStatus) are the ONLY authorised
+ * entry points for claim status mutations that involve payment transitions.
+ */
+export async function canTransitionWithPersistentIdempotency(
+  context: TransitionContext,
+): Promise<TransitionResult> {
+  // First run the synchronous guard checks.
+  const result = canTransition(context);
+  if (!result.allowed) return result;
+
+  // For non-payment transitions, no additional DB check needed.
+  if (!isPaymentTransition(context.currentStatus, context.targetStatus)) {
+    return result;
+  }
+
+  const key = context.idempotencyKey;
+  if (!key) return result;
+
+  // C-3: Persistent check — survives process restart.
+  const isConsumed = await isIdempotencyKeyConsumedPersistent(key);
+  if (isConsumed) {
+    return {
+      ...result,
+      allowed: false,
+      failedGuards: [...result.failedGuards, 'IDEMPOTENCY_KEY_ALREADY_USED_PERSISTENT'],
+    };
+  }
+
+  // Record consumption atomically before the caller performs the payment action.
+  await recordIdempotencyKeyConsumptionPersistent(
+    key,
+    context.claimId,
+    context.userId ?? 'system',
+  );
+
+  return result;
 }
 
 export function getStatusCategory(
