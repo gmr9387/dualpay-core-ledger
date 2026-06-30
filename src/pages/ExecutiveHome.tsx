@@ -1,180 +1,289 @@
 /**
- * Executive Home — Value Realization headline.
- * Phase 11.  Composes existing engines (no new scoring).
+ * Executive ROI Dashboard — Phase 3C Step 2
+ *
+ * All KPIs are backed by live SQL queries via useExecutiveROI().
+ * No scenario/demo-generated data is used on this page.
  */
-import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, BarChart3, TrendingUp, Trophy, Users } from 'lucide-react';
-import { useClarityData, formatCentsCompact } from '@/hooks/use-clarity-data';
-import { useOutcomes } from '@/hooks/use-outcomes';
+import { Loader2, BarChart3, TrendingUp, Trophy, Users, AlertCircle } from 'lucide-react';
+import { useExecutiveROI } from '@/hooks/use-executive-roi';
+import { formatCentsCompact } from '@/hooks/use-clarity-data';
 import { PageHeader, KpiStrip, ScrollBody, Panel, EmptyState } from '@/components/clarity/primitives';
-import {
-  computeValueRealization, buildNarrative, recoveredByMonth,
-} from '@/engine/value-realization';
-import { rankPlaybooks } from '@/engine/playbook-effectiveness';
-import { buildPayerScorecards } from '@/engine/payer-performance';
-import { headlineMetrics } from '@/engine/outcome-analytics';
 
 export default function ExecutiveHome() {
-  const { data: claims, isLoading } = useClarityData();
-  const { outcomes, loading } = useOutcomes();
+  const { data: roi, isLoading, isError, error } = useExecutiveROI();
 
-  const view = useMemo(() => {
-    if (!claims) return null;
-    const value = computeValueRealization(claims, outcomes);
-    const head = headlineMetrics(outcomes);
-    const narrative = buildNarrative(claims, outcomes);
-    const monthly = recoveredByMonth(outcomes);
-    const playbooks = rankPlaybooks(outcomes).filter(p => !p.insufficient).slice(0, 3);
-    const payers = buildPayerScorecards(claims, outcomes).slice(0, 5);
-    const topOpportunity = [...payers].sort((a, b) => b.total_at_risk_cents - a.total_at_risk_cents)[0];
-    const underpaymentRecovered = outcomes
-      .filter(o => o.category === 'underpayment')
-      .reduce((s, o) => s + o.recovered_amount_cents, 0);
-    return { value, head, narrative, monthly, playbooks, payers, topOpportunity, underpaymentRecovered };
-  }, [claims, outcomes]);
-
-  if (isLoading || loading || !view) {
-    return <div className="h-full flex items-center justify-center text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading executive intelligence…
-    </div>;
-  }
-
-  if (claims?.length === 0) {
+  // ── Global loading ────────────────────────────────────────────
+  if (isLoading) {
     return (
-      <div className="flex flex-col h-full">
-        <PageHeader title="Executive Intelligence" subtitle="Value realized by DualPay — recovery, leverage, and operational ROI." />
-        <EmptyState
-          title="Your organization has no imported claims yet."
-          body="Import a denial file to begin generating executive intelligence and value realization reports."
-          action={{ label: 'Import Claims', to: '/import' }}
-        />
+      <div className="h-full flex items-center justify-center text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        Loading executive ROI data…
       </div>
     );
   }
 
-  const { value, head, narrative, monthly, playbooks, payers, topOpportunity, underpaymentRecovered } = view;
-  const maxRecovered = Math.max(1, ...monthly.map(m => m.recovered_cents));
+  // ── Global error ──────────────────────────────────────────────
+  if (isError || !roi) {
+    return (
+      <div className="flex flex-col h-full">
+        <PageHeader title="Executive ROI Dashboard" subtitle="Live recovery metrics for your organization." />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-sm py-12">
+            <AlertCircle className="h-8 w-8 mx-auto text-status-denied mb-3" />
+            <h3 className="text-sm font-semibold text-foreground">Unable to load dashboard data</h3>
+            <p className="text-[12.5px] text-muted-foreground mt-1">
+              {error instanceof Error ? error.message : 'An unexpected error occurred. Please refresh and try again.'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    revenueRecoveredThisMonth,
+    revenueRecovered90Days,
+    openRecoveryOpportunity,
+    topPayersByLostRevenue,
+    appealWinRate,
+    recoveryRate,
+    assignedCount,
+    unassignedCount,
+    totalActiveWork,
+    outcomeCount,
+  } = roi;
+
+  const hasOutcomes = outcomeCount > 0;
 
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="Executive Intelligence"
-        subtitle="Value realized by DualPay — recovery, leverage, and operational ROI."
+        title="Executive ROI Dashboard"
+        subtitle="Live recovery metrics — how much was recovered, what's at risk, and where work stands."
       />
+
+      {/* KPI strip ─ top-level snapshot */}
       <KpiStrip tiles={[
-        { label: 'Dollars At Risk',     value: formatCentsCompact(value.total_at_risk_cents),       tone: 'amount-negative' },
-        { label: 'Dollars Recovered',   value: formatCentsCompact(value.total_recovered_cents),     tone: 'amount-positive' },
-        { label: 'Recovery Rate',       value: head.insufficient ? '—' : `${(head.recovery_rate * 100).toFixed(1)}%`, tone: 'text-status-paid' },
-        { label: 'Avg Days To Recovery',value: head.insufficient ? '—' : `${head.avg_days_to_resolution.toFixed(0)}d` },
-        { label: 'Appeal Success',      value: head.insufficient ? '—' : `${(head.appeal_success_rate * 100).toFixed(0)}%`, tone: 'text-status-cob' },
-        { label: 'Expected Future',     value: formatCentsCompact(value.expected_future_recovery_cents), tone: 'text-primary' },
+        {
+          label: 'Recovered This Month',
+          value: hasOutcomes ? formatCentsCompact(revenueRecoveredThisMonth) : '—',
+          tone: 'amount-positive',
+        },
+        {
+          label: 'Recovered (90 Days)',
+          value: hasOutcomes ? formatCentsCompact(revenueRecovered90Days) : '—',
+          tone: 'amount-positive',
+        },
+        {
+          label: 'Open Opportunity',
+          value: openRecoveryOpportunity > 0 ? formatCentsCompact(openRecoveryOpportunity) : '—',
+          tone: 'amount-negative',
+        },
+        {
+          label: 'Recovery Rate',
+          value: recoveryRate !== null ? `${(recoveryRate * 100).toFixed(1)}%` : '—',
+          tone: 'text-status-paid',
+        },
+        {
+          label: 'Appeal Win Rate',
+          value: appealWinRate !== null ? `${(appealWinRate * 100).toFixed(0)}%` : '—',
+          tone: 'text-status-cob',
+        },
+        {
+          label: 'Active Work',
+          value: String(totalActiveWork),
+          sub: totalActiveWork > 0 ? `${assignedCount} assigned · ${unassignedCount} unassigned` : undefined,
+        },
       ]} />
 
       <ScrollBody>
         <div className="grid grid-cols-3 gap-4 p-5">
+
+          {/* Left column — 2/3 width */}
           <div className="col-span-2 space-y-4">
-            <Panel title="Executive Narrative">
-              {narrative ? (
-                <p className="text-[13px] leading-relaxed text-foreground">{narrative}</p>
-              ) : (
-                <div className="text-[12.5px] text-muted-foreground">
-                  <b className="text-foreground">Insufficient Outcome History.</b>{' '}
-                  At least 5 logged outcomes are required to generate a narrative.
-                  Log resolutions in the <Link to="/outcomes" className="text-primary hover:underline">Outcome Log</Link> to enable this view.
-                </div>
-              )}
-            </Panel>
 
-            <Panel title="Recovered Dollars by Month" action={
-              <Link to="/executive/value" className="text-[11.5px] text-primary hover:underline">Open value module</Link>
-            }>
-              {monthly.length === 0 ? (
-                <EmptyState title="No outcome history" body="Log recoveries to see month-over-month trend." />
+            {/* Revenue Recovered This Month + Last 90 Days */}
+            <Panel title="Revenue Recovered">
+              {!hasOutcomes ? (
+                <EmptyState
+                  title="No recovery outcomes recorded yet"
+                  body="Log your first recovery in the Outcome Log to start tracking revenue reclaimed."
+                  action={{ label: 'Open Outcome Log', to: '/outcomes' }}
+                />
               ) : (
-                <div className="space-y-2">
-                  {monthly.slice(-6).map(m => (
-                    <div key={m.period} className="grid grid-cols-[80px_1fr_120px] gap-3 items-center">
-                      <span className="font-mono text-[11.5px] text-muted-foreground">{m.period}</span>
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full bg-status-paid/70" style={{ width: `${(m.recovered_cents / maxRecovered) * 100}%` }} />
-                      </div>
-                      <span className="font-mono text-[12.5px] text-right tabular-nums amount-positive">{formatCentsCompact(m.recovered_cents)}</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded border bg-muted/30 p-4">
+                    <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">This Month</div>
+                    <div className="font-mono text-[22px] font-semibold amount-positive tabular-nums">
+                      {formatCentsCompact(revenueRecoveredThisMonth)}
                     </div>
-                  ))}
+                    {revenueRecoveredThisMonth === 0 && (
+                      <div className="text-[11px] text-muted-foreground mt-1">No recoveries logged this month</div>
+                    )}
+                  </div>
+                  <div className="rounded border bg-muted/30 p-4">
+                    <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Last 90 Days</div>
+                    <div className="font-mono text-[22px] font-semibold amount-positive tabular-nums">
+                      {formatCentsCompact(revenueRecovered90Days)}
+                    </div>
+                    {revenueRecovered90Days === 0 && (
+                      <div className="text-[11px] text-muted-foreground mt-1">No recoveries in last 90 days</div>
+                    )}
+                  </div>
                 </div>
               )}
             </Panel>
 
-            <Panel title="Top Playbooks by Recovery Rate" action={
-              <Link to="/executive/playbooks" className="text-[11.5px] text-primary hover:underline">All playbooks</Link>
+            {/* Top 5 Payers by Lost Revenue */}
+            <Panel title="Top 5 Payers by Lost Revenue" action={
+              <Link to="/executive/payers" className="text-[11.5px] text-primary hover:underline">Full scorecard</Link>
             }>
-              {playbooks.length === 0 ? (
-                <div className="text-[12.5px] text-muted-foreground">Insufficient Outcome History.</div>
+              {topPayersByLostRevenue.length === 0 ? (
+                <EmptyState
+                  title="No payer outcome data yet"
+                  body="Once recovery outcomes are logged with payer information, the biggest revenue gaps will appear here."
+                />
               ) : (
-                <div className="divide-y -my-4">
-                  {playbooks.map(p => (
-                    <div key={p.playbook} className="py-2.5 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-[12.5px] font-medium text-foreground">{p.label}</div>
-                        <div className="text-[10.5px] font-mono text-muted-foreground">{p.usage_count} runs · {p.avg_resolution_days.toFixed(0)}d avg</div>
+                <div className="divide-y -mx-4">
+                  {topPayersByLostRevenue.map((p, i) => (
+                    <div key={p.payer_id} className="px-4 py-2.5 flex items-center gap-3">
+                      <span className="font-mono text-[11px] text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[12.5px] font-medium text-foreground truncate">{p.payer_name || p.payer_id}</div>
+                        <div className="text-[10.5px] font-mono text-muted-foreground">
+                          {formatCentsCompact(p.denied_cents)} denied · {formatCentsCompact(p.recovered_cents)} recovered
+                        </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="font-mono text-[13px] amount-positive">{(p.recovery_rate * 100).toFixed(0)}%</div>
-                        <div className="text-[10.5px] font-mono text-muted-foreground">{formatCentsCompact(p.total_recovered_cents)}</div>
+                        <div className="font-mono text-[13px] amount-negative tabular-nums">
+                          {formatCentsCompact(p.lost_revenue_cents)}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">lost</div>
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </Panel>
+
+            {/* Assigned vs Unassigned Work */}
+            <Panel title="Assigned vs Unassigned Work">
+              {totalActiveWork === 0 ? (
+                <EmptyState
+                  title="No active work items"
+                  body="Open or in-progress claim assignments will appear here once work is queued."
+                  action={{ label: 'View Work Queues', to: '/queues' }}
+                />
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded border bg-muted/30 p-4">
+                    <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Assigned</div>
+                    <div className="font-mono text-[22px] font-semibold text-status-paid tabular-nums">{assignedCount}</div>
+                    <div className="text-[11px] text-muted-foreground mt-1">
+                      {totalActiveWork > 0
+                        ? `${Math.round((assignedCount / totalActiveWork) * 100)}% of active work`
+                        : 'claims'}
+                    </div>
+                  </div>
+                  <div className="rounded border bg-muted/30 p-4">
+                    <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Unassigned</div>
+                    <div className="font-mono text-[22px] font-semibold text-status-pending tabular-nums">{unassignedCount}</div>
+                    <div className="text-[11px] text-muted-foreground mt-1">
+                      {unassignedCount > 0 ? 'needs assignment' : 'all work assigned'}
+                    </div>
+                  </div>
                 </div>
               )}
             </Panel>
           </div>
 
+          {/* Right column — 1/3 width */}
           <div className="space-y-4">
-            <Panel title="Top Payer Opportunity">
-              {topOpportunity ? (
-                <Link to="/executive/payers" className="block rounded border bg-muted/30 p-3 hover:bg-muted/60">
-                  <div className="text-[13px] font-semibold text-foreground">{topOpportunity.payer_name}</div>
-                  <div className="grid grid-cols-2 gap-2 mt-2 text-[11px] font-mono">
-                    <Row label="At risk"   value={formatCentsCompact(topOpportunity.total_at_risk_cents)} tone="amount-negative" />
-                    <Row label="Recovered" value={formatCentsCompact(topOpportunity.total_collected_cents)} tone="amount-positive" />
-                    <Row label="Denial %"  value={`${(topOpportunity.denial_rate * 100).toFixed(0)}%`} />
-                    <Row label="Underpay %" value={`${(topOpportunity.underpayment_rate * 100).toFixed(0)}%`} />
+
+            {/* Open Recovery Opportunity */}
+            <Panel title="Open Recovery Opportunity">
+              {openRecoveryOpportunity === 0 ? (
+                <div className="text-[12.5px] text-muted-foreground py-2">
+                  No open denied or appealing claims found.
+                </div>
+              ) : (
+                <>
+                  <div className="font-mono text-[24px] font-semibold amount-negative tabular-nums">
+                    {formatCentsCompact(openRecoveryOpportunity)}
                   </div>
-                </Link>
-              ) : <div className="text-[12.5px] text-muted-foreground">No payer data.</div>}
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    Total billed on denied, adjusted, and appealing claims
+                  </div>
+                </>
+              )}
             </Panel>
 
-            <Panel title="Underpayment Recovery">
-              <div className="text-[20px] font-semibold amount-positive font-mono">{formatCentsCompact(underpaymentRecovered)}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Recovered from underpayment outcomes</div>
+            {/* Appeal Win Rate */}
+            <Panel title="Appeal Win Rate">
+              {appealWinRate === null ? (
+                <div className="text-[12.5px] text-muted-foreground py-2">
+                  No appeal outcomes logged yet.
+                  <br />
+                  <Link to="/outcomes" className="text-primary hover:underline text-[12px] mt-1 inline-block">
+                    Log appeal outcomes →
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <div className="font-mono text-[24px] font-semibold text-status-cob tabular-nums">
+                    {(appealWinRate * 100).toFixed(0)}%
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">of appeals result in recovery</div>
+                  <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-status-cob/70 rounded-full" style={{ width: `${(appealWinRate * 100).toFixed(0)}%` }} />
+                  </div>
+                </>
+              )}
             </Panel>
 
+            {/* Recovery Rate */}
+            <Panel title="Recovery Rate">
+              {recoveryRate === null ? (
+                <div className="text-[12.5px] text-muted-foreground py-2">
+                  No outcome history yet.
+                  <br />
+                  <Link to="/outcomes" className="text-primary hover:underline text-[12px] mt-1 inline-block">
+                    Log first outcome →
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <div className="font-mono text-[24px] font-semibold text-status-paid tabular-nums">
+                    {(recoveryRate * 100).toFixed(1)}%
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">of denied dollars recovered</div>
+                  <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-status-paid/70 rounded-full" style={{ width: `${Math.min(100, recoveryRate * 100).toFixed(0)}%` }} />
+                  </div>
+                </>
+              )}
+            </Panel>
+
+            {/* Drilldown navigation */}
             <Panel title="Drilldowns">
               <div className="space-y-1.5">
                 <NavCard to="/executive/recovery" icon={<TrendingUp className="h-3.5 w-3.5" />} label="Recovery Attribution" sub="By category, owner, action" />
-                <NavCard to="/executive/payers"   icon={<Users className="h-3.5 w-3.5" />} label="Payer Scorecards" sub="Performance & opportunity" />
-                <NavCard to="/executive/playbooks"icon={<Trophy className="h-3.5 w-3.5" />} label="Playbook Effectiveness" sub="Which workflows work" />
-                <NavCard to="/executive/value"    icon={<BarChart3 className="h-3.5 w-3.5" />} label="Value Realization" sub="Monthly + lifetime ROI" />
+                <NavCard to="/executive/payers"   icon={<Users       className="h-3.5 w-3.5" />} label="Payer Scorecards"      sub="Performance & opportunity" />
+                <NavCard to="/executive/playbooks"icon={<Trophy      className="h-3.5 w-3.5" />} label="Playbook Effectiveness" sub="Which workflows work" />
+                <NavCard to="/executive/value"    icon={<BarChart3   className="h-3.5 w-3.5" />} label="Value Realization"      sub="Monthly + lifetime ROI" />
               </div>
             </Panel>
 
             <div className="rounded border bg-card p-3 text-[11px] text-muted-foreground leading-snug">
-              Every metric here is computed live from persisted outcomes, claims, and ops events.
-              Slices with fewer than 5 outcomes are marked <i>insufficient</i> — never fabricated.
+              All metrics query <code className="font-mono text-[10px]">recovery_outcomes</code>,{' '}
+              <code className="font-mono text-[10px]">claims</code>, and{' '}
+              <code className="font-mono text-[10px]">claim_assignments</code> live.
+              Data is org-scoped via RLS. No demo values are used.
             </div>
           </div>
         </div>
       </ScrollBody>
-    </div>
-  );
-}
-
-function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={`font-mono ${tone ?? 'text-foreground'}`}>{value}</span>
     </div>
   );
 }
