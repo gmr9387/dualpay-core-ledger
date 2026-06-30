@@ -6,12 +6,14 @@
 --   • public.recovery_outcomes
 --
 -- No NOT NULL constraint, no CHECK constraint, no removal of existing columns.
--- Phase 2 (20260630000200) backfills these columns from existing data.
+-- 20260630000200_phase5a_financial_state_backfill.sql backfills these columns
+-- from existing data.
 --
 -- Rollback:
 --   ALTER TABLE public.claims           DROP COLUMN IF EXISTS financial_state;
 --   ALTER TABLE public.recovery_outcomes DROP COLUMN IF EXISTS financial_state;
 --   DROP INDEX IF EXISTS idx_claims_financial_state;
+--   DROP INDEX IF EXISTS idx_recovery_outcomes_financial_state;
 -- ────────────────────────────────────────────────────────────────────────────
 
 -- ── claims.financial_state ───────────────────────────────────────────────────
