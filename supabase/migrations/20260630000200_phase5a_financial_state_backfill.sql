@@ -41,79 +41,64 @@
 
 DO $$
 DECLARE
-  v_rs          TEXT;
-  v_underpay    BIGINT;
-  v_has_appeal  BOOLEAN;
-  v_fs          TEXT;
-  rec           RECORD;
-  v_claims_done BIGINT := 0;
-  v_outcomes_done BIGINT := 0;
+  v_claims_done   BIGINT;
+  v_outcomes_done BIGINT;
 BEGIN
 
   -- ── 1. Backfill claims ────────────────────────────────────────────────────
   --
+  -- Single-transaction set-based UPDATE.  All claims with financial_state IS
+  -- NULL are processed in one statement.  This is safe for datasets where the
+  -- table size is manageable within a single transaction.  For very large
+  -- tables (millions of rows), consider running the backfill outside the
+  -- migration using repeated batched UPDATEs before applying this file.
+  --
   -- Reads reimbursement_state from payload->'intel'->>'reimbursement_state'.
   -- For denied claims, checks whether any appeal entry in the payload array
   -- payload->'intel'->'appeals' has status 'submitted' or 'in_review'.
-  -- Batches using a cursor to avoid long-held locks on large tables.
+  -- The jsonb_typeof guard prevents errors when appeals is the JSON literal
+  -- null (the value `null` stored in the JSONB document, distinct from SQL
+  -- NULL) rather than a JSON array.  Without this guard, jsonb_array_elements
+  -- would raise "cannot call jsonb_array_elements on a non-array".
+  -- underpayment_cents is cast via ::NUMERIC::BIGINT to tolerate decimal,
+  -- scientific-notation, or whitespace-padded string values (e.g. "12.50",
+  -- "1e2") that would crash a direct ::BIGINT cast.
 
-  FOR rec IN
-    SELECT claim_id, payload
-    FROM   public.claims
-    WHERE  financial_state IS NULL
-    ORDER  BY claim_id        -- deterministic order for reproducibility
-  LOOP
-    -- Extract reimbursement_state
-    v_rs := rec.payload #>> '{intel,reimbursement_state}';
+  UPDATE public.claims
+  SET financial_state = CASE payload #>> '{intel,reimbursement_state}'
+    WHEN 'paid'           THEN 'recovered_full'
+    WHEN 'written_off'    THEN 'written_off'
+    WHEN 'appealing'      THEN 'in_appeal'
+    WHEN 'partially_paid' THEN
+      CASE WHEN COALESCE((payload #>> '{intel,underpayment_cents}')::NUMERIC::BIGINT, 0) > 0
+           THEN 'underpaid'
+           ELSE 'recovered_partial'
+      END
+    WHEN 'resolved' THEN
+      CASE WHEN COALESCE((payload #>> '{intel,underpayment_cents}')::NUMERIC::BIGINT, 0) > 0
+           THEN 'recovered_partial'
+           ELSE 'closed_no_balance'
+      END
+    WHEN 'denied' THEN
+      CASE WHEN EXISTS (
+             SELECT 1
+             FROM   jsonb_array_elements(
+                      CASE WHEN jsonb_typeof(payload #> '{intel,appeals}') = 'array'
+                           THEN payload #> '{intel,appeals}'
+                           ELSE '[]'::jsonb END
+                    ) AS appeal
+             WHERE  (appeal->>'status') IN ('submitted', 'in_review')
+           )
+           THEN 'in_appeal'
+           ELSE 'denied'
+      END
+    WHEN 'submitted'     THEN 'outstanding'
+    WHEN 'pending_payer' THEN 'outstanding'
+    ELSE 'outstanding'
+  END
+  WHERE financial_state IS NULL;
 
-    -- Extract underpayment_cents (may be null for non-partial claims)
-    v_underpay := (rec.payload #>> '{intel,underpayment_cents}')::BIGINT;
-
-    -- Derive financial_state
-    v_fs := CASE v_rs
-      WHEN 'paid'          THEN 'recovered_full'
-      WHEN 'written_off'   THEN 'written_off'
-      WHEN 'appealing'     THEN 'in_appeal'
-      WHEN 'partially_paid' THEN
-        CASE WHEN COALESCE(v_underpay, 0) > 0
-             THEN 'underpaid'
-             ELSE 'recovered_partial'
-        END
-      WHEN 'resolved' THEN
-        CASE WHEN COALESCE(v_underpay, 0) > 0
-             THEN 'recovered_partial'
-             ELSE 'closed_no_balance'
-        END
-      WHEN 'denied' THEN
-        -- Check for an active (submitted or in_review) appeal in the payload
-        -- appeals array.  Use EXISTS over a jsonb_array_elements expansion.
-        NULL   -- computed below
-      WHEN 'submitted'     THEN 'outstanding'
-      WHEN 'pending_payer' THEN 'outstanding'
-      ELSE 'outstanding'   -- safe default for null / unknown values
-    END;
-
-    -- Special handling for 'denied': inspect appeals array
-    IF v_rs = 'denied' THEN
-      SELECT EXISTS (
-        SELECT 1
-        FROM   jsonb_array_elements(
-                 COALESCE(rec.payload #> '{intel,appeals}', '[]'::jsonb)
-               ) AS appeal
-        WHERE  (appeal->>'status') IN ('submitted', 'in_review')
-      )
-      INTO v_has_appeal;
-
-      v_fs := CASE WHEN v_has_appeal THEN 'in_appeal' ELSE 'denied' END;
-    END IF;
-
-    UPDATE public.claims
-    SET    financial_state = v_fs
-    WHERE  claim_id = rec.claim_id;
-
-    v_claims_done := v_claims_done + 1;
-  END LOOP;
-
+  GET DIAGNOSTICS v_claims_done = ROW_COUNT;
   RAISE NOTICE 'claims backfill complete: % row(s) updated', v_claims_done;
 
   -- ── 2. Backfill recovery_outcomes ────────────────────────────────────────
@@ -251,7 +236,9 @@ BEGIN
       AND  NOT EXISTS (
              SELECT 1
              FROM   jsonb_array_elements(
-                      COALESCE(payload #> '{intel,appeals}', '[]'::jsonb)
+                      CASE WHEN jsonb_typeof(payload #> '{intel,appeals}') = 'array'
+                           THEN payload #> '{intel,appeals}'
+                           ELSE '[]'::jsonb END
                     ) AS a
              WHERE  (a->>'status') IN ('submitted','in_review')
            )
@@ -264,11 +251,11 @@ BEGIN
   -- 5c: partially_paid with underpayment_cents=0 mapped to underpaid
   FOR rec IN
     SELECT claim_id,
-           (payload #>> '{intel,underpayment_cents}')::BIGINT AS underpay
+           (payload #>> '{intel,underpayment_cents}')::NUMERIC::BIGINT AS underpay
     FROM   public.claims
     WHERE  financial_state = 'underpaid'
       AND  payload #>> '{intel,reimbursement_state}' = 'partially_paid'
-      AND  COALESCE((payload #>> '{intel,underpayment_cents}')::BIGINT, 0) = 0
+      AND  COALESCE((payload #>> '{intel,underpayment_cents}')::NUMERIC::BIGINT, 0) = 0
     LIMIT  20
   LOOP
     RAISE WARNING '  [partially_paid underpayment=0 but fs=underpaid] claim_id=% underpay=%',
@@ -290,11 +277,14 @@ BEGIN
   END IF;
 
   -- recovery_outcomes: check for non-canonical values
+  -- Valid values for recovery_outcomes are a strict subset of the claims
+  -- canonical set: recovered_full, recovered_partial, written_off,
+  -- closed_no_balance.  outstanding / denied / in_appeal / underpaid are
+  -- never produced by the recovery_outcomes mapping.
   SELECT COUNT(*) INTO v_bad_enum
   FROM   public.recovery_outcomes
   WHERE  financial_state IS NOT NULL
     AND  financial_state NOT IN (
-           'outstanding','denied','in_appeal','underpaid',
            'recovered_full','recovered_partial','written_off','closed_no_balance'
          );
   IF v_bad_enum > 0 THEN
