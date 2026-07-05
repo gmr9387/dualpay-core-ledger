@@ -6,8 +6,10 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useClarityData, formatCents, formatCentsCompact } from '@/hooks/use-clarity-data';
+import { useOutcomes } from '@/hooks/use-outcomes';
 import { PageHeader, KpiStrip, ScrollBody, Panel, EmptyState } from '@/components/clarity/primitives';
 import { useAssignments } from '@/hooks/use-assignments';
+
 import { buildForecast } from '@/engine/forecasting';
 import { detectEscalations } from '@/engine/escalations';
 import { summarizeSla } from '@/engine/sla';
@@ -46,6 +48,8 @@ function classify(c: ClarityClaim, assigned: boolean): Stage {
 export default function ExecutivePipeline() {
   const { data: claims, isLoading } = useClarityData();
   const { store } = useAssignments();
+  const { outcomes } = useOutcomes();
+
 
   const view = useMemo(() => {
     if (!claims) return null;
@@ -56,7 +60,7 @@ export default function ExecutivePipeline() {
     const escalations = detectEscalations(claims, store);
     const sla = summarizeSla(claims, store);
 
-    const recoveredCents = claims.reduce((s, c) => s + c.intel.appeals.reduce((sum, a) => sum + (a.amount_recovered_cents ?? 0), 0), 0);
+    const recoveredCents = outcomes.reduce((s, o) => s + (o.recovered_amount_cents ?? 0), 0);
     const openRecoverable = claims
       .filter(c => c.intel.reimbursement_state !== 'paid' && c.intel.reimbursement_state !== 'resolved' && c.intel.reimbursement_state !== 'written_off')
       .reduce((s, c) => s + c.intel.amount_at_risk_cents, 0);
@@ -69,7 +73,7 @@ export default function ExecutivePipeline() {
     const velocity = fc.total_at_risk_cents > 0 ? fc.total_expected_recovery_cents / Math.max(1, fc.buckets.length) : 0;
 
     return { buckets, fc, escalations, sla, recoveredCents, openRecoverable, avgDaysToResolve, appealsInProgress, aging120, stalled, velocity };
-  }, [claims, store]);
+  }, [claims, store, outcomes]);
 
   if (isLoading || !view) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
 

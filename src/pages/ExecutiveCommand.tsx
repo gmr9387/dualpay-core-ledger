@@ -6,6 +6,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useClarityData, formatCents, formatCentsCompact } from '@/hooks/use-clarity-data';
+import { useOutcomes } from '@/hooks/use-outcomes';
 import { PageHeader, KpiStrip, ScrollBody, Panel } from '@/components/clarity/primitives';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import { detectLeakPatterns, PATTERN_LABEL } from '@/engine/leak-detection';
@@ -15,6 +16,8 @@ import { Loader2, TrendingUp, Target, AlertOctagon, Gavel, Users, ArrowRight } f
 
 export default function ExecutiveCommand() {
   const { data: claims, isLoading } = useClarityData();
+  const { outcomes } = useOutcomes();
+
 
   const data = useMemo(() => {
     if (!claims) return null;
@@ -25,7 +28,7 @@ export default function ExecutiveCommand() {
     const wins = appeals.filter(a => a.status === 'approved' || a.status === 'partial');
     const decided = appeals.filter(a => ['approved','denied','partial'].includes(a.status));
     const winRate = decided.length ? wins.length / decided.length : 0;
-    const recovered = appeals.reduce((s, a) => s + (a.amount_recovered_cents ?? 0), 0);
+    const recovered = outcomes.reduce((s, o) => s + (o.recovered_amount_cents ?? 0), 0);
     const denials = claims.flatMap(c => c.intel.denial_events);
     const denialCats = new Map<string, number>();
     for (const d of denials) denialCats.set(d.category, (denialCats.get(d.category) ?? 0) + d.amount_cents);
@@ -34,7 +37,7 @@ export default function ExecutiveCommand() {
     const payers = buildPayerProfiles(claims).slice(0, 5);
     const fc = buildForecast(claims);
     return { billed, collected, atRisk, recovered, winRate, topCats, patterns, payers, fc, denialCount: denials.length, appealCount: appeals.length };
-  }, [claims]);
+  }, [claims, outcomes]);
 
   if (isLoading || !data) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
 
