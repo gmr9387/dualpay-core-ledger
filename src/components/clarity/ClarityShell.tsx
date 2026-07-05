@@ -9,10 +9,11 @@ import {
   Bot, Settings2, Cpu, AlertTriangle,
 } from 'lucide-react';
 import { UserOrgMenu, NoOrgEmptyState } from '@/components/auth/UserOrgMenu';
-import { useOrg } from '@/hooks/use-org';
+import { useOrg, type OrgRole } from '@/hooks/use-org';
+import { roleAtLeast } from '@/lib/role-permissions';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
-interface NavSection { title: string; items: NavItem[] }
+interface NavSection { title: string; items: NavItem[]; minRole?: OrgRole }
 
 const SECTIONS: NavSection[] = [
   {
