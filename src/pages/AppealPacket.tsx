@@ -100,9 +100,8 @@ export default function AppealPacket() {
                   void appendOpsEvent({
                     kind: 'appeal_packet_generated',
                     claim_id: claim.claim_id,
-                    org_id: currentOrg.org_id,
                     summary: `Packet ${filename} generated for ${claim.intel.payer_name}`,
-                    payload: { filename },
+                    payload: { filename, org_id: currentOrg.org_id },
                   });
                 }
                 toast({ title: 'Packet downloaded', description: filename });
