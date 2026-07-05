@@ -46,8 +46,10 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     }));
     setOrgs(list);
     if (list.length > 0 && (!currentOrgId || !list.find(o => o.org_id === currentOrgId))) {
-      setCurrentOrgId(list[0].org_id);
-      localStorage.setItem(STORAGE_KEY, list[0].org_id);
+      const invitedOrgId = (user.user_metadata as { invited_org_id?: string } | null)?.invited_org_id;
+      const preferred = (invitedOrgId && list.find(o => o.org_id === invitedOrgId)?.org_id) ?? list[0].org_id;
+      setCurrentOrgId(preferred);
+      localStorage.setItem(STORAGE_KEY, preferred);
     }
     setLoading(false);
   }, [user, currentOrgId]);
