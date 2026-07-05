@@ -149,7 +149,7 @@ function MembersPanel({ orgId, selfUserId }: { orgId: string; selfUserId: string
     if (!m.email) return;
     setBusy(m.user_id);
     const { error } = await supabase.functions.invoke('invite-member', {
-      body: { action: 'resend', org_id: orgId, email: m.email, role: m.role, redirect_to: `${window.location.origin}/login` },
+      body: { action: 'resend', org_id: orgId, email: m.email, role: m.role, redirect_to: `${window.location.origin}/reset-password` },
     });
     setBusy(null);
     if (error) { toast({ title: 'Resend failed', description: error.message, variant: 'destructive' }); return; }
