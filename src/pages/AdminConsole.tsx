@@ -132,7 +132,7 @@ function MembersPanel({ orgId, selfUserId }: { orgId: string; selfUserId: string
         org_id: orgId,
         email: email.trim(),
         role,
-        redirect_to: `${window.location.origin}/login`,
+        redirect_to: `${window.location.origin}/reset-password`,
       },
     });
     setBusy(null);
