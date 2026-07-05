@@ -4,6 +4,12 @@ import { useAuth } from './use-auth';
 
 export type OrgRole = 'owner' | 'admin' | 'manager' | 'analyst' | 'viewer';
 
+/** Shape of the invite-related fields stored in Supabase user_metadata. */
+interface InviteMetadata {
+  invited_org_id?: string;
+  invited_role?: string;
+}
+
 export interface Org {
   org_id: string;
   name: string;
@@ -48,7 +54,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     if (list.length > 0 && (!currentOrgId || !list.find(o => o.org_id === currentOrgId))) {
       // Prefer the org the user was invited to (stored in auth metadata) so
       // invited users never land in a stale or rogue org.
-      const invitedOrgId = (user.user_metadata as Record<string, unknown> | null)?.invited_org_id as string | undefined;
+      const invitedOrgId = (user.user_metadata as InviteMetadata | null)?.invited_org_id;
       const preferred =
         (invitedOrgId && list.find(o => o.org_id === invitedOrgId))
           ? invitedOrgId

@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, invite: inv });
   } catch (e) {
-    return json({ error: String(e) }, 500);
+    console.error('[invite-member] unexpected error:', e);
+    return json({ error: 'An unexpected error occurred. Please try again.' }, 500);
   }
 });

@@ -12,7 +12,7 @@
  * After a successful password update the user is navigated to "/" where
  * useOrg will select user.user_metadata.invited_org_id when present.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { validatePassword } from '@/lib/password-policy';
@@ -26,6 +26,7 @@ export default function ResetPassword() {
   const [confirm, setConfirm]     = useState('');
   const [err, setErr]             = useState<string | null>(null);
   const nav = useNavigate();
+  const navTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Detect whether this page was reached via an invite / recovery link.
@@ -56,6 +57,9 @@ export default function ResetPassword() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Clear the post-success navigation timer on unmount.
+  useEffect(() => () => { if (navTimer.current) clearTimeout(navTimer.current); }, []);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
@@ -76,7 +80,7 @@ export default function ResetPassword() {
     setPhase('done');
     // Give the user a moment to read the success message, then navigate.
     // useOrg will automatically prefer user_metadata.invited_org_id.
-    setTimeout(() => nav('/', { replace: true }), 1500);
+    navTimer.current = setTimeout(() => nav('/', { replace: true }), 1500);
   };
 
   return (
