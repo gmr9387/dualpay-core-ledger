@@ -159,7 +159,7 @@ export default function DenialIntelligence() {
                       className="h-6 text-[10.5px] rounded border bg-card px-1 focus:outline-none focus:ring-2 focus:ring-ring/40"
                     >
                       <option value="">Unassigned</option>
-                      {assignees.map(n => <option key={n} value={n}>{n}</option>)}
+                      {assignees.map(a => <option key={a.user_id} value={a.user_id}>{a.name} · {a.role}</option>)}
                     </select>
                   </div>
                 </div>
