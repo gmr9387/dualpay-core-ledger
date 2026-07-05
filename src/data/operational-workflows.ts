@@ -211,7 +211,7 @@ export async function logRecoveryEvent(
 ): Promise<string> {
   const summary = `Recovery recorded: ${params.recoveryType} of $${(params.amountCents / 100).toFixed(2)} from ${params.recoveredFrom}`;
 
-  return appendOpsEvent({
+  const eventId = await appendOpsEvent({
     kind: 'recovery_recorded',
     claimId,
     orgId,
@@ -224,6 +224,93 @@ export async function logRecoveryEvent(
       notes: params.notes,
     },
   });
+
+  // Revenue-readiness fix #2: mirror operator recovery activity into
+  // recovery_outcomes so Executive ROI dashboards reflect real work.
+  try {
+    await mirrorRecoveryToOutcome(claimId, orgId, params);
+  } catch (e) {
+    console.warn('[recovery] outcome mirror failed', e);
+  }
+
+  return eventId;
+}
+
+/**
+ * Upsert a recovery_outcome row that summarises the recovery activity
+ * performed against a claim.  Idempotent per (claim_id, recoveryType) —
+ * repeated payments update the same outcome by summing amounts.
+ */
+async function mirrorRecoveryToOutcome(
+  claimId: string,
+  orgId: string,
+  params: {
+    recoveryType: 'payer_payment' | 'patient_payment' | 'writeoff' | 'adjustment';
+    amountCents: number;
+    recoveredFrom: string;
+  },
+): Promise<void> {
+  const { data: claimRow } = await supabase
+    .from('claims')
+    .select('payload, total_billed_cents')
+    .eq('claim_id', claimId)
+    .maybeSingle();
+
+  const payload = (claimRow?.payload as Record<string, unknown> | null) ?? null;
+  const intel = (payload?.intel as Record<string, unknown> | undefined) ?? undefined;
+  const payerId = (intel?.payer_id as string | undefined) ?? null;
+  const payerName = (intel?.payer_name as string | undefined) ?? params.recoveredFrom;
+  const category = (intel?.denial_events as Array<{ category?: string }> | undefined)?.[0]?.category ?? 'contractual';
+  const workflow_owner = (intel?.workflow_owner as string | undefined) ?? 'unassigned';
+  const denied = (intel?.amount_at_risk_cents as number | undefined) ?? (claimRow?.total_billed_cents as number | undefined) ?? params.amountCents;
+
+  const resolution_type =
+    params.recoveryType === 'writeoff' ? 'written_off'
+    : params.recoveryType === 'patient_payment' ? 'patient_responsibility'
+    : params.amountCents >= denied ? 'recovered_full'
+    : 'recovered_partial';
+
+  const outcome_id = `OUT-${claimId}-${params.recoveryType}`;
+  const now = new Date().toISOString();
+
+  // Read existing to accumulate (idempotent aggregation).
+  const { data: existing } = await supabase
+    .from('recovery_outcomes')
+    .select('recovered_amount_cents, denied_amount_cents')
+    .eq('outcome_id', outcome_id)
+    .maybeSingle();
+
+  const recovered_amount_cents = (existing?.recovered_amount_cents ?? 0) + params.amountCents;
+  const denied_amount_cents = existing?.denied_amount_cents ?? denied;
+
+  const { error } = await supabase.from('recovery_outcomes').upsert([{
+    outcome_id,
+    claim_id: claimId,
+    org_id: orgId,
+    payer_id: payerId,
+    resolution_type,
+    resolution_date: now,
+    denied_amount_cents,
+    recovered_amount_cents,
+    unrecovered_amount_cents: Math.max(0, denied_amount_cents - recovered_amount_cents),
+    notes: params.recoveredFrom,
+    payload: {
+      payer_name: payerName,
+      category,
+      workflow_owner,
+      playbook_used: category,
+      denial_date: now,
+      days_to_resolution: 0,
+      predicted_recoverability_score: 0,
+      source: 'operator_recovery_event',
+    },
+    updated_at: now,
+  }] as never, { onConflict: 'outcome_id' });
+
+  if (error) console.warn('[recovery] outcome upsert failed', error.message);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('clarity-outcomes'));
+  }
 }
 
 /**
