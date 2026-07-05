@@ -9,6 +9,8 @@ import { OrgProvider } from "@/hooks/use-org";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import CommandCenter from "./pages/CommandCenter";
 import ExecutiveCommand from "./pages/ExecutiveCommand";
 import TodaysOpportunities from "./pages/TodaysOpportunities";
