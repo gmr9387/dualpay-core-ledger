@@ -6,8 +6,10 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useClarityData, formatCents, formatCentsCompact } from '@/hooks/use-clarity-data';
+import { useOutcomes } from '@/hooks/use-outcomes';
 import { PageHeader, KpiStrip, ScrollBody, Panel, EmptyState } from '@/components/clarity/primitives';
 import { useAssignments } from '@/hooks/use-assignments';
+
 import { buildForecast } from '@/engine/forecasting';
 import { detectEscalations } from '@/engine/escalations';
 import { summarizeSla } from '@/engine/sla';
