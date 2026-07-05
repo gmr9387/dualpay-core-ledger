@@ -1,12 +1,21 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useClarityData, formatCentsCompact, formatCents } from '@/hooks/use-clarity-data';
 import { PageHeader, KpiStrip, Panel, EmptyState, ScrollBody } from '@/components/clarity/primitives';
 import { AlertOctagon, TrendingDown, Gavel, ListChecks, Loader2, ArrowRight } from 'lucide-react';
 import { CATEGORY_LABEL, QUEUE_LABEL } from '@/engine/denial-intelligence';
+import { useOrg } from '@/hooks/use-org';
 
 export default function CommandCenter() {
   const { data: claims, isLoading } = useClarityData();
+  const { currentOrg, loading: orgLoading } = useOrg();
+
+  // Role-based landing: analysts and viewers get their worklist, not the exec KPIs.
+  if (!orgLoading && currentOrg) {
+    if (currentOrg.role === 'analyst') return <Navigate to="/worklist" replace />;
+    if (currentOrg.role === 'viewer')  return <Navigate to="/today"    replace />;
+  }
+
 
   const kpis = useMemo(() => {
     if (!claims) return null;
