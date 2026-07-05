@@ -157,6 +157,9 @@ interface ClarityShellProps {
 export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps) {
   const { pathname } = useLocation();
   const crumbs = breadcrumbsFor(pathname);
+  const { currentOrg } = useOrg();
+  const role = currentOrg?.role;
+  const visibleSections = SECTIONS.filter(s => !s.minRole || roleAtLeast(role, s.minRole));
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-surface-0 text-foreground">
@@ -173,7 +176,7 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
         </div>
 
         <nav className="flex-1 px-2 py-2 space-y-3 overflow-y-auto">
-          {SECTIONS.map(section => (
+          {visibleSections.map(section => (
             <div key={section.title}>
               <div className="px-2 pb-1 text-[9.5px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
                 {section.title}
