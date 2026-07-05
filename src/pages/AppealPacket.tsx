@@ -12,6 +12,7 @@ import { findRequirementsFor } from '@/engine/payer-requirements';
 import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import { logAppealEvent } from '@/data/operational-workflows';
+import { supabase } from '@/integrations/supabase/client';
 import { useOrg } from '@/hooks/use-org';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from '@/hooks/use-toast';
@@ -94,6 +95,14 @@ export default function AppealPacket() {
                   appealStatus: 'pending_response',
                   notes: rec?.playbook.appeal_strategy,
                 });
+                // Transition claim status so Executive ROI dashboards
+                // can count this claim as an active appeal.
+                const { error: statusErr } = await supabase
+                  .from('claims')
+                  .update({ status: 'appeal_pending', updated_at: new Date().toISOString() })
+                  .eq('claim_id', claim.claim_id)
+                  .eq('org_id', currentOrg.org_id);
+                if (statusErr) console.warn('[appeal] status transition failed', statusErr.message);
                 setSubmitted(true);
                 toast({ title: 'Appeal submitted', description: `${claim.claim_id} → ${payerName}` });
               } catch (err) {
