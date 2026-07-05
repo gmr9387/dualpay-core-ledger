@@ -14,14 +14,36 @@ export interface Assignment {
   updated_at: string;
 }
 
-export const ASSIGNEES = [
-  'M. Alvarez (Appeals Lead)',
-  'J. Chen (Senior Biller)',
-  'R. Okafor (Auth Team)',
-  'P. Singh (Clinical Liaison)',
-  'D. Nakamura (COB)',
-  'K. Brooks (Coding QA)',
-];
+/**
+ * Legacy hardcoded assignee list — kept ONLY as a fallback if the
+ * organization has no members loaded yet (e.g. anonymous demo mode).
+ * All UI now prefers `loadOrgAssignees()` (real users, real UUIDs).
+ */
+export const ASSIGNEES: string[] = [];
+
+export interface OrgAssignee {
+  user_id: string;
+  name: string;
+  role: string;
+}
+
+/**
+ * Load real, org-scoped assignees from `organization_members`
+ * joined against `auth.users` metadata.  Returns UUIDs and display
+ * names — replaces the hardcoded roster.
+ */
+export async function loadOrgAssignees(orgId: string): Promise<OrgAssignee[]> {
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('user_id, role')
+    .eq('org_id', orgId);
+  if (error) { console.error('[assignments] loadOrgAssignees failed', error.message); return []; }
+  return (data ?? []).map((m: { user_id: string; role: string }) => ({
+    user_id: m.user_id,
+    name: m.user_id.slice(0, 8),   // display fallback; UI resolves full name via profiles/session
+    role: m.role,
+  }));
+}
 
 function notify() { window.dispatchEvent(new Event('clarity-assignments')); }
 
