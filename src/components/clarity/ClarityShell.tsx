@@ -26,6 +26,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Executive Intelligence',
+    minRole: 'manager',
     items: [
       { to: '/executive',            label: 'Executive Home',       icon: BarChart3, badge: 'NEW' },
       { to: '/executive/value',      label: 'Value Realization',    icon: TrendingUp, badge: 'NEW' },
@@ -47,6 +48,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Recovery Factory',
+    minRole: 'analyst',
     items: [
       { to: '/factory',             label: 'Factory Dashboard', icon: Factory,   badge: 'NEW' },
       { to: '/factory/import',      label: 'Import Center',     icon: FileInput, badge: 'NEW' },
@@ -57,6 +59,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Contract Intelligence',
+    minRole: 'manager',
     items: [
       { to: '/contracts',           label: 'Contracts',          icon: BookText,    badge: 'NEW' },
       { to: '/contracts/disputes',  label: 'Underpayment Disputes', icon: AlertOctagon, badge: 'NEW' },
@@ -65,6 +68,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Automation',
+    minRole: 'admin',
     items: [
       { to: '/automation',         label: 'Automation Center', icon: Bot,        badge: 'NEW' },
       { to: '/automation/jobs',    label: 'Jobs',              icon: ListChecks, badge: 'NEW' },
@@ -74,6 +78,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Platform',
+    minRole: 'admin',
     items: [
       { to: '/platform',          label: 'Platform Operations', icon: Cpu,            badge: 'NEW' },
       { to: '/platform/jobs',     label: 'Job Queue',           icon: ListChecks,     badge: 'NEW' },
@@ -83,12 +88,14 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Lineage',
+    minRole: 'manager',
     items: [
       { to: '/lineage', label: 'Recovery Lineage', icon: GitBranch, badge: 'NEW' },
     ],
   },
   {
     title: 'EDI Gateway',
+    minRole: 'admin',
     items: [
       { to: '/edi',              label: 'EDI Overview',     icon: Database,  badge: 'X12' },
       { to: '/edi/import',       label: 'EDI Import',       icon: Upload,    badge: 'X12' },
@@ -129,6 +136,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Admin',
+    minRole: 'admin',
     items: [
       { to: '/claims',          label: 'Claims Workbench',    icon: FileSearch },
       { to: '/reports',         label: 'Executive Reporting', icon: BarChart3 },
