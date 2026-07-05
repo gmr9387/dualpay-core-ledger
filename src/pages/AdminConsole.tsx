@@ -1,10 +1,14 @@
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrg } from '@/hooks/use-org';
+import { useAuth } from '@/hooks/use-auth';
 import { RequireRole } from '@/components/auth/RequireRole';
-import { Shield, ScrollText, Database, Users, FileDown } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { Shield, ScrollText, Database, Users, FileDown, UserPlus, RefreshCw, Trash2, Loader2 } from 'lucide-react';
 
 interface Kpis {
   members: number;
@@ -13,6 +17,17 @@ interface Kpis {
   exports: number;
   storageDocs: number;
 }
+
+interface Member {
+  user_id: string;
+  role: string;
+  email: string | null;
+  invited_at: string | null;
+  last_sign_in_at: string | null;
+  created_at: string;
+}
+
+const ROLE_OPTIONS = ['admin', 'manager', 'analyst', 'viewer'] as const;
 
 export default function AdminConsole() {
   return (
@@ -24,6 +39,7 @@ export default function AdminConsole() {
 
 function AdminConsoleInner() {
   const { currentOrg } = useOrg();
+  const { user } = useAuth();
   const [kpis, setKpis] = useState<Kpis | null>(null);
 
   useEffect(() => {
@@ -61,6 +77,8 @@ function AdminConsoleInner() {
         <Kpi icon={<Shield className="h-4 w-4" />} label="Stored documents" value={kpis?.storageDocs ?? '—'} />
       </div>
 
+      {currentOrg && <MembersPanel orgId={currentOrg.org_id} selfUserId={user?.id ?? ''} />}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader><CardTitle className="text-base">Security Inventory</CardTitle></CardHeader>
@@ -78,6 +96,140 @@ function AdminConsoleInner() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function MembersPanel({ orgId, selfUserId }: { orgId: string; selfUserId: string }) {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<(typeof ROLE_OPTIONS)[number]>('analyst');
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.functions.invoke('invite-member', {
+      body: { action: 'list', org_id: orgId },
+    });
+    if (error) {
+      toast({ title: 'Failed to load members', description: error.message, variant: 'destructive' });
+      setMembers([]);
+    } else {
+      setMembers((data as { members?: Member[] })?.members ?? []);
+    }
+    setLoading(false);
+  }, [orgId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function invite(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!email) return;
+    setBusy('invite');
+    const { data, error } = await supabase.functions.invoke('invite-member', {
+      body: {
+        action: 'invite',
+        org_id: orgId,
+        email: email.trim(),
+        role,
+        redirect_to: `${window.location.origin}/login`,
+      },
+    });
+    setBusy(null);
+    if (error || (data as { error?: string })?.error) {
+      toast({ title: 'Invite failed', description: error?.message ?? (data as { error?: string })?.error, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Invite sent', description: `${email} · ${role}` });
+    setEmail('');
+    void load();
+  }
+
+  async function resend(m: Member) {
+    if (!m.email) return;
+    setBusy(m.user_id);
+    const { error } = await supabase.functions.invoke('invite-member', {
+      body: { action: 'resend', org_id: orgId, email: m.email, role: m.role, redirect_to: `${window.location.origin}/login` },
+    });
+    setBusy(null);
+    if (error) { toast({ title: 'Resend failed', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Invite resent', description: m.email });
+  }
+
+  async function remove(m: Member) {
+    if (m.user_id === selfUserId) { toast({ title: 'Cannot remove yourself', variant: 'destructive' }); return; }
+    if (!confirm(`Remove ${m.email ?? m.user_id.slice(0, 8)} from this organization?`)) return;
+    setBusy(m.user_id);
+    const { error } = await supabase.functions.invoke('invite-member', {
+      body: { action: 'remove', org_id: orgId, user_id: m.user_id },
+    });
+    setBusy(null);
+    if (error) { toast({ title: 'Remove failed', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Member removed' });
+    void load();
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base">Team Members</CardTitle>
+        <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form onSubmit={invite} className="flex flex-wrap items-end gap-2">
+          <div className="flex-1 min-w-[220px]">
+            <label className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1 block">Email</label>
+            <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="colleague@clinic.com" required />
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1 block">Role</label>
+            <select value={role} onChange={e => setRole(e.target.value as typeof role)} className="h-9 px-2 rounded-md border bg-background text-sm">
+              {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <Button type="submit" disabled={busy === 'invite' || !email}>
+            {busy === 'invite' ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <UserPlus className="h-3.5 w-3.5 mr-1.5" />}
+            Send invite
+          </Button>
+        </form>
+
+        <div className="border rounded">
+          <div className="grid grid-cols-[1fr_110px_140px_140px_100px] gap-3 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/40 border-b">
+            <span>Member</span><span>Role</span><span>Invited</span><span>Last sign-in</span><span className="text-right">Actions</span>
+          </div>
+          {loading ? (
+            <div className="p-6 text-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading members…</div>
+          ) : members.length === 0 ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">No members yet.</div>
+          ) : members.map(m => (
+            <div key={m.user_id} className="grid grid-cols-[1fr_110px_140px_140px_100px] gap-3 items-center px-3 py-2 text-sm border-b last:border-b-0">
+              <div className="min-w-0">
+                <div className="truncate text-foreground">{m.email ?? m.user_id.slice(0, 8)}{m.user_id === selfUserId && <span className="ml-1 text-[10px] uppercase text-muted-foreground">(you)</span>}</div>
+                <div className="text-[10.5px] font-mono text-muted-foreground truncate">{m.user_id}</div>
+              </div>
+              <span className="text-[11.5px] font-mono uppercase tracking-wider text-muted-foreground">{m.role}</span>
+              <span className="text-[11.5px] text-muted-foreground">{m.invited_at ? new Date(m.invited_at).toLocaleDateString() : '—'}</span>
+              <span className="text-[11.5px] text-muted-foreground">{m.last_sign_in_at ? new Date(m.last_sign_in_at).toLocaleDateString() : 'never'}</span>
+              <div className="flex justify-end gap-1">
+                {!m.last_sign_in_at && m.email && (
+                  <Button variant="ghost" size="sm" onClick={() => resend(m)} disabled={busy === m.user_id} title="Resend invite">
+                    <RefreshCw className={`h-3.5 w-3.5 ${busy === m.user_id ? 'animate-spin' : ''}`} />
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => remove(m)} disabled={busy === m.user_id || m.user_id === selfUserId} title="Remove">
+                  <Trash2 className="h-3.5 w-3.5 text-status-denied" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Invited users receive an email from Lovable Cloud, set their password, and are placed directly into this organization with the chosen role.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
