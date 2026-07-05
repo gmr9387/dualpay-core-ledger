@@ -7,6 +7,8 @@ import { rowToClaim } from '@/engine/import-to-claim';
 import { saveClaim } from '@/data/repository';
 import { persistExceptions } from '@/lib/import-exceptions';
 import { persistRemittanceBatch } from '@/lib/remittance-batches';
+import { reconcileRemittanceOutcomes } from '@/lib/recovery-reconciliation';
+import { getCurrentOrgId } from '@/lib/current-org';
 import { normalizeRemittance } from '@/engine/remittance-normalizer';
 import { classifyRemittance } from '@/engine/remittance-denial-extractor';
 import {
@@ -194,6 +196,17 @@ export async function commitBatch(
       await persistRemittanceBatch(batch, rows, expected);
     } catch (e) {
       console.error('[import-batches] persistRemittanceBatch failed', e);
+    }
+    // Pilot fix #6 — auto-create recovery_outcomes so executive KPIs
+    // reflect recovered dollars without requiring manual Outcome Log entries.
+    try {
+      const orgId = await getCurrentOrgId();
+      if (orgId) {
+        const { created } = await reconcileRemittanceOutcomes(batch, rowClaimPairs, orgId);
+        if (created > 0) console.info(`[reconcile] auto-created ${created} outcome(s)`);
+      }
+    } catch (e) {
+      console.error('[import-batches] reconcileRemittanceOutcomes failed', e);
     }
   }
 
