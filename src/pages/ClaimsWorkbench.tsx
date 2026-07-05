@@ -7,11 +7,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { resetIdCounter } from '@/engine/calculation-engine';
 import { executeAdjudicationWithReplay } from '@/engine/adjudication-orchestrator';
 import { demoContract, demoPlan, demoPriorOutcomes } from '@/data/demo-scenarios';
+import { isDemoModeEnabled } from '@/lib/demo-flag';
 import {
   loadClaims, loadCases, loadCaseEvents, loadAccumulators, loadLatestRuns,
   saveAdjudication, seedIfEmpty,
 } from '@/data/repository';
-import type { Claim, AdjudicationRun, MemberAccumulators } from '@/types/claim';
+import type { Claim, AdjudicationRun, MemberAccumulators, ContractTerms, PlanBenefits } from '@/types/claim';
 import type { TraceObject } from '@/types/trace';
 import type { Case, CaseEvent } from '@/types/case';
 import { ClaimList } from '@/components/admin/ClaimList';
@@ -21,6 +22,20 @@ import { PageHeader, EmptyState } from '@/components/clarity/primitives';
 import { Inbox, Loader2 } from 'lucide-react';
 
 interface AdjResult { claimId: string; run: AdjudicationRun; trace: TraceObject; }
+
+// Minimal no-op stubs used when demo mode is disabled so ClaimWorkspace still
+// satisfies its required prop types without leaking demo contract/plan data.
+const LIVE_CONTRACT: ContractTerms = {
+  contract_id: '', contract_version: '', provider_npi: '',
+  effective_date: '', term_date: '', fee_schedule_id: '',
+  fee_schedule: new Map(), reimbursement_method: 'fee_schedule',
+};
+const LIVE_PLAN: PlanBenefits = {
+  plan_id: '', plan_version: '', plan_name: '', plan_year: 0,
+  deductible_individual: 0, deductible_family: 0,
+  oop_max_individual: 0, oop_max_family: 0,
+  coinsurance_rate: 0, cob_policy: 'standard', covered_services: [],
+};
 
 export default function ClaimsWorkbench() {
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
@@ -49,6 +64,8 @@ export default function ClaimsWorkbench() {
           if (haveRun.has(claim.claim_id)) continue;
           const acc = a[claim.member_id] ?? Object.values(a)[0];
           if (!acc) continue;
+          // Only re-adjudicate with demo contract/plan in demo mode.
+          if (!isDemoModeEnabled()) continue;
           const { run, trace } = await executeAdjudicationWithReplay({
             claim,
             accumulators: acc,
@@ -102,7 +119,9 @@ export default function ClaimsWorkbench() {
                 claim={selectedClaim} result={selectedResult}
                 caseData={selectedCase} caseEvents={selectedCaseEvents}
                 claims={claims} adjResults={adjResults} accumulators={accumulators}
-                contract={demoContract} plan={demoPlan} priorOutcomes={demoPriorOutcomes}
+                contract={isDemoModeEnabled() ? demoContract : LIVE_CONTRACT}
+                plan={isDemoModeEnabled() ? demoPlan : LIVE_PLAN}
+                priorOutcomes={isDemoModeEnabled() ? demoPriorOutcomes : []}
                 onSelectClaim={setSelectedClaimId}
               />
             ) : (

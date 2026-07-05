@@ -15,6 +15,7 @@ import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import { generateAppealPacket, generateAppealPdfHtml, printAppealPdf } from '@/engine/appeal-packet-generator';
 import { appendOpsEvent } from '@/lib/ops-events';
+import { uploadAppealPacket } from '@/lib/evidence-documents';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2, CheckCircle2, AlertCircle, XCircle, FileText, Send, Inbox } from 'lucide-react';
@@ -77,6 +78,20 @@ export default function AppealPacket() {
 
       // Populate the already-open window and trigger print/save-as-PDF.
       printAppealPdf(html, printWin);
+
+      // Upload the generated HTML artifact to Supabase for server-side audit retention.
+      try {
+        const blob = new Blob([html], { type: 'text/html' });
+        await uploadAppealPacket({
+          org_id: currentOrg.org_id,
+          claim_id: claim.claim_id,
+          filename: `appeal_${claim.claim_id}_${Date.now()}.html`,
+          content: blob,
+          contentType: 'text/html',
+        });
+      } catch {
+        console.error('[appeal] packet storage upload failed');
+      }
 
       toast({ title: 'Appeal submitted', description: `PDF opened for ${claim.claim_id}. Save as PDF, then fax or upload to the payer portal.` });
     } catch {
