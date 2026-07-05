@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useEvidenceDocuments } from '@/hooks/use-evidence-documents';
 import { useClarityData } from '@/hooks/use-clarity-data';
 import { scoreEvidenceReadiness, READINESS_CLS, READINESS_LABEL } from '@/engine/evidence-readiness';
-import { generateAppealPacket } from '@/engine/appeal-packet-generator';
+import { generateAppealPacket, generateAppealPdfHtml, printAppealPdf } from '@/engine/appeal-packet-generator';
 import { uploadAppealPacket } from '@/lib/evidence-documents';
 import { appendOpsEvent } from '@/lib/ops-events';
 import { useOrg } from '@/hooks/use-org';
@@ -36,9 +36,16 @@ export default function EvidenceClaimPage() {
     if (!currentOrg || !claim) return;
     setBusy(true);
     setPacketStatus(null);
+
+    // Build packet and HTML synchronously so we can open the print window
+    // before any async calls — browsers block window.open() after an await.
     const packet = generateAppealPacket(claim, claims!, docs ?? []);
-    const blob = new Blob([packet.markdown], { type: 'text/markdown' });
-    const filename = `appeal_packet_${claim.claim_id}_${Date.now()}.md`;
+    const html = generateAppealPdfHtml(packet, claim, claims!, { orgName: currentOrg.name });
+    const printWin = window.open('', '_blank');
+
+    // Upload HTML to Supabase for audit trail.
+    const filename = `appeal_packet_${claim.claim_id}_${Date.now()}.html`;
+    const blob = new Blob([html], { type: 'text/html' });
     const upload = await uploadAppealPacket({
       org_id: currentOrg.org_id,
       claim_id: claim.claim_id,
@@ -53,13 +60,16 @@ export default function EvidenceClaimPage() {
         : `Appeal packet INCOMPLETE — ${packet.blocking_items.length} blocking gap(s)`,
       payload: { complete: packet.complete, readiness_tier: packet.readiness_tier, blocking: packet.blocking_items, storage_path: upload?.path ?? null },
     });
-    // Trigger local download
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
+
+    // Populate the already-open window and trigger the print/save-as-PDF dialog.
+    printAppealPdf(html, printWin);
+
     setBusy(false);
-    setPacketStatus(packet.complete ? `Packet generated and stored.` : `Packet generated but flagged INCOMPLETE.`);
+    setPacketStatus(
+      packet.complete
+        ? 'Packet generated. Print dialog opened — choose "Save as PDF".'
+        : 'Packet generated but flagged INCOMPLETE.',
+    );
   }
 
   return (

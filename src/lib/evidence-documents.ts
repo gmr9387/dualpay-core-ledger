@@ -159,10 +159,11 @@ export async function uploadAppealPacket(opts: {
   claim_id: string;
   filename: string;
   content: Blob;
+  contentType?: string;
 }): Promise<{ path: string; signedUrl: string | null } | null> {
   const path = `${opts.org_id}/${opts.claim_id}/${Date.now()}_${safeName(opts.filename)}`;
   const { error } = await supabase.storage.from(PACKET_BUCKET).upload(path, opts.content, {
-    contentType: 'text/markdown',
+    contentType: opts.contentType ?? 'text/html',
     upsert: false,
   });
   if (error) { console.error('[packet] upload failed', error.message); return null; }
