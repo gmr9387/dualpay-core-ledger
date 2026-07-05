@@ -7,6 +7,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { resetIdCounter } from '@/engine/calculation-engine';
 import { executeAdjudicationWithReplay } from '@/engine/adjudication-orchestrator';
 import { demoContract, demoPlan, demoPriorOutcomes } from '@/data/demo-scenarios';
+import { isDemoModeEnabled } from '@/lib/demo-flag';
+import { LIVE_CONTRACT, LIVE_PLAN } from '@/lib/live-stubs';
 import {
   loadClaims, loadCases, loadCaseEvents, loadAccumulators, loadLatestRuns,
   saveAdjudication, seedIfEmpty,
@@ -49,6 +51,7 @@ export default function ClaimsWorkbench() {
           if (haveRun.has(claim.claim_id)) continue;
           const acc = a[claim.member_id] ?? Object.values(a)[0];
           if (!acc) continue;
+          if (!isDemoModeEnabled()) continue;
           const { run, trace } = await executeAdjudicationWithReplay({
             claim,
             accumulators: acc,
@@ -102,7 +105,9 @@ export default function ClaimsWorkbench() {
                 claim={selectedClaim} result={selectedResult}
                 caseData={selectedCase} caseEvents={selectedCaseEvents}
                 claims={claims} adjResults={adjResults} accumulators={accumulators}
-                contract={demoContract} plan={demoPlan} priorOutcomes={demoPriorOutcomes}
+                contract={isDemoModeEnabled() ? demoContract : LIVE_CONTRACT}
+                plan={isDemoModeEnabled() ? demoPlan : LIVE_PLAN}
+                priorOutcomes={isDemoModeEnabled() ? demoPriorOutcomes : []}
                 onSelectClaim={setSelectedClaimId}
               />
             ) : (
