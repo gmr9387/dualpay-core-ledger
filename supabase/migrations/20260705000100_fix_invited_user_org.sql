@@ -26,7 +26,7 @@ BEGIN
 
   IF v_invited_org_id IS NOT NULL
      AND EXISTS (SELECT 1 FROM public.organizations WHERE org_id = v_invited_org_id) THEN
-    -- Invited user path: join the existing clinic org; do NOT create "My Organization".
+    -- Invited user path: join the existing org; do NOT create "My Organization".
     v_invited_role := COALESCE(
       NULLIF(TRIM(NEW.raw_user_meta_data->>'invited_role'), ''),
       'analyst'
