@@ -1,13 +1,11 @@
 /**
- * Demo-data gating (Phase 12).
+ * Demo-data gating (Phase 12 + Revenue Readiness sprint hardening).
  *
- * Demo seed scenarios only run when:
- *   - running in Vite dev mode, OR
- *   - VITE_DEMO_MODE is explicitly set to "true"
+ * Demo seed scenarios ONLY run when `VITE_DEMO_MODE=true` is explicitly set.
  *
- * Production authenticated orgs never receive auto-seeded demo claims.
+ * DEV mode no longer auto-enables seeding — this prevents accidental data
+ * writes / wipes in production-mirrored environments and against real orgs.
  */
 export function isDemoModeEnabled(): boolean {
-  if (import.meta.env.DEV) return true;
   return String(import.meta.env.VITE_DEMO_MODE).toLowerCase() === 'true';
 }

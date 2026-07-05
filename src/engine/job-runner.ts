@@ -17,7 +17,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { startJob, completeJob, failJob } from '@/lib/automation';
 import { listContracts, listDisputes, createDispute } from '@/lib/contracts';
-import { setAssignment, ASSIGNEES } from '@/lib/assignments';
+import { setAssignment } from '@/lib/assignments';
 import { autoCreateCase } from './auto-case-generator';
 import { evaluateRules } from './automation-rules';
 import type { JobType, JobRunResult, AutomationJob } from '@/types/automation';
@@ -152,15 +152,35 @@ const recovery_case_generation: Handler = async () => {
 };
 
 const queue_assignment: Handler = async () => {
-  // Round-robin assign unassigned open disputes to ASSIGNEES.
+  // Revenue-readiness fix #4: round-robin over REAL org members
+  // (UUIDs from organization_members) — no more hardcoded names.
   const disputes = await listDisputes();
   const open = disputes.filter(d => d.status === 'open');
   const { data: assigns } = await sb.from('claim_assignments').select('claim_id');
   const assigned = new Set(((assigns ?? []) as Array<{ claim_id: string }>).map(r => r.claim_id));
   const queue = open.filter(d => !assigned.has(d.claim_id));
+
+  const { getCurrentOrgId } = await import('@/lib/current-org');
+  const orgId = await getCurrentOrgId();
+  let members: string[] = [];
+  if (orgId) {
+    const { loadOrgAssignees } = await import('@/lib/assignments');
+    const list = await loadOrgAssignees(orgId);
+    members = list.map(m => m.user_id);
+  }
+
+  if (members.length === 0) {
+    return {
+      records_processed: queue.length,
+      records_succeeded: 0,
+      records_failed: 0,
+      details: { skipped: 'no_org_members' },
+    };
+  }
+
   let succeeded = 0; let failed = 0;
   for (let i = 0; i < queue.length; i++) {
-    const assignee = ASSIGNEES[i % ASSIGNEES.length];
+    const assignee = members[i % members.length];
     const r = await setAssignment(queue[i].claim_id, { assignee, status: 'open' });
     if (r) succeeded += 1; else failed += 1;
   }
@@ -168,7 +188,7 @@ const queue_assignment: Handler = async () => {
     records_processed: queue.length,
     records_succeeded: succeeded,
     records_failed: failed,
-    details: { round_robin_size: ASSIGNEES.length },
+    details: { round_robin_size: members.length },
   };
 };
 

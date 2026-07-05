@@ -3,7 +3,7 @@
  * a single claim with denial details, evidence, payer requirements,
  * and a submission checklist.  Returns explicit readiness verdict.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useClarityData, formatCents } from '@/hooks/use-clarity-data';
 import { PageHeader, Panel, ScrollBody, EmptyState, SeverityBadge, RecoverabilityBar } from '@/components/clarity/primitives';
@@ -11,12 +11,20 @@ import { recommendPlaybook } from '@/engine/playbooks';
 import { findRequirementsFor } from '@/engine/payer-requirements';
 import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
+import { logAppealEvent } from '@/data/operational-workflows';
+import { useOrg } from '@/hooks/use-org';
+import { useAuth } from '@/hooks/use-auth';
+import { toast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2, CheckCircle2, AlertCircle, XCircle, FileText, Send, Inbox } from 'lucide-react';
 
 export default function AppealPacket() {
   const { claimId } = useParams();
   const { data: claims, isLoading } = useClarityData();
+  const { currentOrg } = useOrg();
+  const { user } = useAuth();
   const claim = useMemo(() => claims?.find(c => c.claim_id === claimId), [claims, claimId]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   if (isLoading) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
 
@@ -72,8 +80,32 @@ export default function AppealPacket() {
         <div className="ml-auto flex items-center gap-2">
           {primary && <SeverityBadge severity={primary.severity} />}
           {primary && <div className="w-32"><RecoverabilityBar score={primary.recoverability_score} /></div>}
-          <button disabled={verdict !== 'COMPLETE'} className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground">
-            <Send className="h-3.5 w-3.5" /> Submit Appeal
+          <button
+            disabled={verdict !== 'COMPLETE' || submitting || submitted || !currentOrg}
+            onClick={async () => {
+              if (!currentOrg) { toast({ title: 'Select an organization first', variant: 'destructive' }); return; }
+              setSubmitting(true);
+              try {
+                const dispute = primary?.amount_cents ?? claim.intel.amount_at_risk_cents;
+                const payerName = claim.intel.payer_name;
+                await logAppealEvent(claim.claim_id, currentOrg.org_id, {
+                  kind: 'appeal_submitted',
+                  summary: `Appeal packet submitted to ${payerName} · ${formatCents(dispute)} in dispute`,
+                  appealStatus: 'pending_response',
+                  notes: rec?.playbook.appeal_strategy,
+                });
+                setSubmitted(true);
+                toast({ title: 'Appeal submitted', description: `${claim.claim_id} → ${payerName}` });
+              } catch (err) {
+                toast({ title: 'Submission failed', description: String(err), variant: 'destructive' });
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
+          >
+            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {submitted ? 'Submitted' : submitting ? 'Submitting…' : 'Submit Appeal'}
           </button>
         </div>
       </div>

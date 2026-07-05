@@ -161,6 +161,13 @@ type Json =
 const asJson = <T>(v: T): Json => v as unknown as Json;
 
 export async function saveClaim(claim: Claim, orgId?: string): Promise<void> {
+  // Revenue-readiness fix #3: guarantee org_id propagation so imported
+  // claims are visible to every member of the org, not just the importer.
+  let resolvedOrgId = orgId;
+  if (!resolvedOrgId) {
+    const { getCurrentOrgId } = await import('@/lib/current-org');
+    resolvedOrgId = (await getCurrentOrgId()) ?? undefined;
+  }
   const { error } = await supabase.from('claims').upsert([{
     claim_id: claim.claim_id,
     member_id: claim.member_id,
@@ -169,7 +176,7 @@ export async function saveClaim(claim: Claim, orgId?: string): Promise<void> {
     service_date_to: claim.service_date_to ?? claim.service_date_from,
     status: claim.status,
     total_billed_cents: claim.total_billed,
-    org_id: orgId,
+    org_id: resolvedOrgId,
     payload: asJson(claim),
   }] as never);
   if (error) throw error;
