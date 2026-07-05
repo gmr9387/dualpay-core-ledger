@@ -6,6 +6,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useClarityData, formatCents, formatCentsCompact } from '@/hooks/use-clarity-data';
+import { useOutcomes } from '@/hooks/use-outcomes';
 import { PageHeader, KpiStrip, ScrollBody, Panel } from '@/components/clarity/primitives';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import { detectLeakPatterns, PATTERN_LABEL } from '@/engine/leak-detection';
@@ -14,6 +15,8 @@ import { Loader2, BarChart3 } from 'lucide-react';
 
 export default function ExecutiveReporting() {
   const { data: claims, isLoading } = useClarityData();
+  const { outcomes } = useOutcomes();
+
 
   const data = useMemo(() => {
     if (!claims) return null;
