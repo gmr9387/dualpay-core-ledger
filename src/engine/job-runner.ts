@@ -17,7 +17,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { startJob, completeJob, failJob } from '@/lib/automation';
 import { listContracts, listDisputes, createDispute } from '@/lib/contracts';
-import { setAssignment, ASSIGNEES } from '@/lib/assignments';
+import { setAssignment } from '@/lib/assignments';
 import { autoCreateCase } from './auto-case-generator';
 import { evaluateRules } from './automation-rules';
 import type { JobType, JobRunResult, AutomationJob } from '@/types/automation';
