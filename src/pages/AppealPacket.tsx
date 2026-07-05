@@ -80,8 +80,32 @@ export default function AppealPacket() {
         <div className="ml-auto flex items-center gap-2">
           {primary && <SeverityBadge severity={primary.severity} />}
           {primary && <div className="w-32"><RecoverabilityBar score={primary.recoverability_score} /></div>}
-          <button disabled={verdict !== 'COMPLETE'} className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground">
-            <Send className="h-3.5 w-3.5" /> Submit Appeal
+          <button
+            disabled={verdict !== 'COMPLETE' || submitting || submitted || !currentOrg}
+            onClick={async () => {
+              if (!currentOrg) { toast({ title: 'Select an organization first', variant: 'destructive' }); return; }
+              setSubmitting(true);
+              try {
+                const dispute = primary?.amount_cents ?? claim.intel.amount_at_risk_cents;
+                const payerName = claim.intel.payer_name;
+                await logAppealEvent(claim.claim_id, currentOrg.org_id, {
+                  kind: 'appeal_submitted',
+                  summary: `Appeal packet submitted to ${payerName} · ${formatCents(dispute)} in dispute`,
+                  appealStatus: 'pending_response',
+                  notes: rec?.playbook.appeal_strategy,
+                });
+                setSubmitted(true);
+                toast({ title: 'Appeal submitted', description: `${claim.claim_id} → ${payerName}` });
+              } catch (err) {
+                toast({ title: 'Submission failed', description: String(err), variant: 'destructive' });
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
+          >
+            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {submitted ? 'Submitted' : submitting ? 'Submitting…' : 'Submit Appeal'}
           </button>
         </div>
       </div>
