@@ -54,7 +54,7 @@ export default function TeamOperations() {
         }
       />
       <KpiStrip tiles={[
-        { label: 'Team Members',          value: String(team.members.length || ASSIGNEES.length) },
+        { label: 'Team Members',          value: String(team.members.length || assignees.length) },
         { label: 'Active Assignments',    value: String(totalActive) },
         { label: 'Overdue Items',         value: String(totalOverdue),                          tone: totalOverdue > 0 ? 'text-status-denied' : 'text-status-paid' },
         { label: 'Expected Recovery',     value: formatCentsCompact(totalExpected),             tone: 'amount-positive' },
@@ -121,11 +121,11 @@ export default function TeamOperations() {
           <div className="space-y-4">
             <Panel title="Roster">
               <ul className="space-y-1.5 text-[12.5px]">
-                {ASSIGNEES.map(a => {
-                  const m = team.members.find(x => x.assignee === a);
+                {assignees.map(a => {
+                  const m = team.members.find(x => x.assignee === a.user_id);
                   return (
-                    <li key={a} className="flex items-center justify-between gap-2">
-                      <span className="text-foreground truncate">{a}</span>
+                    <li key={a.user_id} className="flex items-center justify-between gap-2">
+                      <span className="text-foreground truncate">{a.name} <span className="text-[10px] text-muted-foreground font-mono">· {a.role}</span></span>
                       <span className="font-mono text-[11px] text-muted-foreground">{m?.active_count ?? 0}</span>
                     </li>
                   );
