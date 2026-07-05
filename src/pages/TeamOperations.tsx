@@ -2,18 +2,26 @@
  * Team Operations — assignee workload, overdue counts, recovery
  * outcomes, and unassigned backlog.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useClarityData, formatCents, formatCentsCompact } from '@/hooks/use-clarity-data';
 import { PageHeader, KpiStrip, ScrollBody, Panel, EmptyState } from '@/components/clarity/primitives';
 import { useAssignments } from '@/hooks/use-assignments';
 import { aggregateTeam } from '@/engine/team-ops';
-import { ASSIGNEES } from '@/lib/assignments';
+import { loadOrgAssignees, type OrgAssignee } from '@/lib/assignments';
+import { useOrg } from '@/hooks/use-org';
 import { Loader2, Users, UserPlus, AlertOctagon } from 'lucide-react';
 
 export default function TeamOperations() {
   const { data: claims, isLoading } = useClarityData();
   const { store, assign } = useAssignments();
+  const { currentOrg } = useOrg();
+  const [assignees, setAssignees] = useState<OrgAssignee[]>([]);
+
+  useEffect(() => {
+    if (!currentOrg) { setAssignees([]); return; }
+    loadOrgAssignees(currentOrg.org_id).then(setAssignees);
+  }, [currentOrg]);
 
   const team = useMemo(() => {
     if (!claims) return null;
@@ -22,9 +30,10 @@ export default function TeamOperations() {
 
   if (isLoading || !team) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
 
-  // Auto-assign helper: round-robin unassigned to team members
+  // Auto-assign helper: round-robin unassigned to real org members
   const autoAssign = () => {
-    team.unassigned.forEach((c, i) => assign(c.claim_id, ASSIGNEES[i % ASSIGNEES.length]));
+    if (assignees.length === 0) return;
+    team.unassigned.forEach((c, i) => assign(c.claim_id, assignees[i % assignees.length].user_id));
   };
 
   const totalActive = team.members.reduce((s, m) => s + m.active_count, 0);
@@ -45,7 +54,7 @@ export default function TeamOperations() {
         }
       />
       <KpiStrip tiles={[
-        { label: 'Team Members',          value: String(team.members.length || ASSIGNEES.length) },
+        { label: 'Team Members',          value: String(team.members.length || assignees.length) },
         { label: 'Active Assignments',    value: String(totalActive) },
         { label: 'Overdue Items',         value: String(totalOverdue),                          tone: totalOverdue > 0 ? 'text-status-denied' : 'text-status-paid' },
         { label: 'Expected Recovery',     value: formatCentsCompact(totalExpected),             tone: 'amount-positive' },
@@ -112,11 +121,11 @@ export default function TeamOperations() {
           <div className="space-y-4">
             <Panel title="Roster">
               <ul className="space-y-1.5 text-[12.5px]">
-                {ASSIGNEES.map(a => {
-                  const m = team.members.find(x => x.assignee === a);
+                {assignees.map(a => {
+                  const m = team.members.find(x => x.assignee === a.user_id);
                   return (
-                    <li key={a} className="flex items-center justify-between gap-2">
-                      <span className="text-foreground truncate">{a}</span>
+                    <li key={a.user_id} className="flex items-center justify-between gap-2">
+                      <span className="text-foreground truncate">{a.name} <span className="text-[10px] text-muted-foreground font-mono">· {a.role}</span></span>
                       <span className="font-mono text-[11px] text-muted-foreground">{m?.active_count ?? 0}</span>
                     </li>
                   );

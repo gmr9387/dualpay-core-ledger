@@ -1,32 +1,12 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { Link } from 'react-router-dom';
 import { Shield } from 'lucide-react';
 
+/**
+ * Open signup is disabled for pilot hardening.  Provisioning is done by
+ * an org owner/admin via invitation.  Kept as a route so any stale link
+ * lands on a clear, branded explanation instead of a 404.
+ */
 export default function Signup() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [err, setErr] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const nav = useNavigate();
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr(null); setMsg(null); setBusy(true);
-    const { data, error } = await supabase.auth.signUp({
-      email, password,
-      options: { emailRedirectTo: `${window.location.origin}/` },
-    });
-    setBusy(false);
-    if (error) { setErr(error.message); return; }
-    if (data.session) {
-      nav('/', { replace: true });
-    } else {
-      setMsg('Check your email to confirm your account.');
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-0 px-4">
       <div className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
@@ -35,30 +15,16 @@ export default function Signup() {
             <Shield className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <div className="text-sm font-bold">Create your account</div>
-            <div className="text-[11px] text-muted-foreground font-mono">Provisions your organization</div>
+            <div className="text-sm font-bold">Invite-only access</div>
+            <div className="text-[11px] text-muted-foreground font-mono">Self-signup is disabled</div>
           </div>
         </div>
-        <form onSubmit={submit} className="space-y-3">
-          <div>
-            <label className="text-xs font-medium">Email</label>
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-              className="mt-1 w-full h-9 px-3 rounded-md border bg-background text-sm" />
-          </div>
-          <div>
-            <label className="text-xs font-medium">Password</label>
-            <input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)}
-              className="mt-1 w-full h-9 px-3 rounded-md border bg-background text-sm" />
-          </div>
-          {err && <div className="text-xs text-status-denied">{err}</div>}
-          {msg && <div className="text-xs text-status-paid">{msg}</div>}
-          <button type="submit" disabled={busy}
-            className="w-full h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
-            {busy ? 'Creating…' : 'Create account'}
-          </button>
-        </form>
+        <p className="text-xs text-muted-foreground">
+          Claim Clarity accounts are provisioned by your organization administrator.
+          Please contact them to receive an invitation.
+        </p>
         <div className="mt-4 text-center text-xs text-muted-foreground">
-          Already have an account? <Link to="/login" className="text-primary font-medium">Sign in</Link>
+          <Link to="/login" className="text-primary font-medium">Back to sign in</Link>
         </div>
       </div>
     </div>

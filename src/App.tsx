@@ -9,6 +9,8 @@ import { OrgProvider } from "@/hooks/use-org";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import CommandCenter from "./pages/CommandCenter";
 import ExecutiveCommand from "./pages/ExecutiveCommand";
 import TodaysOpportunities from "./pages/TodaysOpportunities";
@@ -173,6 +175,8 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/*" element={<ProtectedShell />} />
           </Routes>
         </AuthProvider>

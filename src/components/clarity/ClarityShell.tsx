@@ -9,10 +9,11 @@ import {
   Bot, Settings2, Cpu, AlertTriangle,
 } from 'lucide-react';
 import { UserOrgMenu, NoOrgEmptyState } from '@/components/auth/UserOrgMenu';
-import { useOrg } from '@/hooks/use-org';
+import { useOrg, type OrgRole } from '@/hooks/use-org';
+import { roleAtLeast } from '@/lib/role-permissions';
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; badge?: string }
-interface NavSection { title: string; items: NavItem[] }
+interface NavSection { title: string; items: NavItem[]; minRole?: OrgRole }
 
 const SECTIONS: NavSection[] = [
   {
@@ -25,6 +26,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Executive Intelligence',
+    minRole: 'manager',
     items: [
       { to: '/executive',            label: 'Executive Home',       icon: BarChart3, badge: 'NEW' },
       { to: '/executive/value',      label: 'Value Realization',    icon: TrendingUp, badge: 'NEW' },
@@ -46,6 +48,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Recovery Factory',
+    minRole: 'analyst',
     items: [
       { to: '/factory',             label: 'Factory Dashboard', icon: Factory,   badge: 'NEW' },
       { to: '/factory/import',      label: 'Import Center',     icon: FileInput, badge: 'NEW' },
@@ -56,6 +59,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Contract Intelligence',
+    minRole: 'manager',
     items: [
       { to: '/contracts',           label: 'Contracts',          icon: BookText,    badge: 'NEW' },
       { to: '/contracts/disputes',  label: 'Underpayment Disputes', icon: AlertOctagon, badge: 'NEW' },
@@ -64,6 +68,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Automation',
+    minRole: 'admin',
     items: [
       { to: '/automation',         label: 'Automation Center', icon: Bot,        badge: 'NEW' },
       { to: '/automation/jobs',    label: 'Jobs',              icon: ListChecks, badge: 'NEW' },
@@ -73,6 +78,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Platform',
+    minRole: 'admin',
     items: [
       { to: '/platform',          label: 'Platform Operations', icon: Cpu,            badge: 'NEW' },
       { to: '/platform/jobs',     label: 'Job Queue',           icon: ListChecks,     badge: 'NEW' },
@@ -82,12 +88,14 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Lineage',
+    minRole: 'manager',
     items: [
       { to: '/lineage', label: 'Recovery Lineage', icon: GitBranch, badge: 'NEW' },
     ],
   },
   {
     title: 'EDI Gateway',
+    minRole: 'admin',
     items: [
       { to: '/edi',              label: 'EDI Overview',     icon: Database,  badge: 'X12' },
       { to: '/edi/import',       label: 'EDI Import',       icon: Upload,    badge: 'X12' },
@@ -128,6 +136,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     title: 'Admin',
+    minRole: 'admin',
     items: [
       { to: '/claims',          label: 'Claims Workbench',    icon: FileSearch },
       { to: '/reports',         label: 'Executive Reporting', icon: BarChart3 },
@@ -148,6 +157,9 @@ interface ClarityShellProps {
 export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps) {
   const { pathname } = useLocation();
   const crumbs = breadcrumbsFor(pathname);
+  const { currentOrg } = useOrg();
+  const role = currentOrg?.role;
+  const visibleSections = SECTIONS.filter(s => !s.minRole || roleAtLeast(role, s.minRole));
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-surface-0 text-foreground">
@@ -164,7 +176,7 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
         </div>
 
         <nav className="flex-1 px-2 py-2 space-y-3 overflow-y-auto">
-          {SECTIONS.map(section => (
+          {visibleSections.map(section => (
             <div key={section.title}>
               <div className="px-2 pb-1 text-[9.5px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
                 {section.title}
