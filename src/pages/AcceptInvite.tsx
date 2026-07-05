@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useOrg } from '@/hooks/use-org';
 import { getInvitationByToken, acceptInvitation, type Invitation } from '@/hooks/use-invitations';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +30,7 @@ export default function AcceptInvite() {
   const token = params.get('token') ?? '';
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { selectOrg } = useOrg();
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [invite, setInvite] = useState<Invitation | null>(null);
@@ -67,6 +69,9 @@ export default function AcceptInvite() {
     setPhase('accepting');
     const result = await acceptInvitation(invite.token, user.id);
     if (result.ok) {
+      // Immediately pin the correct org in localStorage so useOrg selects
+      // the invited clinic org rather than any other org the user may belong to.
+      selectOrg(invite.org_id);
       setPhase('done');
     } else {
       setErrorMsg(result.error ?? 'Unknown error');
@@ -125,7 +130,9 @@ export default function AcceptInvite() {
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => navigate(`/signup?redirect=/accept-invite?token=${token}`)}
+                  onClick={() => navigate(
+                    `/signup?redirect=${encodeURIComponent(`/accept-invite?token=${token}`)}&invited_org_id=${invite.org_id}&invited_role=${encodeURIComponent(invite.role)}`,
+                  )}
                 >
                   Create account
                 </Button>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Shield } from 'lucide-react';
 import { validatePassword } from '@/lib/password-policy';
@@ -11,6 +11,13 @@ export default function Signup() {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Invite context — present when arriving from /accept-invite.
+  const redirectTo   = searchParams.get('redirect') ?? '';
+  const invitedOrgId = searchParams.get('invited_org_id') ?? '';
+  const invitedRole  = searchParams.get('invited_role') ?? '';
+  const isInvited    = !!invitedOrgId;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,14 +25,27 @@ export default function Signup() {
     const pwError = validatePassword(password);
     if (pwError) { setErr(pwError); return; }
     setBusy(true);
+
+    // Build invite metadata so the DB trigger skips "My Organization" creation.
+    const inviteMeta = isInvited
+      ? { invited_org_id: invitedOrgId, invited_role: invitedRole || 'analyst' }
+      : {};
+
+    // After email confirmation, bounce the user back to the invite page so
+    // they can complete the acceptInvitation step.
+    const emailRedirectTo = redirectTo
+      ? `${window.location.origin}${redirectTo}`
+      : `${window.location.origin}/`;
+
     const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { emailRedirectTo: `${window.location.origin}/` },
+      options: { emailRedirectTo, data: inviteMeta },
     });
     setBusy(false);
     if (error) { setErr(error.message); return; }
     if (data.session) {
-      nav('/', { replace: true });
+      // Email confirmation disabled — go directly to the redirect destination.
+      nav(redirectTo || '/', { replace: true });
     } else {
       setMsg('Check your email to confirm your account.');
     }
@@ -40,7 +60,9 @@ export default function Signup() {
           </div>
           <div>
             <div className="text-sm font-bold">Create your account</div>
-            <div className="text-[11px] text-muted-foreground font-mono">Provisions your organization</div>
+            <div className="text-[11px] text-muted-foreground font-mono">
+              {isInvited ? 'Join your organization' : 'Provisions your organization'}
+            </div>
           </div>
         </div>
         <form onSubmit={submit} className="space-y-3">

@@ -46,8 +46,15 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     }));
     setOrgs(list);
     if (list.length > 0 && (!currentOrgId || !list.find(o => o.org_id === currentOrgId))) {
-      setCurrentOrgId(list[0].org_id);
-      localStorage.setItem(STORAGE_KEY, list[0].org_id);
+      // Prefer the org the user was invited to (stored in auth metadata) so
+      // invited users never land in a stale or rogue org.
+      const invitedOrgId = (user.user_metadata as Record<string, unknown> | null)?.invited_org_id as string | undefined;
+      const preferred =
+        (invitedOrgId && list.find(o => o.org_id === invitedOrgId))
+          ? invitedOrgId
+          : list[0].org_id;
+      setCurrentOrgId(preferred);
+      localStorage.setItem(STORAGE_KEY, preferred);
     }
     setLoading(false);
   }, [user, currentOrgId]);
