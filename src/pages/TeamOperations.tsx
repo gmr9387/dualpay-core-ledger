@@ -2,18 +2,26 @@
  * Team Operations — assignee workload, overdue counts, recovery
  * outcomes, and unassigned backlog.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useClarityData, formatCents, formatCentsCompact } from '@/hooks/use-clarity-data';
 import { PageHeader, KpiStrip, ScrollBody, Panel, EmptyState } from '@/components/clarity/primitives';
 import { useAssignments } from '@/hooks/use-assignments';
 import { aggregateTeam } from '@/engine/team-ops';
-import { ASSIGNEES } from '@/lib/assignments';
+import { loadOrgAssignees, type OrgAssignee } from '@/lib/assignments';
+import { useOrg } from '@/hooks/use-org';
 import { Loader2, Users, UserPlus, AlertOctagon } from 'lucide-react';
 
 export default function TeamOperations() {
   const { data: claims, isLoading } = useClarityData();
   const { store, assign } = useAssignments();
+  const { currentOrg } = useOrg();
+  const [assignees, setAssignees] = useState<OrgAssignee[]>([]);
+
+  useEffect(() => {
+    if (!currentOrg) { setAssignees([]); return; }
+    loadOrgAssignees(currentOrg.org_id).then(setAssignees);
+  }, [currentOrg]);
 
   const team = useMemo(() => {
     if (!claims) return null;
@@ -22,9 +30,10 @@ export default function TeamOperations() {
 
   if (isLoading || !team) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
 
-  // Auto-assign helper: round-robin unassigned to team members
+  // Auto-assign helper: round-robin unassigned to real org members
   const autoAssign = () => {
-    team.unassigned.forEach((c, i) => assign(c.claim_id, ASSIGNEES[i % ASSIGNEES.length]));
+    if (assignees.length === 0) return;
+    team.unassigned.forEach((c, i) => assign(c.claim_id, assignees[i % assignees.length].user_id));
   };
 
   const totalActive = team.members.reduce((s, m) => s + m.active_count, 0);
