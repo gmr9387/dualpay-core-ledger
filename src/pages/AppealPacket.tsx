@@ -12,6 +12,7 @@ import { findRequirementsFor } from '@/engine/payer-requirements';
 import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import { logAppealEvent } from '@/data/operational-workflows';
+import { appendOpsEvent } from '@/lib/ops-events';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrg } from '@/hooks/use-org';
 import { useAuth } from '@/hooks/use-auth';
@@ -96,9 +97,12 @@ export default function AppealPacket() {
                   orgName: currentOrg?.name,
                 });
                 if (currentOrg) {
-                  void logAppealEvent(claim.claim_id, currentOrg.org_id, {
+                  void appendOpsEvent({
                     kind: 'appeal_packet_generated',
+                    claim_id: claim.claim_id,
+                    org_id: currentOrg.org_id,
                     summary: `Packet ${filename} generated for ${claim.intel.payer_name}`,
+                    payload: { filename },
                   });
                 }
                 toast({ title: 'Packet downloaded', description: filename });
