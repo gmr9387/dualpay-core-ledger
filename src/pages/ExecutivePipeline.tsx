@@ -60,7 +60,7 @@ export default function ExecutivePipeline() {
     const escalations = detectEscalations(claims, store);
     const sla = summarizeSla(claims, store);
 
-    const recoveredCents = claims.reduce((s, c) => s + c.intel.appeals.reduce((sum, a) => sum + (a.amount_recovered_cents ?? 0), 0), 0);
+    const recoveredCents = outcomes.reduce((s, o) => s + (o.recovered_amount_cents ?? 0), 0);
     const openRecoverable = claims
       .filter(c => c.intel.reimbursement_state !== 'paid' && c.intel.reimbursement_state !== 'resolved' && c.intel.reimbursement_state !== 'written_off')
       .reduce((s, c) => s + c.intel.amount_at_risk_cents, 0);
