@@ -73,7 +73,7 @@ export default function ExecutivePipeline() {
     const velocity = fc.total_at_risk_cents > 0 ? fc.total_expected_recovery_cents / Math.max(1, fc.buckets.length) : 0;
 
     return { buckets, fc, escalations, sla, recoveredCents, openRecoverable, avgDaysToResolve, appealsInProgress, aging120, stalled, velocity };
-  }, [claims, store]);
+  }, [claims, store, outcomes]);
 
   if (isLoading || !view) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
 
