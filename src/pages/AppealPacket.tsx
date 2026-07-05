@@ -6,6 +6,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useClarityData, formatCents } from '@/hooks/use-clarity-data';
+import { useEvidenceDocuments } from '@/hooks/use-evidence-documents';
 import { PageHeader, Panel, ScrollBody, EmptyState, SeverityBadge, RecoverabilityBar } from '@/components/clarity/primitives';
 import { recommendPlaybook } from '@/engine/playbooks';
 import { findRequirementsFor } from '@/engine/payer-requirements';
@@ -17,7 +18,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrg } from '@/hooks/use-org';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from '@/hooks/use-toast';
-import { downloadAppealPacketPdf } from '@/lib/pdf-appeal';
+import { buildAppealPacketPdf } from '@/lib/pdf-appeal';
+import { generateAppealPacket } from '@/engine/appeal-packet-generator';
+import { uploadAppealPacket } from '@/lib/evidence-documents';
 import { ArrowLeft, Loader2, CheckCircle2, AlertCircle, XCircle, FileText, Send, Inbox, Download, Info } from 'lucide-react';
 
 export default function AppealPacket() {
@@ -25,6 +28,7 @@ export default function AppealPacket() {
   const { data: claims, isLoading } = useClarityData();
   const { currentOrg } = useOrg();
   const { user } = useAuth();
+  const { data: documents = [] } = useEvidenceDocuments({ claim_id: claimId });
   const claim = useMemo(() => claims?.find(c => c.claim_id === claimId), [claims, claimId]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -84,9 +88,9 @@ export default function AppealPacket() {
           {primary && <SeverityBadge severity={primary.severity} />}
           {primary && <div className="w-32"><RecoverabilityBar score={primary.recoverability_score} /></div>}
           <button
-            onClick={() => {
+            onClick={async () => {
               try {
-                const filename = downloadAppealPacketPdf({
+                const doc = buildAppealPacketPdf({
                   claim, checklist, verdict,
                   strategy: rec?.playbook.appeal_strategy,
                   payerRequirements: reqs ? {
@@ -96,6 +100,24 @@ export default function AppealPacket() {
                   } : undefined,
                   orgName: currentOrg?.name,
                 });
+                const filename = `appeal-${claim.claim_id}-${new Date().toISOString().slice(0, 10)}.pdf`;
+                doc.save(filename);
+                if (currentOrg && claims) {
+                  const packet = generateAppealPacket(claim, claims, documents);
+                  await uploadAppealPacket({
+                    org_id: currentOrg.org_id,
+                    claim_id: claim.claim_id,
+                    filename,
+                    content: doc.output('blob'),
+                    contentType: 'application/pdf',
+                  });
+                  await uploadAppealPacket({
+                    org_id: currentOrg.org_id,
+                    claim_id: claim.claim_id,
+                    filename: filename.replace(/\.pdf$/, '.md'),
+                    content: new Blob([packet.markdown], { type: 'text/markdown' }),
+                  });
+                }
                 if (currentOrg) {
                   void appendOpsEvent({
                     kind: 'appeal_packet_generated',

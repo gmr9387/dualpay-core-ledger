@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { executeAdjudicationWithReplay } from '@/engine/adjudication-orchestrator';
 import { demoContract, demoPlan, demoPriorOutcomes } from '@/data/demo-scenarios';
+import { isDemoModeEnabled } from '@/lib/demo-flag';
+import { LIVE_CONTRACT, LIVE_PLAN } from '@/lib/live-stubs';
 import {
   loadClaims,
   loadCases,
@@ -71,6 +73,7 @@ const Index = () => {
 
           const acc = a[claim.member_id] ?? Object.values(a)[0];
           if (!acc) continue;
+          if (!isDemoModeEnabled()) continue;
 
           const priors =
             claim.ohi_indicators.length > 0
@@ -174,9 +177,9 @@ const Index = () => {
                   claims={claims}
                   adjResults={adjResults}
                   accumulators={accumulators}
-                  contract={demoContract}
-                  plan={demoPlan}
-                  priorOutcomes={demoPriorOutcomes}
+                  contract={isDemoModeEnabled() ? demoContract : LIVE_CONTRACT}
+                  plan={isDemoModeEnabled() ? demoPlan : LIVE_PLAN}
+                  priorOutcomes={isDemoModeEnabled() ? demoPriorOutcomes : []}
                   onSelectClaim={setSelectedClaimId}
                 />
               ) : (
