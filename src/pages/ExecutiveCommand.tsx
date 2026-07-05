@@ -28,7 +28,7 @@ export default function ExecutiveCommand() {
     const wins = appeals.filter(a => a.status === 'approved' || a.status === 'partial');
     const decided = appeals.filter(a => ['approved','denied','partial'].includes(a.status));
     const winRate = decided.length ? wins.length / decided.length : 0;
-    const recovered = appeals.reduce((s, a) => s + (a.amount_recovered_cents ?? 0), 0);
+    const recovered = outcomes.reduce((s, o) => s + (o.recovered_amount_cents ?? 0), 0);
     const denials = claims.flatMap(c => c.intel.denial_events);
     const denialCats = new Map<string, number>();
     for (const d of denials) denialCats.set(d.category, (denialCats.get(d.category) ?? 0) + d.amount_cents);
