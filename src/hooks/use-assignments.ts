@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
   loadAllAssignments, getAllAssignments, setAssignment,
-  _setCache, type Assignment, type WorkingStatus, ASSIGNEES,
+  _setCache, type Assignment, type WorkingStatus,
+  loadOrgAssignees, type OrgAssignee,
 } from '@/lib/assignments';
 import { migrateLocalStorageOnce } from '@/lib/persistence-migration';
+import { useOrg } from '@/hooks/use-org';
 
 export function useAssignments() {
+  const { currentOrg } = useOrg();
   const [store, setStore] = useState<Record<string, Assignment>>(() => getAllAssignments());
+  const [assignees, setAssignees] = useState<OrgAssignee[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -22,11 +26,17 @@ export function useAssignments() {
     return () => { alive = false; window.removeEventListener('clarity-assignments', sync); };
   }, []);
 
+  useEffect(() => {
+    if (!currentOrg) { setAssignees([]); return; }
+    loadOrgAssignees(currentOrg.org_id).then(setAssignees).catch(() => setAssignees([]));
+  }, [currentOrg?.org_id]);
+
   return {
     store,
     get: (id: string): Assignment => store[id] ?? { claim_id: id, status: 'open' as WorkingStatus, updated_at: '' },
     assign: (id: string, assignee: string | undefined) => { void setAssignment(id, { assignee }); },
     setStatus: (id: string, status: WorkingStatus) => { void setAssignment(id, { status }); },
-    assignees: ASSIGNEES,
+    /** Real org members (UUID + display name). Empty until org loads. */
+    assignees,
   };
 }

@@ -12,11 +12,13 @@ import { findRequirementsFor } from '@/engine/payer-requirements';
 import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
 import { logAppealEvent } from '@/data/operational-workflows';
+import { appendOpsEvent } from '@/lib/ops-events';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrg } from '@/hooks/use-org';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, CheckCircle2, AlertCircle, XCircle, FileText, Send, Inbox } from 'lucide-react';
+import { downloadAppealPacketPdf } from '@/lib/pdf-appeal';
+import { ArrowLeft, Loader2, CheckCircle2, AlertCircle, XCircle, FileText, Send, Inbox, Download, Info } from 'lucide-react';
 
 export default function AppealPacket() {
   const { claimId } = useParams();
@@ -82,6 +84,36 @@ export default function AppealPacket() {
           {primary && <SeverityBadge severity={primary.severity} />}
           {primary && <div className="w-32"><RecoverabilityBar score={primary.recoverability_score} /></div>}
           <button
+            onClick={() => {
+              try {
+                const filename = downloadAppealPacketPdf({
+                  claim, checklist, verdict,
+                  strategy: rec?.playbook.appeal_strategy,
+                  payerRequirements: reqs ? {
+                    payer_name: reqs.payer_name,
+                    timely_filing_days: reqs.timely_filing_days,
+                    appeal_deadlines: reqs.appeal_deadlines,
+                  } : undefined,
+                  orgName: currentOrg?.name,
+                });
+                if (currentOrg) {
+                  void appendOpsEvent({
+                    kind: 'appeal_packet_generated',
+                    claim_id: claim.claim_id,
+                    summary: `Packet ${filename} generated for ${claim.intel.payer_name}`,
+                    payload: { filename, org_id: currentOrg.org_id },
+                  });
+                }
+                toast({ title: 'Packet downloaded', description: filename });
+              } catch (err) {
+                toast({ title: 'PDF generation failed', description: String(err), variant: 'destructive' });
+              }
+            }}
+            className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 border bg-card hover:bg-muted text-foreground"
+          >
+            <Download className="h-3.5 w-3.5" /> Download PDF
+          </button>
+          <button
             disabled={verdict !== 'COMPLETE' || submitting || submitted || !currentOrg}
             onClick={async () => {
               if (!currentOrg) { toast({ title: 'Select an organization first', variant: 'destructive' }); return; }
@@ -91,7 +123,7 @@ export default function AppealPacket() {
                 const payerName = claim.intel.payer_name;
                 await logAppealEvent(claim.claim_id, currentOrg.org_id, {
                   kind: 'appeal_submitted',
-                  summary: `Appeal packet submitted to ${payerName} · ${formatCents(dispute)} in dispute`,
+                  summary: `Appeal marked submitted to ${payerName} · ${formatCents(dispute)} in dispute (delivery is manual)`,
                   appealStatus: 'pending_response',
                   notes: rec?.playbook.appeal_strategy,
                 });
@@ -104,9 +136,9 @@ export default function AppealPacket() {
                   .eq('org_id', currentOrg.org_id);
                 if (statusErr) console.warn('[appeal] status transition failed', statusErr.message);
                 setSubmitted(true);
-                toast({ title: 'Appeal submitted', description: `${claim.claim_id} → ${payerName}` });
+                toast({ title: 'Marked submitted', description: `${claim.claim_id} → ${payerName} · deliver packet via payer portal/fax/mail` });
               } catch (err) {
-                toast({ title: 'Submission failed', description: String(err), variant: 'destructive' });
+                toast({ title: 'Update failed', description: String(err), variant: 'destructive' });
               } finally {
                 setSubmitting(false);
               }
@@ -114,9 +146,17 @@ export default function AppealPacket() {
             className="h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
           >
             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            {submitted ? 'Submitted' : submitting ? 'Submitting…' : 'Submit Appeal'}
+            {submitted ? 'Marked Submitted' : submitting ? 'Recording…' : 'Mark Submitted'}
           </button>
         </div>
+      </div>
+
+      <div className="px-5 py-2 border-b bg-muted/40 flex items-start gap-2 text-[11.5px] text-muted-foreground">
+        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
+        <span>
+          <b className="text-foreground">Delivery is manual.</b> DualPay generates the packet and records the submission for audit — it does NOT transmit the appeal.
+          Download the PDF and submit via the payer&apos;s portal, fax, or mail per their requirements.
+        </span>
       </div>
 
       <ScrollBody>
