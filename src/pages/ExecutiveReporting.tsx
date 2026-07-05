@@ -35,7 +35,7 @@ export default function ExecutiveReporting() {
     const patterns = detectLeakPatterns(claims).slice(0, 5);
     const payers = buildPayerProfiles(claims).slice(0, 5);
     return { billed, collected, atRisk, recovered, winRate, topCats, patterns, payers, denialCount: denials.length, appealCount: appeals.length };
-  }, [claims]);
+  }, [claims, outcomes]);
 
   if (isLoading || !data) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
 
