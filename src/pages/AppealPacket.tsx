@@ -3,7 +3,7 @@
  * a single claim with denial details, evidence, payer requirements,
  * and a submission checklist.  Returns explicit readiness verdict.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useClarityData, formatCents } from '@/hooks/use-clarity-data';
 import { PageHeader, Panel, ScrollBody, EmptyState, SeverityBadge, RecoverabilityBar } from '@/components/clarity/primitives';
@@ -11,6 +11,10 @@ import { recommendPlaybook } from '@/engine/playbooks';
 import { findRequirementsFor } from '@/engine/payer-requirements';
 import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
+import { logAppealEvent } from '@/data/operational-workflows';
+import { useOrg } from '@/hooks/use-org';
+import { useAuth } from '@/hooks/use-auth';
+import { toast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2, CheckCircle2, AlertCircle, XCircle, FileText, Send, Inbox } from 'lucide-react';
 
 export default function AppealPacket() {
