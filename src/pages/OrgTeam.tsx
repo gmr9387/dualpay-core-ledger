@@ -72,14 +72,13 @@ function OrgTeamInner() {
         summary: `Invitation sent to ${invEmail.trim()} (${invRole})`,
         payload: { invite_id: inv.invite_id, email: inv.email, role: inv.role },
       });
-      const acceptUrl = `${window.location.origin}/accept-invite?token=${inv.token}`;
       toast({
-        title: 'Invitation created',
-        description: `Send this link to ${invEmail.trim()}: ${acceptUrl}`,
+        title: 'Invitation email sent',
+        description: `${invEmail.trim()} will receive an email to set their password and join ${currentOrg?.name ?? 'the organization'}.`,
       });
       setInvEmail('');
     } catch (e) {
-      toast({ title: 'Failed to create invitation', description: String(e), variant: 'destructive' });
+      toast({ title: 'Failed to send invitation', description: String(e), variant: 'destructive' });
     } finally {
       setInviting(false);
     }
@@ -150,10 +149,10 @@ function OrgTeamInner() {
                   size="sm"
                 >
                   <Mail className="h-3.5 w-3.5 mr-1.5" />
-                  {inviting ? 'Sending…' : 'Create invitation'}
+                  {inviting ? 'Sending…' : 'Send invite email'}
                 </Button>
                 <p className="text-[10.5px] text-muted-foreground">
-                  An invite link will be generated. Share it with the staff member — it expires in 7 days.
+                  An invitation email is sent directly — no link to copy. The recipient sets their password and is joined to this organization automatically.
                 </p>
               </CardContent>
             </Card>

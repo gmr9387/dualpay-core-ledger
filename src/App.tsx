@@ -82,6 +82,7 @@ import OrgTeam from "./pages/OrgTeam";
 import AcceptInvite from "./pages/AcceptInvite";
 import OrgSettings from "./pages/OrgSettings";
 import PayerConfig from "./pages/PayerConfig";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -190,6 +191,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/onboarding" element={<OnboardingRoute />} />
             <Route path="/*" element={<ProtectedShell />} />

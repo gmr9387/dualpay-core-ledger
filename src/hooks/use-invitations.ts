@@ -47,13 +47,13 @@ export function useInvitations() {
   const create = useMutation({
     mutationFn: async ({ email, role }: { email: string; role: string }) => {
       if (!orgId || !user) throw new Error('Not authenticated');
-      const { data, error } = await supabase
-        .from('invitations')
-        .insert({ org_id: orgId, email, role, created_by: user.id })
-        .select('*')
-        .single();
+      const redirectTo = `${window.location.origin}/reset-password`;
+      const { data, error } = await supabase.functions.invoke('invite-member', {
+        body: { email, role, org_id: orgId, redirect_to: redirectTo },
+      });
       if (error) throw new Error(error.message);
-      return data as Invitation;
+      if (data?.error) throw new Error(data.error);
+      return (data.invite ?? {}) as Invitation;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['invitations', orgId] }),
   });
