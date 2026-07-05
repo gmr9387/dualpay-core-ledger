@@ -20,7 +20,11 @@ import { ArrowLeft, Loader2, CheckCircle2, AlertCircle, XCircle, FileText, Send,
 export default function AppealPacket() {
   const { claimId } = useParams();
   const { data: claims, isLoading } = useClarityData();
+  const { currentOrg } = useOrg();
+  const { user } = useAuth();
   const claim = useMemo(() => claims?.find(c => c.claim_id === claimId), [claims, claimId]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   if (isLoading) return <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…</div>;
 
