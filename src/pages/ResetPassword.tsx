@@ -31,8 +31,9 @@ export default function ResetPassword() {
     const { error } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (error) { setErr(error.message); return; }
-    await supabase.auth.signOut();
-    nav('/login', { replace: true });
+    // Keep the session active — invited users go straight into the app,
+    // password-reset users likewise land on the dashboard already signed in.
+    nav('/', { replace: true });
   };
 
   return (
