@@ -50,7 +50,7 @@ export default function ExecutiveReporting() {
         { label: 'Collected',        value: formatCentsCompact(data.collected),   tone: 'amount-positive' },
         { label: 'Collection Rate',  value: `${(collectionRate * 100).toFixed(1)}%`, tone: collectionRate >= 0.92 ? 'text-status-paid' : 'text-status-pending' },
         { label: 'Revenue at Risk',  value: formatCentsCompact(data.atRisk),       tone: 'amount-negative' },
-        { label: 'Recovered (Appeals)', value: formatCentsCompact(data.recovered), tone: 'amount-positive' },
+        { label: 'Recovered',        value: formatCentsCompact(data.recovered), tone: 'amount-positive' },
         { label: 'Appeal Win Rate',  value: `${(data.winRate * 100).toFixed(0)}%`,  tone: 'text-status-cob' },
       ]} />
       <ScrollBody>
