@@ -48,6 +48,8 @@ function classify(c: ClarityClaim, assigned: boolean): Stage {
 export default function ExecutivePipeline() {
   const { data: claims, isLoading } = useClarityData();
   const { store } = useAssignments();
+  const { outcomes } = useOutcomes();
+
 
   const view = useMemo(() => {
     if (!claims) return null;
