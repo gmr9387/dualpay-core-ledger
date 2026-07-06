@@ -6,7 +6,57 @@
 -- payer response and final recovered amount.
 -- =========================================================
 
-CREATE TABLE public.appeal_recovery_cases (
+-- ── Prerequisites (idempotent — safe to run on a fresh DB) ──────────────────
+
+CREATE TABLE IF NOT EXISTS public.organizations (
+  org_id     uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       text        NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.organization_members (
+  org_id     uuid NOT NULL REFERENCES public.organizations(org_id) ON DELETE CASCADE,
+  user_id    uuid NOT NULL,
+  role       text NOT NULL CHECK (role IN ('owner','admin','manager','analyst','viewer')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, user_id)
+);
+
+CREATE OR REPLACE FUNCTION public.touch_updated_at()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_org_member(_org_id uuid, _user_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.organization_members
+    WHERE org_id = _org_id AND user_id = _user_id
+  )
+$$;
+
+CREATE OR REPLACE FUNCTION public.has_org_role(_org_id uuid, _user_id uuid, _roles text[])
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.organization_members
+    WHERE org_id = _org_id AND user_id = _user_id AND role = ANY(_roles)
+  )
+$$;
+
+CREATE OR REPLACE FUNCTION public.current_org_id()
+RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT org_id FROM public.organization_members
+  WHERE user_id = auth.uid()
+  ORDER BY created_at ASC
+  LIMIT 1
+$$;
+
+-- ── Table ────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.appeal_recovery_cases (
   id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id       uuid        NOT NULL REFERENCES public.organizations(org_id) ON DELETE CASCADE,
   claim_id              text        NOT NULL,
@@ -26,19 +76,19 @@ CREATE TABLE public.appeal_recovery_cases (
 );
 
 -- ── Indexes ──────────────────────────────────────────────
-CREATE INDEX idx_appeal_recovery_cases_org
+CREATE INDEX IF NOT EXISTS idx_appeal_recovery_cases_org
   ON public.appeal_recovery_cases(organization_id);
 
-CREATE INDEX idx_appeal_recovery_cases_claim
+CREATE INDEX IF NOT EXISTS idx_appeal_recovery_cases_claim
   ON public.appeal_recovery_cases(claim_id);
 
-CREATE INDEX idx_appeal_recovery_cases_org_state
+CREATE INDEX IF NOT EXISTS idx_appeal_recovery_cases_org_state
   ON public.appeal_recovery_cases(organization_id, current_state);
 
-CREATE INDEX idx_appeal_recovery_cases_assigned_to
+CREATE INDEX IF NOT EXISTS idx_appeal_recovery_cases_assigned_to
   ON public.appeal_recovery_cases(assigned_to_user_id);
 
-CREATE INDEX idx_appeal_recovery_cases_created_at
+CREATE INDEX IF NOT EXISTS idx_appeal_recovery_cases_created_at
   ON public.appeal_recovery_cases(created_at DESC);
 
 -- ── updated_at trigger ───────────────────────────────────
