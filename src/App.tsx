@@ -79,6 +79,7 @@ import EdiTransactions from "./pages/EdiTransactions";
 import EdiErrors from "./pages/EdiErrors";
 import NotFound from "./pages/NotFound";
 import MyWorklist from "./pages/MyWorklist";
+import GuidedRecovery from "./pages/GuidedRecovery";
 
 const queryClient = new QueryClient();
 
@@ -158,6 +159,7 @@ const ProtectedShell = () => (
           <Route path="/edi/transactions" element={<EdiTransactions />} />
           <Route path="/edi/errors" element={<EdiErrors />} />
           <Route path="/worklist" element={<MyWorklist />} />
+          <Route path="/recover" element={<GuidedRecovery />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ClarityShell>
