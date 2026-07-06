@@ -49,10 +49,11 @@ export async function loadOrgAssignees(orgId: string): Promise<OrgAssignee[]> {
 function notify() { window.dispatchEvent(new Event('clarity-assignments')); }
 
 function rowToAssignment(r: { claim_id: string; assigned_to_user_id: string | null; assignee?: string | null; status: string; updated_at: string }): Assignment {
+  const resolvedAssignee = r.assigned_to_user_id ?? r.assignee ?? undefined;
   return {
     claim_id: r.claim_id,
-    assignee: r.assigned_to_user_id ?? r.assignee ?? undefined,
-    assigned_to_user_id: r.assigned_to_user_id ?? r.assignee ?? undefined,
+    assignee: resolvedAssignee,
+    assigned_to_user_id: resolvedAssignee,
     status: (r.status as WorkingStatus) ?? 'open',
     updated_at: r.updated_at,
   };
@@ -79,13 +80,12 @@ export function getAssignment(claimId: string): Assignment {
 
 export async function setAssignment(claimId: string, patch: Partial<Assignment>): Promise<Assignment | null> {
   const current = cache[claimId];
-  const normalizedAssignee = patch.assigned_to_user_id ?? patch.assignee;
+  const fallbackAssignee = current?.assigned_to_user_id ?? current?.assignee ?? null;
+  const normalizedAssignee = patch.assigned_to_user_id ?? patch.assignee ?? fallbackAssignee;
   const row = {
     claim_id: claimId,
-    assignee: normalizedAssignee !== undefined ? normalizedAssignee ?? null : (current?.assigned_to_user_id ?? current?.assignee ?? null),
-    assigned_to_user_id: normalizedAssignee !== undefined
-      ? (normalizedAssignee ?? null)
-      : (current?.assigned_to_user_id ?? null),
+    assignee: normalizedAssignee ?? null,
+    assigned_to_user_id: normalizedAssignee ?? null,
     status: (patch.status ?? current?.status ?? 'open') as WorkingStatus,
     updated_at: new Date().toISOString(),
   };
