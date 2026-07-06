@@ -83,12 +83,14 @@ export async function getOpsEvents(): Promise<OpsEvent[]> {
   return (data ?? []) as OpsEvent[];
 }
 
-export async function getOpsEventsForClaim(claimId: string): Promise<OpsEvent[]> {
-  const { data, error } = await supabase
+export async function getOpsEventsForClaim(claimId: string, orgId?: string): Promise<OpsEvent[]> {
+  let q = supabase
     .from('ops_events')
     .select('*')
     .eq('claim_id', claimId)
     .order('occurred_at', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) { console.error('[ops-events] load claim events failed', error.message); return []; }
   return (data ?? []) as OpsEvent[];
 }

@@ -12,8 +12,10 @@ import { recommendPlaybook } from '@/engine/playbooks';
 import { findRequirementsFor } from '@/engine/payer-requirements';
 import { nextBestAction, URGENCY_CLS, URGENCY_LABEL } from '@/engine/next-action';
 import { CATEGORY_LABEL } from '@/engine/denial-intelligence';
-import { logAppealEvent } from '@/data/operational-workflows';
-import { appendOpsEvent } from '@/lib/ops-events';
+import {
+  generateAppealPacketAction,
+  markSubmittedManuallyAction,
+} from '@/data/operational-workflows';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrg } from '@/hooks/use-org';
 import { useAuth } from '@/hooks/use-auth';
@@ -118,14 +120,7 @@ export default function AppealPacket() {
                     content: new Blob([packet.markdown], { type: 'text/markdown' }),
                   });
                 }
-                if (currentOrg) {
-                  void appendOpsEvent({
-                    kind: 'appeal_packet_generated',
-                    claim_id: claim.claim_id,
-                    summary: `Packet ${filename} generated for ${claim.intel.payer_name}`,
-                    payload: { filename, org_id: currentOrg.org_id },
-                  });
-                }
+                if (currentOrg) await generateAppealPacketAction(claim.claim_id, currentOrg.org_id, filename);
                 toast({ title: 'Packet downloaded', description: filename });
               } catch (err) {
                 toast({ title: 'PDF generation failed', description: String(err), variant: 'destructive' });
@@ -141,14 +136,7 @@ export default function AppealPacket() {
               if (!currentOrg) { toast({ title: 'Select an organization first', variant: 'destructive' }); return; }
               setSubmitting(true);
               try {
-                const dispute = primary?.amount_cents ?? claim.intel.amount_at_risk_cents;
-                const payerName = claim.intel.payer_name;
-                await logAppealEvent(claim.claim_id, currentOrg.org_id, {
-                  kind: 'appeal_submitted',
-                  summary: `Appeal marked submitted to ${payerName} · ${formatCents(dispute)} in dispute (delivery is manual)`,
-                  appealStatus: 'pending_response',
-                  notes: rec?.playbook.appeal_strategy,
-                });
+                await markSubmittedManuallyAction(claim.claim_id, currentOrg.org_id);
                 // Transition claim status so Executive ROI dashboards
                 // can count this claim as an active appeal.
                 const { error: statusErr } = await supabase
@@ -158,7 +146,7 @@ export default function AppealPacket() {
                   .eq('org_id', currentOrg.org_id);
                 if (statusErr) console.warn('[appeal] status transition failed', statusErr.message);
                 setSubmitted(true);
-                toast({ title: 'Marked submitted', description: `${claim.claim_id} → ${payerName} · deliver packet via payer portal/fax/mail` });
+                toast({ title: 'Marked submitted manually', description: 'Marked as submitted manually. This does not transmit to payer.' });
               } catch (err) {
                 toast({ title: 'Update failed', description: String(err), variant: 'destructive' });
               } finally {

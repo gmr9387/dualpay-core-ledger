@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Shield, Inbox, Briefcase, Network, GitCompareArrows, ScrollText, Settings, Search, Bell, ChevronRight, HelpCircle, User, Database, Activity } from 'lucide-react';
+import { Shield, Inbox, Briefcase, Network, GitCompareArrows, ScrollText, Settings, Search, ChevronRight, User, Database, Activity } from 'lucide-react';
 
 interface AppShellProps {
   children: ReactNode;
@@ -121,13 +121,6 @@ export function AppShell({ children, breadcrumb, cloudOnline }: AppShellProps) {
             <span className="text-[10px] font-mono font-semibold tracking-wider px-2 py-0.5 rounded border border-status-pending/40 bg-status-pending/10 text-status-pending">
               UAT
             </span>
-            <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground">
-              <HelpCircle className="h-4 w-4" />
-            </button>
-            <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground relative">
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-status-denied" />
-            </button>
             <div className="h-7 w-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
               <User className="h-3.5 w-3.5 text-primary" />
             </div>

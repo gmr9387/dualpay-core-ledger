@@ -34,7 +34,7 @@ export function useAssignments() {
   return {
     store,
     get: (id: string): Assignment => store[id] ?? { claim_id: id, status: 'open' as WorkingStatus, updated_at: '' },
-    assign: (id: string, assignee: string | undefined) => { void setAssignment(id, { assignee }); },
+    assign: (id: string, assignedToUserId: string | undefined) => { void setAssignment(id, { assigned_to_user_id: assignedToUserId }); },
     setStatus: (id: string, status: WorkingStatus) => { void setAssignment(id, { status }); },
     /** Real org members (UUID + display name). Empty until org loads. */
     assignees,

@@ -26,6 +26,8 @@ import {
 } from '@/data/operational-workflows';
 import { supabase } from '@/integrations/supabase/client';
 import type { Claim } from '@/types/claim';
+import { useOrg } from '@/hooks/use-org';
+import { can } from '@/lib/role-permissions';
 import {
   Loader2, FileText, History, UserCheck, StickyNote, Gavel, Banknote, XCircle,
 } from 'lucide-react';
@@ -62,6 +64,8 @@ function fmtMoney(cents: number) {
 }
 
 export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Props) {
+  const { currentOrg } = useOrg();
+  const canWrite = can.edit(currentOrg?.role);
   const open = !!claimId;
   const [loading, setLoading] = useState(false);
   const [claim, setClaim] = useState<Claim | null>(null);
@@ -74,8 +78,8 @@ export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Prop
     setLoading(true);
     try {
       const [{ data: claimRow }, { data: asgnRow }, tl] = await Promise.all([
-        supabase.from('claims').select('payload').eq('claim_id', claimId).maybeSingle(),
-        supabase.from('claim_assignments').select('*').eq('claim_id', claimId).maybeSingle(),
+        supabase.from('claims').select('payload').eq('claim_id', claimId).eq('org_id', orgId).maybeSingle(),
+        supabase.from('claim_assignments').select('*').eq('claim_id', claimId).eq('org_id', orgId).maybeSingle(),
         getClaimTimeline(claimId, orgId),
       ]);
       setClaim(((claimRow?.payload as unknown) as Claim) ?? null);
@@ -166,6 +170,7 @@ export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Prop
                   assignment={assignment}
                   busy={busy}
                   userId={userId}
+                  canWrite={canWrite}
                   onSave={async (params) =>
                     wrap(
                       () => updateAssignment(claimId!, orgId, { ...params, assignedByUserId: userId }),
@@ -174,17 +179,23 @@ export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Prop
                   }
                 />
 
-                <div className="border rounded-md p-3 bg-card">
-                  <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
-                    Danger zone
+                {canWrite ? (
+                  <div className="border rounded-md p-3 bg-card">
+                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+                      Danger zone
+                    </div>
+                    <WriteOffForm
+                      busy={busy}
+                      onSubmit={(reason) =>
+                        wrap(() => logWriteOff(claimId!, orgId, reason, userId), 'Claim written off')
+                      }
+                    />
                   </div>
-                  <WriteOffForm
-                    busy={busy}
-                    onSubmit={(reason) =>
-                      wrap(() => logWriteOff(claimId!, orgId, reason, userId), 'Claim written off')
-                    }
-                  />
-                </div>
+                ) : (
+                  <div className="border rounded-md p-3 bg-card text-[12px] text-muted-foreground">
+                    Viewer role: write actions are hidden.
+                  </div>
+                )}
               </TabsContent>
 
               {/* ── TIMELINE ── */}
@@ -199,6 +210,7 @@ export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Prop
                   orgId={orgId}
                   userId={userId}
                   busy={busy}
+                  canWrite={canWrite}
                   onAdd={(note) =>
                     wrap(() => addNote(claimId!, orgId, note, userId), 'Note added')
                   }
@@ -209,6 +221,7 @@ export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Prop
               <TabsContent value="appeal" className="mt-0 space-y-3">
                 <AppealPanel
                   busy={busy}
+                  canWrite={canWrite}
                   onSubmit={(params) =>
                     wrap(() => logAppealEvent(claimId!, orgId, params), `Appeal: ${params.summary}`)
                   }
@@ -223,6 +236,7 @@ export function ClaimDrawer({ claimId, orgId, userId, onClose, onChanged }: Prop
               <TabsContent value="recovery" className="mt-0 space-y-3">
                 <RecoveryPanel
                   busy={busy}
+                  canWrite={canWrite}
                   onSubmit={(params) =>
                     wrap(
                       () => logRecoveryEvent(claimId!, orgId, { ...params, analystUserId: userId }),
@@ -259,11 +273,12 @@ function SummaryRow({ label, value, mono }: { label: string; value: string; mono
 }
 
 function AssignmentPanel({
-  assignment, busy, userId, onSave,
+  assignment, busy, userId, canWrite, onSave,
 }: {
   assignment: ClaimAssignmentRecord | null;
   busy: boolean;
   userId: string;
+  canWrite: boolean;
   onSave: (p: {
     assignedToUserId?: string;
     priority?: 'low' | 'medium' | 'high' | 'urgent';
@@ -306,13 +321,13 @@ function AssignmentPanel({
           {assigned ? (
             <Button
               size="sm" variant="outline"
-              disabled={busy}
+              disabled={busy || !canWrite}
               onClick={() => onSave({ assignedToUserId: undefined })}
             >Unassign</Button>
           ) : (
             <Button
               size="sm"
-              disabled={busy}
+              disabled={busy || !canWrite}
               onClick={() => onSave({ assignedToUserId: userId })}
             >Assign to me</Button>
           )}
@@ -354,7 +369,7 @@ function AssignmentPanel({
 
       <div className="flex justify-end">
         <Button
-          size="sm" disabled={busy}
+          size="sm" disabled={busy || !canWrite}
           onClick={() => onSave({
             priority,
             status,
@@ -367,9 +382,10 @@ function AssignmentPanel({
 }
 
 function NotesPanel({
-  claimId, orgId, userId, busy, onAdd,
+  claimId, orgId, userId, busy, canWrite, onAdd,
 }: {
   claimId: string; orgId: string; userId: string;
+  canWrite: boolean;
   busy: boolean; onAdd: (note: string) => void;
 }) {
   const [text, setText] = useState('');
@@ -397,7 +413,7 @@ function NotesPanel({
         />
         <div className="flex justify-end mt-2">
           <Button
-            size="sm" disabled={busy || !text.trim()}
+            size="sm" disabled={busy || !text.trim() || !canWrite}
             onClick={() => { onAdd(text.trim()); setText(''); }}
           >Save note</Button>
         </div>
@@ -425,9 +441,10 @@ function NotesPanel({
 }
 
 function AppealPanel({
-  busy, onSubmit,
+  busy, canWrite, onSubmit,
 }: {
   busy: boolean;
+  canWrite: boolean;
   onSubmit: (p: {
     kind: 'appeal_submitted' | 'appeal_responded' | 'appeal_resolved';
     summary: string;
@@ -446,7 +463,7 @@ function AppealPanel({
         placeholder="Reason, reference number, payer contact…"
       />
       <div className="grid grid-cols-2 gap-2 pt-1">
-        <Button size="sm" disabled={busy} onClick={() => {
+        <Button size="sm" disabled={busy || !canWrite} onClick={() => {
           onSubmit({
             kind: 'appeal_submitted',
             summary: 'Appeal submitted to payer',
@@ -455,7 +472,7 @@ function AppealPanel({
           });
           setNotes('');
         }}>Submit appeal</Button>
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => {
+        <Button size="sm" variant="outline" disabled={busy || !canWrite} onClick={() => {
           onSubmit({
             kind: 'appeal_responded',
             summary: 'Payer responded to appeal',
@@ -465,7 +482,7 @@ function AppealPanel({
           setNotes('');
         }}>Record response</Button>
         <Button size="sm" variant="outline" className="border-status-paid/40 text-status-paid"
-          disabled={busy} onClick={() => {
+          disabled={busy || !canWrite} onClick={() => {
             onSubmit({
               kind: 'appeal_resolved',
               summary: 'Appeal won',
@@ -475,7 +492,7 @@ function AppealPanel({
             setNotes('');
           }}>Mark won</Button>
         <Button size="sm" variant="outline" className="border-status-denied/40 text-status-denied"
-          disabled={busy} onClick={() => {
+          disabled={busy || !canWrite} onClick={() => {
             onSubmit({
               kind: 'appeal_resolved',
               summary: 'Appeal lost',
@@ -490,9 +507,10 @@ function AppealPanel({
 }
 
 function RecoveryPanel({
-  busy, onSubmit,
+  busy, canWrite, onSubmit,
 }: {
   busy: boolean;
+  canWrite: boolean;
   onSubmit: (p: {
     recoveryType: 'payer_payment' | 'patient_payment' | 'writeoff' | 'adjustment';
     amountCents: number;
@@ -547,7 +565,7 @@ function RecoveryPanel({
         />
       </div>
       <div className="flex justify-end">
-        <Button size="sm" disabled={busy || !valid} onClick={() => {
+        <Button size="sm" disabled={busy || !valid || !canWrite} onClick={() => {
           onSubmit({
             recoveryType: type,
             amountCents: Math.round(Number(amount) * 100),

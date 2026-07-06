@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, AlertOctagon, ListChecks, FileSearch, Gavel,
   TrendingDown, Building2, Upload, ScrollText, Shield, Search,
-  HelpCircle, Bell, Database, Activity, Target, FolderOpen, BarChart3,
+  Database, Activity, Target, FolderOpen, BarChart3,
   BookOpen, GitBranch, TrendingUp, Users, FileCheck, BookText, ShieldCheck,
   Award, ClipboardList, Siren, Scale, Phone, Gauge, Factory, FileInput, History, AlertOctagon as AlertIcon,
   Bot, Settings2, Cpu, AlertTriangle,
@@ -107,6 +107,7 @@ const SECTIONS: NavSection[] = [
     title: 'Execute',
     items: [
       { to: '/worklist',   label: 'My Worklist',         icon: Target, badge: 'NEW' },
+      { to: '/recover',    label: 'Recover Denied Claim', icon: AlertOctagon, badge: 'PILOT' },
       { to: '/pipeline',   label: 'Recovery Pipeline',  icon: GitBranch },
       { to: '/queues',     label: 'Work Queues',         icon: ListChecks },
       { to: '/appeals',    label: 'Appeals Workbench',   icon: Gavel },
@@ -255,13 +256,6 @@ export function ClarityShell({ children, cloudOnline = true }: ClarityShellProps
             <span className="text-[10px] font-mono font-semibold tracking-wider px-2 py-0.5 rounded border border-status-pending/40 bg-status-pending/10 text-status-pending">
               PROD
             </span>
-            <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground">
-              <HelpCircle className="h-4 w-4" />
-            </button>
-            <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground relative">
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-status-denied" />
-            </button>
             <UserOrgMenu />
           </div>
         </header>
@@ -297,6 +291,7 @@ function breadcrumbsFor(pathname: string): string[] {
     '/denials':             ['Intelligence','Denial Command'],
     '/queues':              ['Execute',    'Work Queues'],
     '/worklist':            ['Execute',    'My Worklist'],
+    '/recover':             ['Execute',    'Recover Denied Claim'],
     '/claims':              ['Admin',      'Claims Workbench'],
     '/appeals':             ['Execute',    'Appeals Workbench'],
     '/packet':              ['Execute',    'Appeal Packet'],
@@ -325,6 +320,7 @@ function breadcrumbsFor(pathname: string): string[] {
   if (pathname.startsWith('/denials/')) return ['Intelligence', 'Denial Command', pathname.split('/')[2]];
   if (pathname.startsWith('/claims/'))  return ['Admin', 'Claims Workbench', pathname.split('/')[2]];
   if (pathname.startsWith('/queues/'))       return ['Execute', 'Work Queues', decodeURIComponent(pathname.split('/')[2])];
+  if (pathname.startsWith('/recover/'))      return ['Execute', 'Recover Denied Claim', pathname.split('/')[2]];
   if (pathname.startsWith('/packet/'))       return ['Execute', 'Appeal Packet', pathname.split('/')[2]];
   if (pathname.startsWith('/transparency/')) return ['Intelligence', 'Decision Transparency', pathname.split('/')[2]];
   if (pathname.startsWith('/factory/exceptions/')) return ['Recovery Factory', 'Exception Queue', pathname.split('/')[3]];

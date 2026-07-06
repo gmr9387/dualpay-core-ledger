@@ -82,7 +82,7 @@ export default function MyWorklist() {
       const needed = allIds.filter(id => !meta[id]);
       if (needed.length > 0) {
         const { data: rows } = await supabase
-          .from('claims').select('claim_id, payload').in('claim_id', needed);
+          .from('claims').select('claim_id, payload').eq('org_id', orgId).in('claim_id', needed);
         const next = { ...meta };
         for (const r of rows ?? []) {
           const p = (r.payload as any);
@@ -410,4 +410,3 @@ function UnassignedPool({
     </div>
   );
 }
-

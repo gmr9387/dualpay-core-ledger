@@ -17,6 +17,18 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import {
+  generatePacketForRecovery,
+  launchApprovalWorkflowForRecovery,
+  markApprovedForSubmission,
+  markLostOutcome,
+  markSubmittedManually,
+  recordPayerResponseForRecovery,
+  recordRecoveryOutcome,
+  requestReviewForRecovery,
+  runCoreDecisionForRecovery,
+  writeOffOutcome,
+} from './appeal-recovery';
 const uuidv4 = (): string =>
   (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
     ? crypto.randomUUID()
@@ -91,6 +103,7 @@ export async function updateAssignment(
     .from('claim_assignments')
     .select('*')
     .eq('claim_id', claimId)
+    .eq('org_id', orgId)
     .maybeSingle();
 
   // Prepare update payload
@@ -108,17 +121,29 @@ export async function updateAssignment(
     updateData.assigned_by_user_id = assignedByUserId;
   }
 
-  // Upsert assignment
-  const { data, error } = await supabase
-    .from('claim_assignments')
-    .upsert([{
-      claim_id: claimId,
-      ...updateData,
-    }] as never, { onConflict: 'claim_id' })
-    .select()
-    .single();
-
-  if (error) throw error;
+  let data: any;
+  if (current) {
+    const { data: updated, error } = await supabase
+      .from('claim_assignments')
+      .update(updateData as never)
+      .eq('claim_id', claimId)
+      .eq('org_id', orgId)
+      .select()
+      .single();
+    if (error) throw error;
+    data = updated;
+  } else {
+    const { data: inserted, error } = await supabase
+      .from('claim_assignments')
+      .insert([{
+        claim_id: claimId,
+        ...updateData,
+      }] as never)
+      .select()
+      .single();
+    if (error) throw error;
+    data = inserted;
+  }
 
   // Log assignment event
   const eventKind = current ? 'assignment_updated' : 'assignment_created';
@@ -182,6 +207,19 @@ export async function logAppealEvent(
     notes?: string;
   },
 ): Promise<string> {
+  if (params.kind === 'appeal_submitted') {
+    await markSubmittedManually(orgId, claimId);
+  }
+  if (params.kind === 'appeal_responded') {
+    await recordPayerResponseForRecovery(orgId, claimId, 'received');
+  }
+  if (params.kind === 'appeal_resolved' && params.appealStatus === 'won') {
+    await markApprovedForSubmission(orgId, claimId);
+  }
+  if (params.kind === 'appeal_resolved' && params.appealStatus === 'lost') {
+    await markLostOutcome(orgId, claimId);
+  }
+
   return appendOpsEvent({
     kind: params.kind,
     claimId,
@@ -209,6 +247,12 @@ export async function logRecoveryEvent(
     notes?: string;
   },
 ): Promise<string> {
+  if (params.recoveryType === 'writeoff') {
+    await writeOffOutcome(orgId, claimId);
+  } else {
+    await recordRecoveryOutcome(orgId, claimId, params.amountCents);
+  }
+
   const summary = `Recovery recorded: ${params.recoveryType} of $${(params.amountCents / 100).toFixed(2)} from ${params.recoveredFrom}`;
 
   const eventId = await appendOpsEvent({
@@ -254,6 +298,7 @@ async function mirrorRecoveryToOutcome(
     .from('claims')
     .select('payload, total_billed_cents')
     .eq('claim_id', claimId)
+    .eq('org_id', orgId)
     .maybeSingle();
 
   const payload = (claimRow?.payload as Record<string, unknown> | null) ?? null;
@@ -322,6 +367,8 @@ export async function logWriteOff(
   reason: string,
   actor?: string,
 ): Promise<string> {
+  await writeOffOutcome(orgId, claimId);
+
   return appendOpsEvent({
     kind: 'claim_written_off',
     claimId,
@@ -329,6 +376,145 @@ export async function logWriteOff(
     summary: `Claim written off: ${reason}`,
     payload: { reason },
     actor,
+  });
+}
+
+export async function generateAppealPacketAction(
+  claimId: string,
+  orgId: string,
+  packetId?: string,
+): Promise<void> {
+  await generatePacketForRecovery(orgId, claimId, packetId);
+  await appendOpsEvent({
+    kind: 'appeal_packet_generated',
+    claimId,
+    orgId,
+    summary: `Appeal packet generated${packetId ? ` (${packetId})` : ''}`,
+    payload: { packet_id: packetId ?? null },
+  });
+}
+
+export async function requestAppealReviewAction(
+  claimId: string,
+  orgId: string,
+): Promise<void> {
+  await requestReviewForRecovery(orgId, claimId);
+  await appendOpsEvent({
+    kind: 'appeal_submitted',
+    claimId,
+    orgId,
+    summary: 'Appeal review requested',
+    payload: { source: 'appeal_recovery_case' },
+  });
+}
+
+export async function runCoreDecisionAction(
+  claimId: string,
+  orgId: string,
+  params: {
+    coreTraceId: string;
+    outcome: 'approval_required' | 'approved_for_submission' | 'lost' | 'written_off';
+    dispatchStatus: string;
+  },
+): Promise<void> {
+  await runCoreDecisionForRecovery(orgId, claimId, params);
+  await appendOpsEvent({
+    kind: 'workflow_transition',
+    claimId,
+    orgId,
+    summary: `Core decision received: ${params.outcome}`,
+    payload: {
+      core_trace_id: params.coreTraceId,
+      core_decision_outcome: params.outcome,
+      core_dispatch_status: params.dispatchStatus,
+    },
+  });
+}
+
+export async function launchGlueWorkflowAction(
+  claimId: string,
+  orgId: string,
+  glueRunId: string,
+): Promise<void> {
+  await launchApprovalWorkflowForRecovery(orgId, claimId, glueRunId);
+  await appendOpsEvent({
+    kind: 'workflow_transition',
+    claimId,
+    orgId,
+    summary: 'Approval workflow launched in Glue',
+    payload: { glue_run_id: glueRunId },
+  });
+}
+
+export async function markApprovedAction(claimId: string, orgId: string): Promise<void> {
+  await markApprovedForSubmission(orgId, claimId);
+  await appendOpsEvent({
+    kind: 'workflow_transition',
+    claimId,
+    orgId,
+    summary: 'Claim approved for submission',
+  });
+}
+
+export async function markSubmittedManuallyAction(claimId: string, orgId: string): Promise<void> {
+  await markSubmittedManually(orgId, claimId);
+  await appendOpsEvent({
+    kind: 'appeal_submitted',
+    claimId,
+    orgId,
+    summary: 'Marked as submitted manually. This does not transmit to payer.',
+    payload: { manual_delivery: true },
+  });
+}
+
+export async function recordPayerResponseAction(
+  claimId: string,
+  orgId: string,
+  payerResponseStatus: string,
+): Promise<void> {
+  await recordPayerResponseForRecovery(orgId, claimId, payerResponseStatus);
+  await appendOpsEvent({
+    kind: 'appeal_responded',
+    claimId,
+    orgId,
+    summary: `Payer response recorded: ${payerResponseStatus}`,
+    payload: { payer_response_status: payerResponseStatus },
+  });
+}
+
+export async function recordRecoveryAction(
+  claimId: string,
+  orgId: string,
+  recoveredAmountCents: number,
+): Promise<void> {
+  await recordRecoveryOutcome(orgId, claimId, recoveredAmountCents);
+  await appendOpsEvent({
+    kind: 'recovery_recorded',
+    claimId,
+    orgId,
+    summary: `Recovery recorded: $${(recoveredAmountCents / 100).toFixed(2)}`,
+    payload: { amount_cents: recoveredAmountCents },
+  });
+}
+
+export async function markLostAction(claimId: string, orgId: string): Promise<void> {
+  await markLostOutcome(orgId, claimId);
+  await appendOpsEvent({
+    kind: 'appeal_resolved',
+    claimId,
+    orgId,
+    summary: 'Marked lost',
+    payload: { appeal_status: 'lost' },
+  });
+}
+
+export async function writeOffAction(claimId: string, orgId: string): Promise<void> {
+  await writeOffOutcome(orgId, claimId);
+  await appendOpsEvent({
+    kind: 'claim_written_off',
+    claimId,
+    orgId,
+    summary: 'Claim written off',
   });
 }
 
