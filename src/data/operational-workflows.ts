@@ -121,7 +121,7 @@ export async function updateAssignment(
     updateData.assigned_by_user_id = assignedByUserId;
   }
 
-  let data: any;
+  let data: ClaimAssignmentRecord;
   if (current) {
     const { data: updated, error } = await supabase
       .from('claim_assignments')
@@ -131,7 +131,7 @@ export async function updateAssignment(
       .select()
       .single();
     if (error) throw error;
-    data = updated;
+    data = updated as ClaimAssignmentRecord;
   } else {
     const { data: inserted, error } = await supabase
       .from('claim_assignments')
@@ -142,7 +142,7 @@ export async function updateAssignment(
       .select()
       .single();
     if (error) throw error;
-    data = inserted;
+    data = inserted as ClaimAssignmentRecord;
   }
 
   // Log assignment event
@@ -167,7 +167,7 @@ export async function updateAssignment(
     },
   });
 
-  return data as ClaimAssignmentRecord;
+  return data;
 }
 
 // =========================================================

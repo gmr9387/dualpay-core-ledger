@@ -61,7 +61,7 @@ interface CasePatch {
 }
 
 function appealCasesTable() {
-  return (supabase as any).from('appeal_recovery_cases');
+  return supabase.from('appeal_recovery_cases' as never);
 }
 
 function createId(prefix: string): string {
