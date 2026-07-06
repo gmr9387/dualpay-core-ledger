@@ -9,8 +9,8 @@
 CREATE TABLE public.appeal_recovery_cases (
   id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id       uuid        NOT NULL REFERENCES public.organizations(org_id) ON DELETE CASCADE,
-  claim_id              text        NOT NULL REFERENCES public.claims(claim_id) ON DELETE CASCADE,
-  current_state         text        NOT NULL DEFAULT 'open',
+  claim_id              text        NOT NULL,
+  current_state         text        NOT NULL DEFAULT 'denied',
   assigned_to_user_id   uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
   packet_id             text,
   core_trace_id         text,
