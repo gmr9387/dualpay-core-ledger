@@ -64,10 +64,16 @@ export function useAppealRecoveryCases() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Table not yet in generated Database types; cast client to bypass type check.
+  // Remove once `src/integrations/supabase/types.ts` is regenerated with appeal_recovery_cases.
+  const db = supabase as unknown as {
+    from: (t: string) => any;
+  };
+
   const load = useCallback(async () => {
     if (!currentOrg) { setCases([]); setLoading(false); return; }
     setLoading(true);
-    const { data, error: err } = await supabase
+    const { data, error: err } = await db
       .from('appeal_recovery_cases')
       .select('*')
       .eq('organization_id', currentOrg.org_id)
@@ -84,7 +90,7 @@ export function useAppealRecoveryCases() {
     initial?: Partial<AppealRecoveryCaseInsert>
   ): Promise<AppealRecoveryCase | null> => {
     if (!currentOrg) return null;
-    const { data, error: err } = await supabase
+    const { data, error: err } = await db
       .from('appeal_recovery_cases')
       .insert({ organization_id: currentOrg.org_id, claim_id: claimId, ...initial })
       .select()
@@ -98,7 +104,7 @@ export function useAppealRecoveryCases() {
     id: string,
     patch: AppealRecoveryCaseUpdate
   ): Promise<AppealRecoveryCase | null> => {
-    const { data, error: err } = await supabase
+    const { data, error: err } = await db
       .from('appeal_recovery_cases')
       .update(patch)
       .eq('id', id)
