@@ -62,6 +62,65 @@ export type Database = {
           },
         ]
       }
+      appeal_recovery_cases: {
+        Row: {
+          assigned_to_user_id: string | null
+          claim_id: string
+          core_decision_outcome: string | null
+          core_dispatch_status: string | null
+          core_trace_id: string | null
+          created_at: string
+          current_state: string
+          glue_run_id: string | null
+          id: string
+          organization_id: string
+          packet_id: string | null
+          payer_response_status: string | null
+          recovered_amount_cents: number
+          updated_at: string
+        }
+        Insert: {
+          assigned_to_user_id?: string | null
+          claim_id: string
+          core_decision_outcome?: string | null
+          core_dispatch_status?: string | null
+          core_trace_id?: string | null
+          created_at?: string
+          current_state?: string
+          glue_run_id?: string | null
+          id?: string
+          organization_id: string
+          packet_id?: string | null
+          payer_response_status?: string | null
+          recovered_amount_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          assigned_to_user_id?: string | null
+          claim_id?: string
+          core_decision_outcome?: string | null
+          core_dispatch_status?: string | null
+          core_trace_id?: string | null
+          created_at?: string
+          current_state?: string
+          glue_run_id?: string | null
+          id?: string
+          organization_id?: string
+          packet_id?: string | null
+          payer_response_status?: string | null
+          recovered_amount_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appeal_recovery_cases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
       automation_jobs: {
         Row: {
           completed_at: string | null
