@@ -127,21 +127,21 @@ describe('Happy-path lifecycle', () => {
     // denied → appeal_filed
     let r = applyTransition(arc, 'appeal_filed');
     expect(r.ok).toBe(true);
-    if (!r.ok) throw new Error(r.error);
+    if (!r.ok) throw new Error((r as { ok: false; error: string }).error);
     arc = r.case;
     expect(arc.current_state).toBe('appeal_filed');
 
     // appeal_filed → submitted
     r = applyTransition(arc, 'submitted');
     expect(r.ok).toBe(true);
-    if (!r.ok) throw new Error(r.error);
+    if (!r.ok) throw new Error((r as { ok: false; error: string }).error);
     arc = r.case;
     expect(arc.current_state).toBe('submitted');
 
     // submitted → payer_response
     r = applyTransition(arc, 'payer_response', { payer_response_status: 'under_review' });
     expect(r.ok).toBe(true);
-    if (!r.ok) throw new Error(r.error);
+    if (!r.ok) throw new Error((r as { ok: false; error: string }).error);
     arc = r.case;
     expect(arc.current_state).toBe('payer_response');
     expect(arc.payer_response_status).toBe('under_review');
@@ -149,7 +149,7 @@ describe('Happy-path lifecycle', () => {
     // payer_response → recovered
     r = applyTransition(arc, 'recovered', { recovered_amount_cents: 85000 });
     expect(r.ok).toBe(true);
-    if (!r.ok) throw new Error(r.error);
+    if (!r.ok) throw new Error((r as { ok: false; error: string }).error);
     arc = r.case;
     expect(arc.current_state).toBe('recovered');
     expect(arc.recovered_amount_cents).toBe(85000);
@@ -157,7 +157,7 @@ describe('Happy-path lifecycle', () => {
     // recovered → closed
     r = applyTransition(arc, 'closed');
     expect(r.ok).toBe(true);
-    if (!r.ok) throw new Error(r.error);
+    if (!r.ok) throw new Error((r as { ok: false; error: string }).error);
     arc = r.case;
     expect(arc.current_state).toBe('closed');
   });
@@ -169,7 +169,7 @@ describe('Happy-path lifecycle', () => {
     arc = (applyTransition(arc, 'payer_response') as { ok: true; case: AppealRecoveryCase }).case;
     const r = applyTransition(arc, 'closed');
     expect(r.ok).toBe(true);
-    if (!r.ok) throw new Error(r.error);
+    if (!r.ok) throw new Error((r as { ok: false; error: string }).error);
     expect(r.case.current_state).toBe('closed');
     expect(r.case.recovered_amount_cents).toBe(0);
   });
@@ -222,7 +222,7 @@ describe('Recovery amount', () => {
     arc = (applyTransition(arc, 'payer_response') as { ok: true; case: AppealRecoveryCase }).case;
     const r = applyTransition(arc, 'recovered', { recovered_amount_cents: 123456 });
     expect(r.ok).toBe(true);
-    if (!r.ok) throw new Error(r.error);
+    if (!r.ok) throw new Error((r as { ok: false; error: string }).error);
     expect(r.case.recovered_amount_cents).toBe(123456);
   });
 
