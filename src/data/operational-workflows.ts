@@ -28,7 +28,8 @@ const uuidv4 = (): string =>
 
 export interface ClaimAssignmentRecord {
   claim_id: string;
-  assigned_to_user_id?: string;
+  /** Assigned user UUID, or `null` when explicitly unassigned. Never `undefined` in persisted state. */
+  assigned_to_user_id: string | null;
   assigned_by_user_id?: string;
   assigned_at: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
@@ -71,7 +72,8 @@ export async function updateAssignment(
   claimId: string,
   orgId: string,
   params: {
-    assignedToUserId?: string;
+    /** User UUID to assign to, or `null` to explicitly unassign. `undefined` = leave unchanged. */
+    assignedToUserId?: string | null;
     assignedByUserId?: string;
     priority?: 'low' | 'medium' | 'high' | 'urgent';
     dueDate?: Date;
@@ -102,7 +104,12 @@ export async function updateAssignment(
   if (dueDate !== undefined) updateData.due_date = dueDate.toISOString();
   if (status !== undefined) updateData.status = status;
   if (assignedToUserId !== undefined) {
-    updateData.assigned_to_user_id = assignedToUserId;
+    // Normalize: null / '' / whitespace → explicit NULL persist (unassign).
+    const normalized =
+      assignedToUserId === null || (typeof assignedToUserId === 'string' && assignedToUserId.trim() === '')
+        ? null
+        : assignedToUserId;
+    updateData.assigned_to_user_id = normalized;
   }
   if (assignedByUserId !== undefined) {
     updateData.assigned_by_user_id = assignedByUserId;
@@ -121,9 +128,14 @@ export async function updateAssignment(
   if (error) throw error;
 
   // Log assignment event
-  const eventKind = current ? 'assignment_updated' : 'assignment_created';
+  const isUnassign = assignedToUserId === null || (typeof assignedToUserId === 'string' && assignedToUserId.trim() === '');
+  const eventKind = current
+    ? (isUnassign ? 'assignment_unassigned' : 'assignment_updated')
+    : 'assignment_created';
   const summary = current
-    ? `Assignment updated: ${priority ? `priority=${priority}` : ''} ${dueDate ? `due=${dueDate.toLocaleDateString()}` : ''}`
+    ? (isUnassign
+        ? 'Claim unassigned'
+        : `Assignment updated: ${priority ? `priority=${priority}` : ''} ${dueDate ? `due=${dueDate.toLocaleDateString()}` : ''}`)
     : `Assigned to ${assignedToUserId || 'unassigned'}`;
 
   await appendOpsEvent({
@@ -132,8 +144,8 @@ export async function updateAssignment(
     orgId,
     summary,
     payload: {
-      previous_assignee: current?.assigned_to_user_id,
-      new_assignee: assignedToUserId,
+      previous_assignee: current?.assigned_to_user_id ?? null,
+      new_assignee: isUnassign ? null : (assignedToUserId ?? undefined),
       previous_priority: current?.priority,
       new_priority: priority,
       previous_due_date: current?.due_date,
@@ -143,6 +155,18 @@ export async function updateAssignment(
   });
 
   return data as ClaimAssignmentRecord;
+}
+
+/** Explicit unassign helper — persists `assigned_to_user_id = NULL` and logs `assignment_unassigned`. */
+export async function unassignClaim(
+  claimId: string,
+  orgId: string,
+  actorUserId?: string,
+): Promise<ClaimAssignmentRecord> {
+  return updateAssignment(claimId, orgId, {
+    assignedToUserId: null,
+    assignedByUserId: actorUserId,
+  });
 }
 
 // =========================================================

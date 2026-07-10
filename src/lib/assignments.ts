@@ -9,9 +9,21 @@ export type WorkingStatus = 'open' | 'in_progress' | 'snoozed' | 'resolved';
 
 export interface Assignment {
   claim_id: string;
-  assignee?: string | null;
+  /** Assigned user UUID, or `null` when explicitly unassigned. Never `undefined` in persisted state. */
+  assignee: string | null;
   status: WorkingStatus;
   updated_at: string;
+}
+
+/** Sentinel to explicitly unassign a claim. Distinguishes "clear assignee" from "no change". */
+export const UNASSIGNED = null;
+
+/** Normalize any user-supplied assignee value to `string | null`.
+ *  Treats `undefined`, empty string, and whitespace-only strings as an explicit unassign. */
+export function normalizeAssignee(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
 }
 
 /**
@@ -50,7 +62,7 @@ function notify() { window.dispatchEvent(new Event('clarity-assignments')); }
 function rowToAssignment(r: { claim_id: string; assignee: string | null; status: string; updated_at: string }): Assignment {
   return {
     claim_id: r.claim_id,
-    assignee: r.assignee ?? undefined,
+    assignee: r.assignee ?? null,
     status: (r.status as WorkingStatus) ?? 'open',
     updated_at: r.updated_at,
   };
@@ -72,14 +84,18 @@ let cache: Record<string, Assignment> = {};
 export function getAllAssignments(): Record<string, Assignment> { return cache; }
 export function _setCache(next: Record<string, Assignment>) { cache = next; }
 export function getAssignment(claimId: string): Assignment {
-  return cache[claimId] ?? { claim_id: claimId, status: 'open', updated_at: '' };
+  return cache[claimId] ?? { claim_id: claimId, assignee: null, status: 'open', updated_at: '' };
 }
 
 export async function setAssignment(claimId: string, patch: Partial<Assignment>): Promise<Assignment | null> {
   const current = cache[claimId];
+  // Explicit unassign: patch.assignee === null → persist NULL.
+  // No change:         patch.assignee === undefined → keep current value.
+  const nextAssignee: string | null =
+    patch.assignee === undefined ? (current?.assignee ?? null) : normalizeAssignee(patch.assignee);
   const row = {
     claim_id: claimId,
-    assignee: patch.assignee !== undefined ? (patch.assignee ?? null) : (current?.assignee ?? null),
+    assignee: nextAssignee,
     status: (patch.status ?? current?.status ?? 'open') as WorkingStatus,
     updated_at: new Date().toISOString(),
   };
@@ -96,4 +112,9 @@ export async function setAssignment(claimId: string, patch: Partial<Assignment>)
   cache = { ...cache, [claimId]: next };
   notify();
   return next;
+}
+
+/** Explicitly unassign a claim (persists `assignee = NULL`). */
+export async function unassignClaim(claimId: string): Promise<Assignment | null> {
+  return setAssignment(claimId, { assignee: null });
 }
