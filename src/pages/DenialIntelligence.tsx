@@ -154,7 +154,7 @@ export default function DenialIntelligence() {
                     </span>
                     <select
                       value={a.assignee ?? ''}
-                      onChange={e => assign(claim.claim_id, e.target.value || undefined)}
+                      onChange={e => assign(claim.claim_id, e.target.value || null)}
                       onClick={e => e.stopPropagation()}
                       className="h-6 text-[10.5px] rounded border bg-card px-1 focus:outline-none focus:ring-2 focus:ring-ring/40"
                     >
