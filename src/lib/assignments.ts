@@ -118,17 +118,3 @@ export async function setAssignment(claimId: string, patch: Partial<Assignment>)
 export async function unassignClaim(claimId: string): Promise<Assignment | null> {
   return setAssignment(claimId, { assignee: null });
 }
-  const { data, error } = await supabase
-    .from('claim_assignments')
-    .upsert(row as never, { onConflict: 'claim_id' })
-    .select('*')
-    .single();
-  if (error) {
-    console.error('[assignments] upsert failed', error.message);
-    return null;
-  }
-  const next = rowToAssignment(data as never);
-  cache = { ...cache, [claimId]: next };
-  notify();
-  return next;
-}
