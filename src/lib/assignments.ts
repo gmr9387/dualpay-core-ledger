@@ -62,7 +62,7 @@ function notify() { window.dispatchEvent(new Event('clarity-assignments')); }
 function rowToAssignment(r: { claim_id: string; assignee: string | null; status: string; updated_at: string }): Assignment {
   return {
     claim_id: r.claim_id,
-    assignee: r.assignee ?? undefined,
+    assignee: r.assignee ?? null,
     status: (r.status as WorkingStatus) ?? 'open',
     updated_at: r.updated_at,
   };
@@ -84,7 +84,7 @@ let cache: Record<string, Assignment> = {};
 export function getAllAssignments(): Record<string, Assignment> { return cache; }
 export function _setCache(next: Record<string, Assignment>) { cache = next; }
 export function getAssignment(claimId: string): Assignment {
-  return cache[claimId] ?? { claim_id: claimId, status: 'open', updated_at: '' };
+  return cache[claimId] ?? { claim_id: claimId, assignee: null, status: 'open', updated_at: '' };
 }
 
 export async function setAssignment(claimId: string, patch: Partial<Assignment>): Promise<Assignment | null> {
