@@ -28,7 +28,8 @@ const uuidv4 = (): string =>
 
 export interface ClaimAssignmentRecord {
   claim_id: string;
-  assigned_to_user_id?: string;
+  /** Assigned user UUID, or `null` when explicitly unassigned. Never `undefined` in persisted state. */
+  assigned_to_user_id: string | null;
   assigned_by_user_id?: string;
   assigned_at: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
