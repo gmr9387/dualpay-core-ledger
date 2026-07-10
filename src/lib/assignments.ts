@@ -89,12 +89,35 @@ export function getAssignment(claimId: string): Assignment {
 
 export async function setAssignment(claimId: string, patch: Partial<Assignment>): Promise<Assignment | null> {
   const current = cache[claimId];
+  // Explicit unassign: patch.assignee === null → persist NULL.
+  // No change:         patch.assignee === undefined → keep current value.
+  const nextAssignee: string | null =
+    patch.assignee === undefined ? (current?.assignee ?? null) : normalizeAssignee(patch.assignee);
   const row = {
     claim_id: claimId,
-    assignee: patch.assignee !== undefined ? (patch.assignee ?? null) : (current?.assignee ?? null),
+    assignee: nextAssignee,
     status: (patch.status ?? current?.status ?? 'open') as WorkingStatus,
     updated_at: new Date().toISOString(),
   };
+  const { data, error } = await supabase
+    .from('claim_assignments')
+    .upsert(row as never, { onConflict: 'claim_id' })
+    .select('*')
+    .single();
+  if (error) {
+    console.error('[assignments] upsert failed', error.message);
+    return null;
+  }
+  const next = rowToAssignment(data as never);
+  cache = { ...cache, [claimId]: next };
+  notify();
+  return next;
+}
+
+/** Explicitly unassign a claim (persists `assignee = NULL`). */
+export async function unassignClaim(claimId: string): Promise<Assignment | null> {
+  return setAssignment(claimId, { assignee: null });
+}
   const { data, error } = await supabase
     .from('claim_assignments')
     .upsert(row as never, { onConflict: 'claim_id' })
