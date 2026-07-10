@@ -9,9 +9,21 @@ export type WorkingStatus = 'open' | 'in_progress' | 'snoozed' | 'resolved';
 
 export interface Assignment {
   claim_id: string;
-  assignee?: string | null;
+  /** Assigned user UUID, or `null` when explicitly unassigned. Never `undefined` in persisted state. */
+  assignee: string | null;
   status: WorkingStatus;
   updated_at: string;
+}
+
+/** Sentinel to explicitly unassign a claim. Distinguishes "clear assignee" from "no change". */
+export const UNASSIGNED = null;
+
+/** Normalize any user-supplied assignee value to `string | null`.
+ *  Treats `undefined`, empty string, and whitespace-only strings as an explicit unassign. */
+export function normalizeAssignee(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
 }
 
 /**
