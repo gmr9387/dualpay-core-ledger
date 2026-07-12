@@ -2,6 +2,53 @@
 -- Scope: ops_events, import_batches, field_mappings, remittance_batches
 -- Idempotent and safe to rerun.
 
+-- -1) Preflight assumptions required by this migration.
+DO $$
+DECLARE
+  _missing_cols text[];
+  _is_org_member regprocedure;
+  _is_org_member_returns_boolean boolean;
+BEGIN
+  SELECT array_agg(format('public.%I.%I', req.table_name, req.column_name) ORDER BY req.table_name)
+  INTO _missing_cols
+  FROM (VALUES
+    ('ops_events', 'org_id'),
+    ('import_batches', 'org_id'),
+    ('field_mappings', 'org_id'),
+    ('remittance_batches', 'org_id')
+  ) AS req(table_name, column_name)
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns c
+    WHERE c.table_schema = 'public'
+      AND c.table_name = req.table_name
+      AND c.column_name = req.column_name
+  );
+
+  IF _missing_cols IS NOT NULL THEN
+    RAISE EXCEPTION
+      'Preflight failed: missing required org_id columns for RLS hardening: %',
+      array_to_string(_missing_cols, ', ');
+  END IF;
+
+  _is_org_member := to_regprocedure('public.is_org_member(uuid, uuid)');
+  IF _is_org_member IS NULL THEN
+    RAISE EXCEPTION
+      'Preflight failed: required function public.is_org_member(uuid, uuid) does not exist';
+  END IF;
+
+  SELECT p.prorettype = 'boolean'::regtype
+  INTO _is_org_member_returns_boolean
+  FROM pg_proc p
+  WHERE p.oid = _is_org_member;
+
+  IF coalesce(_is_org_member_returns_boolean, false) IS NOT TRUE THEN
+    RAISE EXCEPTION
+      'Preflight failed: public.is_org_member(uuid, uuid) must return boolean';
+  END IF;
+END
+$$;
+
 -- 0) Snapshot existing policies (audit record before replacement).
 CREATE TEMP TABLE IF NOT EXISTS _dualpay_rls_policy_audit AS
 SELECT
