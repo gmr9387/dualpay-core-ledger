@@ -428,6 +428,9 @@ export async function recordIdempotencyKeyConsumption(
   actor: string,
 ): Promise<void> {
   const resolvedOrgId = await resolveOrgId();
+  if (!resolvedOrgId) {
+    throw new Error('Unable to resolve org_id for idempotency key persistence');
+  }
   const { error } = await supabase.from('idempotency_keys').insert([{
     key,
     claim_id: claimId,

@@ -31,15 +31,18 @@ import { setupIntegrationContext, type IntegrationContext } from '@/test/integra
 let ctx: IntegrationContext;
 let TEST_ORG_ID = '';
 let TEST_USER_ID = '';
+let TEST_ALT_USER_ID = '';
 const TEST_CLAIM_ID = 'CLM-2024-00001';
 
 beforeAll(async () => {
   ctx = await setupIntegrationContext({
     suite: 'operational-workflows',
     withClaimId: TEST_CLAIM_ID,
+    withSecondaryUser: true,
   });
   TEST_ORG_ID = ctx.orgId;
   TEST_USER_ID = ctx.userId;
+  TEST_ALT_USER_ID = ctx.secondaryUserId ?? ctx.userId;
 });
 
 afterAll(async () => {
@@ -88,7 +91,7 @@ describe('Operational Workflows (Phase 3A)', () => {
     });
 
     it('should reassign to a different user', async () => {
-      const newUserId = TEST_USER_ID;
+      const newUserId = TEST_ALT_USER_ID;
 
       const result = await updateAssignment(TEST_CLAIM_ID, TEST_ORG_ID, {
         assignedToUserId: newUserId,

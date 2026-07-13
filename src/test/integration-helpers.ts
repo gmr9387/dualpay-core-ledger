@@ -5,6 +5,7 @@ import type { Claim } from '@/types/claim';
 export interface IntegrationContext {
   orgId: string;
   userId: string;
+  secondaryUserId?: string;
   claimId?: string;
   cleanup: () => Promise<void>;
 }
@@ -40,29 +41,37 @@ function buildClaim(claimId: string): Claim {
   };
 }
 
-async function ensureAuthenticatedUser(suite: string): Promise<string> {
+interface AuthIdentity {
+  userId: string;
+  email: string;
+  password: string;
+}
+
+async function ensureAuthenticatedUser(suite: string): Promise<AuthIdentity> {
   await supabase.auth.signOut();
 
-  const anon = await supabase.auth.signInAnonymously();
-  if (!anon.error && anon.data.user?.id) return anon.data.user.id;
-
-  const email = `${suite}-${randomUuid()}@example.test`;
+  const email = `${suite}-${randomUuid()}@example.invalid`;
   const password = `T3st!${randomUuid()}`;
   const signUp = await supabase.auth.signUp({ email, password });
-  if (signUp.data.user?.id && signUp.data.session) return signUp.data.user.id;
+  if (signUp.data.user?.id && signUp.data.session) {
+    return { userId: signUp.data.user.id, email, password };
+  }
 
   const signIn = await supabase.auth.signInWithPassword({ email, password });
   if (signIn.error || !signIn.data.user?.id) {
     throw signIn.error ?? signUp.error ?? new Error('Unable to authenticate integration test user');
   }
-  return signIn.data.user.id;
+  return { userId: signIn.data.user.id, email, password };
 }
 
 export async function setupIntegrationContext(options: {
   suite: string;
   withClaimId?: string;
+  withSecondaryUser?: boolean;
 }): Promise<IntegrationContext> {
-  const userId = await ensureAuthenticatedUser(options.suite);
+  const primary = await ensureAuthenticatedUser(options.suite);
+  const userId = primary.userId;
+  let secondaryUserId: string | undefined;
   const orgName = `Integration ${options.suite} ${randomUuid().slice(0, 8)}`;
 
   const { data: org, error: orgErr } = await supabase
@@ -84,6 +93,17 @@ export async function setupIntegrationContext(options: {
 
   if (options.withClaimId) {
     await saveClaim(buildClaim(options.withClaimId), orgId);
+  }
+
+  if (options.withSecondaryUser) {
+    const email = `${options.suite}-secondary-${randomUuid()}@example.invalid`;
+    const password = `T3st!${randomUuid()}`;
+    const signUp = await supabase.auth.signUp({ email, password });
+    secondaryUserId = signUp.data.user?.id;
+    await supabase.auth.signInWithPassword({
+      email: primary.email,
+      password: primary.password,
+    });
   }
 
   const cleanup = async () => {
@@ -112,5 +132,5 @@ export async function setupIntegrationContext(options: {
     await supabase.auth.signOut();
   };
 
-  return { orgId, userId, claimId: options.withClaimId, cleanup };
+  return { orgId, userId, secondaryUserId, claimId: options.withClaimId, cleanup };
 }

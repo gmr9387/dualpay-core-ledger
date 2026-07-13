@@ -530,22 +530,26 @@ Deno.serve(async (req) => {
     }
   }
 
-  const rawMax = url.searchParams.get('max') ?? (typeof body.max === 'number' ? String(body.max) : undefined) ?? '10';
+  const bodyMax = typeof body.max === 'number' ? body.max : undefined;
+  const rawMax = url.searchParams.get('max') ?? (bodyMax !== undefined ? String(bodyMax) : undefined) ?? '10';
   const recoverOnly =
     url.searchParams.get('recover_only') === 'true' ||
     body.recover_only === true;
-  const staleMinutes = Math.max(
-    1,
-    Math.min(
-      120,
-      Number(
-        url.searchParams.get('stale_minutes')
-          ?? (typeof body.stale_minutes === 'number' ? String(body.stale_minutes) : undefined)
-          ?? '10',
-      ),
-    ),
+  const bodyStaleMinutes = typeof body.stale_minutes === 'number' ? body.stale_minutes : undefined;
+  const rawStaleMinutes = Number(
+    url.searchParams.get('stale_minutes')
+      ?? (bodyStaleMinutes !== undefined ? String(bodyStaleMinutes) : undefined)
+      ?? '10',
   );
-  const maxJobs = recoverOnly ? 0 : Math.max(0, Math.min(50, Number(rawMax)));
+  const staleMinutes = Number.isFinite(rawStaleMinutes)
+    ? Math.max(1, Math.min(120, rawStaleMinutes))
+    : 10;
+  const parsedMaxJobs = Number(rawMax);
+  const maxJobs = recoverOnly
+    ? 0
+    : Number.isFinite(parsedMaxJobs)
+      ? Math.max(1, Math.min(50, parsedMaxJobs))
+      : 10;
   const worker_id =
     url.searchParams.get('worker_id') ??
     (typeof body.worker_id === 'string' ? body.worker_id : undefined) ??
