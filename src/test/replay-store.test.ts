@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import {
   saveReplayRecord,
   getReplayRecord,
@@ -11,6 +11,9 @@ import {
   verifyReplayStoreIntegrity,
 } from '@/engine/replay-store';
 import type { ReplayRecord } from '@/engine/replay-store';
+import { setupIntegrationContext, type IntegrationContext } from './integration-helpers';
+
+let ctx: IntegrationContext;
 
 // Test fixtures
 let __seq = 0;
@@ -51,6 +54,14 @@ function makeReplayRecord(overrides: Partial<ReplayRecord> = {}): ReplayRecord {
 }
 
 describe('Replay Store — Persistence', () => {
+  beforeAll(async () => {
+    ctx = await setupIntegrationContext({ suite: 'replay-store' });
+  });
+
+  afterAll(async () => {
+    await ctx.cleanup();
+  });
+
   beforeEach(() => {
     clearReplayStore();
   });

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useOrg } from './use-org';
 
 export type AppealRecoveryState =
@@ -36,13 +37,8 @@ export interface AppealRecoveryCase {
   updated_at: string;
 }
 
-export type AppealRecoveryCaseInsert = Omit<AppealRecoveryCase, 'id' | 'created_at' | 'updated_at'> & {
-  id?: string;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type AppealRecoveryCaseUpdate = Partial<Omit<AppealRecoveryCase, 'id' | 'organization_id' | 'created_at'>>;
+export type AppealRecoveryCaseInsert = Database['public']['Tables']['appeal_recovery_cases']['Insert'];
+export type AppealRecoveryCaseUpdate = Database['public']['Tables']['appeal_recovery_cases']['Update'];
 
 /** Allowed forward/backward state transitions. */
 const TRANSITIONS: Record<AppealRecoveryState, AppealRecoveryState[]> = {
@@ -70,10 +66,11 @@ export function useAppealRecoveryCases() {
     const { data, error: err } = await supabase
       .from('appeal_recovery_cases')
       .select('*')
+      .returns<AppealRecoveryCase[]>()
       .eq('organization_id', currentOrg.org_id)
       .order('created_at', { ascending: false });
     if (err) { setError(err.message); setLoading(false); return; }
-    setCases((data ?? []) as AppealRecoveryCase[]);
+    setCases(data ?? []);
     setLoading(false);
   }, [currentOrg]);
 
@@ -88,10 +85,11 @@ export function useAppealRecoveryCases() {
       .from('appeal_recovery_cases')
       .insert({ organization_id: currentOrg.org_id, claim_id: claimId, ...initial })
       .select()
+      .returns<AppealRecoveryCase>()
       .single();
     if (err) { setError(err.message); return null; }
     await load();
-    return data as AppealRecoveryCase;
+    return data;
   }, [currentOrg, load]);
 
   const update = useCallback(async (
@@ -103,10 +101,11 @@ export function useAppealRecoveryCases() {
       .update(patch)
       .eq('id', id)
       .select()
+      .returns<AppealRecoveryCase>()
       .single();
     if (err) { setError(err.message); return null; }
     await load();
-    return data as AppealRecoveryCase;
+    return data;
   }, [load]);
 
   const advance = useCallback(async (

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import {
   consumeIdempotencyKey,
   isIdempotencyKeyConsumed,
@@ -8,8 +8,19 @@ import {
   canTransition,
   type TransitionContext,
 } from '@/engine/state-machine';
+import { setupIntegrationContext, type IntegrationContext } from './integration-helpers';
+
+let ctx: IntegrationContext;
 
 describe('Idempotency — Persistence', () => {
+  beforeAll(async () => {
+    ctx = await setupIntegrationContext({ suite: 'idempotency-persistence' });
+  });
+
+  afterAll(async () => {
+    await ctx.cleanup();
+  });
+
   beforeEach(() => {
     clearIdempotencyKeysForDev();
   });

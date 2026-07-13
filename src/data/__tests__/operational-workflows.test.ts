@@ -9,7 +9,7 @@
  * - RLS enforcement via org_id
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   updateAssignment,
   addNote,
@@ -26,11 +26,25 @@ import {
   getRecoveryTimeline,
   getNoteTimeline,
 } from '../operational-workflows';
+import { setupIntegrationContext, type IntegrationContext } from '@/test/integration-helpers';
 
-// Mock org and user IDs
-const TEST_ORG_ID = 'test-org-uuid';
-const TEST_USER_ID = 'test-user-uuid';
+let ctx: IntegrationContext;
+let TEST_ORG_ID = '';
+let TEST_USER_ID = '';
 const TEST_CLAIM_ID = 'CLM-2024-00001';
+
+beforeAll(async () => {
+  ctx = await setupIntegrationContext({
+    suite: 'operational-workflows',
+    withClaimId: TEST_CLAIM_ID,
+  });
+  TEST_ORG_ID = ctx.orgId;
+  TEST_USER_ID = ctx.userId;
+});
+
+afterAll(async () => {
+  await ctx.cleanup();
+});
 
 describe('Operational Workflows (Phase 3A)', () => {
   describe('Assignment Workflow', () => {
@@ -40,7 +54,7 @@ describe('Operational Workflows (Phase 3A)', () => {
 
       const result = await updateAssignment(TEST_CLAIM_ID, TEST_ORG_ID, {
         assignedToUserId: TEST_USER_ID,
-        assignedByUserId: 'admin-user-uuid',
+        assignedByUserId: TEST_USER_ID,
         priority: 'high',
         dueDate,
       });
@@ -74,11 +88,11 @@ describe('Operational Workflows (Phase 3A)', () => {
     });
 
     it('should reassign to a different user', async () => {
-      const newUserId = 'different-user-uuid';
+      const newUserId = TEST_USER_ID;
 
       const result = await updateAssignment(TEST_CLAIM_ID, TEST_ORG_ID, {
         assignedToUserId: newUserId,
-        assignedByUserId: 'admin-user-uuid',
+        assignedByUserId: TEST_USER_ID,
       });
 
       expect(result.assigned_to_user_id).toBe(newUserId);
@@ -347,7 +361,7 @@ describe('Operational Workflows (Phase 3A)', () => {
 
   describe('RLS Enforcement (org_id scoping)', () => {
     it('should only return assignments for the specified org', async () => {
-      const differentOrgId = 'different-org-uuid';
+      const differentOrgId = crypto.randomUUID();
 
       const worklist1 = await getMyWorklist(TEST_USER_ID, TEST_ORG_ID);
       const worklist2 = await getMyWorklist(TEST_USER_ID, differentOrgId);
@@ -358,7 +372,7 @@ describe('Operational Workflows (Phase 3A)', () => {
     });
 
     it('should only return timeline events for the specified org', async () => {
-      const differentOrgId = 'different-org-uuid';
+      const differentOrgId = crypto.randomUUID();
 
       const timeline1 = await getClaimTimeline(TEST_CLAIM_ID, TEST_ORG_ID);
       const timeline2 = await getClaimTimeline(TEST_CLAIM_ID, differentOrgId);
@@ -379,7 +393,7 @@ describe('Operational Workflows (Phase 3A)', () => {
     });
 
     it('should handle users with no assignments', async () => {
-      const unknownUserId = 'unknown-user-uuid';
+      const unknownUserId = crypto.randomUUID();
       const worklist = await getMyWorklist(unknownUserId, TEST_ORG_ID);
 
       expect(Array.isArray(worklist)).toBe(true);

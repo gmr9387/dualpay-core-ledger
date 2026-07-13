@@ -160,6 +160,12 @@ type Json =
   | Json[];
 const asJson = <T>(v: T): Json => v as unknown as Json;
 
+async function resolveOrgId(orgId?: string): Promise<string | undefined> {
+  if (orgId) return orgId;
+  const { getCurrentOrgId } = await import('@/lib/current-org');
+  return (await getCurrentOrgId()) ?? undefined;
+}
+
 export async function saveClaim(claim: Claim, orgId?: string): Promise<void> {
   // Revenue-readiness fix #3: guarantee org_id propagation so imported
   // claims are visible to every member of the org, not just the importer.
@@ -266,12 +272,13 @@ export async function saveCaseEvent(evt: CaseEvent, orgId?: string): Promise<voi
  * Enforces uniqueness on snapshot_id, fingerprint, and run_id.
  */
 export async function saveReplayRecordPersistent(record: ReplayRecord, orgId?: string): Promise<void> {
+  const resolvedOrgId = await resolveOrgId(orgId);
   const { error } = await supabase.from('replay_records').insert([{
     snapshot_id: record.snapshot.snapshot_id,
     run_id: record.run.run_id,
     fingerprint: record.fingerprint,
     claim_id: record.snapshot.claim_id,
-    org_id: orgId,
+    org_id: resolvedOrgId,
     created_at: record.created_at,
     payload: asJson(record),
   }] as never);
@@ -344,6 +351,7 @@ export async function appendLedgerEventPersistent(
   event: ReplayLedgerEvent,
   orgId?: string,
 ): Promise<void> {
+  const resolvedOrgId = await resolveOrgId(orgId);
   const { error } = await supabase.from('replay_ledger_events').insert([{
     event_id: event.event_id,
     type: event.type,
@@ -351,7 +359,7 @@ export async function appendLedgerEventPersistent(
     run_id: event.run_id ?? undefined,
     snapshot_id: event.snapshot_id ?? undefined,
     actor: event.actor,
-    org_id: orgId,
+    org_id: resolvedOrgId,
     timestamp: event.timestamp,
     prev_event_hash: event.prev_event_hash,
     event_hash: event.event_hash,
@@ -419,9 +427,11 @@ export async function recordIdempotencyKeyConsumption(
   claimId: string,
   actor: string,
 ): Promise<void> {
+  const resolvedOrgId = await resolveOrgId();
   const { error } = await supabase.from('idempotency_keys').insert([{
     key,
     claim_id: claimId,
+    org_id: resolvedOrgId,
     actor,
     consumed_at: new Date().toISOString(),
   }] as never);

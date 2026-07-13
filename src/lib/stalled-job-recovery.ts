@@ -8,15 +8,20 @@
 import { supabase } from '@/integrations/supabase/client';
 import { appendOpsEvent } from '@/lib/ops-events';
 
-const sb = supabase as any;
-
 export async function recoverStalledJobs(staleMinutes = 10): Promise<number> {
-  const { data, error } = await sb.rpc('recover_stalled_queue_jobs', { _stale_minutes: staleMinutes });
+  const { data, error } = await supabase.functions.invoke('worker-dispatcher', {
+    body: {
+      max: 0,
+      recover_only: true,
+      stale_minutes: staleMinutes,
+      worker_id: `ui-${crypto.randomUUID().slice(0, 8)}`,
+    },
+  });
   if (error) {
     console.warn('[stalled-recovery] failed', error.message);
     return 0;
   }
-  const count = (data as unknown as number) ?? 0;
+  const count = Number((data as { stalled_recovered?: unknown } | null)?.stalled_recovered ?? 0);
   if (count > 0) {
     await appendOpsEvent({
       kind: 'stalled_job_recovered',

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import {
   appendLedgerEvent,
   listLedgerEventsInAppendOrder,
@@ -7,6 +7,9 @@ import {
   clearLedger,
   type ReplayLedgerEventType,
 } from '@/engine/replay-ledger';
+import { setupIntegrationContext, type IntegrationContext } from './integration-helpers';
+
+let ctx: IntegrationContext;
 
 // Test fixtures
 function makeLedgerEvent(overrides: { 
@@ -26,6 +29,14 @@ function makeLedgerEvent(overrides: {
 }
 
 describe('Replay Ledger — Persistence', () => {
+  beforeAll(async () => {
+    ctx = await setupIntegrationContext({ suite: 'replay-ledger' });
+  });
+
+  afterAll(async () => {
+    await ctx.cleanup();
+  });
+
   beforeEach(() => {
     clearLedger();
   });

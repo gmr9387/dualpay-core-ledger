@@ -521,14 +521,41 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   const url = new URL(req.url);
-  const maxJobs = Math.max(1, Math.min(50, Number(url.searchParams.get('max') ?? '10')));
-  const worker_id = url.searchParams.get('worker_id') ?? `srv-${crypto.randomUUID().slice(0,8)}`;
+  let body: Record<string, unknown> = {};
+  if (req.method !== 'GET') {
+    try {
+      body = await req.json() as Record<string, unknown>;
+    } catch {
+      body = {};
+    }
+  }
+
+  const rawMax = url.searchParams.get('max') ?? (typeof body.max === 'number' ? String(body.max) : undefined) ?? '10';
+  const recoverOnly =
+    url.searchParams.get('recover_only') === 'true' ||
+    body.recover_only === true;
+  const staleMinutes = Math.max(
+    1,
+    Math.min(
+      120,
+      Number(
+        url.searchParams.get('stale_minutes')
+          ?? (typeof body.stale_minutes === 'number' ? String(body.stale_minutes) : undefined)
+          ?? '10',
+      ),
+    ),
+  );
+  const maxJobs = recoverOnly ? 0 : Math.max(0, Math.min(50, Number(rawMax)));
+  const worker_id =
+    url.searchParams.get('worker_id') ??
+    (typeof body.worker_id === 'string' ? body.worker_id : undefined) ??
+    `srv-${crypto.randomUUID().slice(0,8)}`;
 
   const client = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
   await registerWorker(client, worker_id);
 
-  const { data: recovered } = await client.rpc('recover_stalled_queue_jobs', { _stale_minutes: 10 } as never);
+  const { data: recovered } = await client.rpc('recover_stalled_queue_jobs', { _stale_minutes: staleMinutes } as never);
   if ((recovered as unknown as number) > 0) {
     await audit(client, 'stalled_job_recovered',
       `Recovered ${recovered} stalled job(s)`, `system:${worker_id}`, null, { count: recovered });
